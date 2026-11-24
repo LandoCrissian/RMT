@@ -2,16 +2,18 @@
 
 ## Sign-in
 
-The hosted RMT preview uses **Sign in with ChatGPT**. Visitors do not create an RMT password and do not need to connect a crypto wallet. The hosting gateway supplies a verified, site-specific account ID to the application. That account ID scopes private data. Notification email addresses do not grant reviewer privileges.
+RMT supports Google or email/password accounts through the dedicated Firebase project. Any valid email provider can register for free. Firebase sends email verification and password recovery links. Ordinary users do not need ChatGPT or a crypto wallet; public browsing and device favorites work without signing in.
 
-The website's owner-private audience is a separate setting from application permissions. A visitor allowed to open the site still needs the correct signed-in identity to manage their own projects, and an explicit server-side allowlist to review other people's applications.
+The server verifies Firebase tokens, account status, and email verification before authorizing private operations. New users have namespaced Firebase account IDs. Existing accounts may prove both old and new identities once to link their records without changing original user IDs. Reviewer access still requires an exact server allowlist match; neither an email address nor a client role flag grants it. See [Firebase authentication](firebase-authentication.md).
+
+The Site audience is public. Account libraries, claims, applications, proposed edits, and reviewer operations still enforce server-side identity and authorization. Legacy Sites authentication remains available for account migration and the existing dot monitoring integration.
 
 ## What is saved where
 
 | Information | Storage and access |
 | --- | --- |
 | Curated project names, artwork, and official links | Versioned application source and public project catalog. |
-| A signed-in user's saved-project library | Hosted D1 database (`saved_projects`), scoped to that user's site-specific account ID. Rows contain account ID, project ID, and save time; no wallet key or email address. |
+| A signed-in user's saved-project library | Hosted D1 database (`saved_projects`), scoped to that user's verified RMT account ID. Rows contain account ID, project ID, and save time; no wallet key or email address. |
 | A guest's saved-project library | That browser's local storage. It does not automatically follow the visitor to another device. Clearing browser storage can remove it. |
 | Project applications, ownership claims, and proposed updates | Hosted D1 database. Pending records remain private to the submitter and authorized reviewers. |
 | Contact information and ownership evidence | Private application/claim records, not the public catalog or GitHub source. |
@@ -32,4 +34,4 @@ If a saved project becomes unavailable, its project ID remains in the account li
 
 ## Hosting and recovery
 
-The database lives with the hosted Site; it is separate from the GitHub code repository and from browser local storage. GitHub preserves application source and migration definitions, not a backup of private application rows. Moving to another host requires migrating the database and replacing the current gateway authentication adapter. Backup/export and account deletion policies should be defined before a public launch; this release does not claim those workflows are already implemented.
+The database lives with the hosted Site; it is separate from the GitHub code repository and from browser local storage. GitHub preserves application source and migration definitions, not a backup of private application rows. Moving to another host requires migrating the database and preserving Firebase token verification and replacing the legacy gateway adapter. Backup/export and account deletion policies should be defined before a public launch; this release does not claim those workflows are already implemented.

@@ -1,3 +1,20 @@
+# Firebase authentication and UI refinement — deployed
+
+November 24, 2026: Sites version 7 deployed successfully at https://rmtlaunch.fun (platform URL https://rmt-hub.wise-elf-8473.chatgpt.site), runtime environment revision 3. Deployed source commit: `66d471b30eb8e44b75538201bf7a47b6704cf261`, pushed to both the retained Sites source and GitHub main. Deployment `appgdep_6b05a9726a188191afaa76d1c6c6d36d` succeeded. No DNS or existing runtime-secret changes were made.
+
+- Created a new Firebase project under launchrmt@gmail.com; Google and email/password provider deployment succeeded. Existing Firebase projects were not reused.
+- Added verified Firebase sessions, verification/recovery UI, and dual-proof account linking with a schema-only additive D1 migration. Original record IDs and reviewer allowlist are retained.
+- Standardized uncropped directory artwork, shortened mobile cards, removed redundant card corner arrows, and retained whole-card navigation with independent bookmarks.
+- Typecheck, build, and all 86 automated tests passed, including existing library, claims, reviews, notifications, and dot contracts.
+- Responsive browser checks passed at 320, 390, 768, and 1440 pixels, with consistent artwork heights and no horizontal overflow. Bookmark clicks did not open project dialogs; card clicks did.
+- Disposable live Firebase accounts passed registration, password login, browser session establishment, sign-out, and cleanup in local and production checks. Unverified claims returned 403; signed-out claims and administrator APIs returned 401. No test verification/recovery messages were sent.
+- Production root, session, and catalog returned 200 anonymously. www session returned 200. All 17 production project pages contained their own large-image X metadata and their image URLs returned success.
+- After deployment, the connected dot identity still reported reviewer access and the review digest succeeded with no pending items. Existing hourly monitoring was preserved.
+
+Remaining owner checks: complete actual Google consent/sign-in, verify email and recovery delivery through the intended inbox, link the intended owner Firebase account using the existing owner session, and inspect a user-operated X composer preview. Owner linking cannot be completed from CLI account access alone. Existing administrator access remains active while this step is pending. No paid service or billing upgrade was introduced.
+
+The sections below describe the preceding release.
+
 # RMT v0.5 — project showcases, sharing, and identity
 
 ## Release content
