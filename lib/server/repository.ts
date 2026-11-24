@@ -160,6 +160,8 @@ async function buildCatalog(db:D1Database,includeHidden=false) {
     const name=control?.name_override||project.name;
     return {...project,name,initials:control?.name_override?name.split(/\s+/).map(v=>v[0]).join('').slice(0,2).toUpperCase():project.initials,
       claimed:ownerStatus?ownerStatus==='active':project.claimed,
+      ...(control?.spotlight_json && (includeHidden || control.featured===1 || (control.featured===null && ['lammbs','vamps'].includes(project.id)))
+        ? {spotlight: JSON.parse(control.spotlight_json) as Project['spotlight']} : {}),
       ...(control?.featured!==null&&control?.featured!==undefined?{featured:control.featured===1}:{}),
       ...(edit?{tagline:edit.summary,description:edit.summary,category:edit.category,stage:edit.stage,
         officialXProfile:edit.xProfile || undefined,website:edit.website,launchUrl:edit.launchUrl,links:approvedDestinationLinks(edit)}:{}),

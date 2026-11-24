@@ -13,6 +13,7 @@ export type ChangeControlProject={expectedRevision:number;expectedListingRevisio
   {action:'edit';content:ControlProjectContent;confirmedLinks:boolean}|
   {action:'visibility';visibility:ControlProjectVisibility}|
   {action:'feature';featured:boolean|null}|
+  {action:'spotlight';featured:boolean;spotlight:import('./spotlight').Spotlight}|
   {action:'reset_content'}|
   {action:'artwork';logoAssetId:string|null;bannerAssetId:string|null}|
   {action:'reset_artwork'});

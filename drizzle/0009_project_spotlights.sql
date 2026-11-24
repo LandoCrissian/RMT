@@ -1,0 +1,1 @@
+ALTER TABLE `project_controls` ADD `spotlight_json` text;

@@ -7,7 +7,7 @@ import {build} from 'esbuild';
 const root=fileURLToPath(new URL('../',import.meta.url)),environment={};globalThis.__CONTROL_PROJECTS_ENV__=environment;
 const bundled=await build({stdin:{contents:`
 export {publicActivity} from './lib/server/activity';
-export * from './lib/server/control-projects'; export * from './lib/server/control-content';
+export * from './lib/spotlight'; export * from './lib/server/control-projects'; export * from './lib/server/control-content';
 export * from './lib/server/repository'; export * from './lib/server/project-showcase';
 export * from './lib/server/project-updates'; export * from './lib/server/project-edits';
 export * from './lib/server/profiles'; export * from './lib/profiles';
@@ -157,4 +157,28 @@ test('ownership transfer cannot select a Firebase alias linked while the managem
  db.beforeBatch=()=>db.raw.prepare('INSERT INTO account_links(firebase_uid,legacy_user_id,created_at) VALUES(?,?,?)').run('new-identity','canonical-existing-member',Date.now());
  await assert.rejects(api.changeControlOwnership(db,actor,'vamps',api.validateControlOwnership({action:'transfer',expectedRevision:1,targetUserId:'firebase:new-identity',confirmedOwnership:true,reason:'Checked project ownership carefully.'})),reject(409));
  assert.equal(db.raw.prepare("SELECT user_id FROM project_owners WHERE project_id='vamps'").get().user_id,'builder');assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM control_audit_events').get().n,0);
+});
+test('spotlights preserve the ordered free defaults and independently save reviewed placement and copy', async t => {
+  const db=database(t);
+  const lineup=async()=>api.orderedSpotlights((await api.catalog(db)).projects);
+  assert.deepEqual((await lineup()).map(p=>p.id),['vamps','lammbs']);
+  const item=await api.controlProject(db,'lammbs');
+  const original=api.spotlightFor(item.project);
+  assert.equal(original.headline,'Not your average flock.');
+  const spotlight={...original,position:1,headline:'Updated by the owner',cta:'See the flock',accent:'#9354DE'};
+  const saved=await change(db,'lammbs',{action:'spotlight',featured:true,spotlight});
+  assert.deepEqual(saved.project.spotlight,spotlight);
+  assert.deepEqual((await lineup()).map(p=>p.id),['lammbs','vamps']);
+  assert.equal(saved.project.cover,item.project.cover);
+  await assert.rejects(api.changeControlProject(db,actor,'lammbs',{action:'spotlight',featured:true,spotlight,expectedRevision:0,expectedListingRevision:0,reason:'Stale spotlight editor'}),reject(409));
+  await change(db,'lammbs',{action:'feature',featured:false});
+  assert.deepEqual((await lineup()).map(p=>p.id),['vamps']);
+  assert.equal((await api.findPublicProject(db,'lammbs')).spotlight,undefined);
+  assert.deepEqual((await api.controlProject(db,'lammbs')).project.spotlight,spotlight);
+  await change(db,'lammbs',{action:'feature',featured:null});
+  await change(db,'lammbs',{action:'visibility',visibility:'hidden'});
+  assert.deepEqual((await lineup()).map(p=>p.id),['vamps']);
+  for(const bad of [{position:0},{accent:'lime'},{cta:''},{artwork:'https://example.org/image.png'}]) {
+    assert.throws(()=>api.validateSpotlight({...original,...bad},'lammbs'));
+  }
 });

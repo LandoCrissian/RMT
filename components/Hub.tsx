@@ -4,13 +4,15 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, Bookmark, Check, ChevronRight,
   Compass, Gamepad2, Grid2X2, LayoutGrid, Library, ListFilter, Menu,
-  Music2, Plus, Search, ShieldCheck, Sparkles, Terminal, Wrench, X, Copy, Share2, Layers3,
+  Music2, Plus, Search, ShieldCheck, Terminal, Wrench, X, Copy, Share2, Layers3,
   UserRound, Cloud, LoaderCircle, RefreshCw, AlertCircle, List, ChevronLeft, ChevronDown, Megaphone, Radio,
 } from 'lucide-react';
 import { type Project } from '@/lib/catalog';
 import { normalizeProjectQuery, searchProjects } from '@/lib/project-search';
 import { discoverProjects, recentProjects, type DirectorySort } from '@/lib/project-discovery';
 import { projectPath, projectShareUrl, projectSocialImagePath, projectXIntentUrl } from '@/lib/project-sharing';
+import ProjectSpotlights from './ProjectSpotlights';
+import {orderedSpotlights} from '@/lib/spotlight';
 import thumbnails from '@/lib/project-thumbnails.json';
 import dynamic from 'next/dynamic';
 import experienceArtwork from '@/lib/experience-artwork.json';
@@ -123,7 +125,6 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   const site=useSiteSettings(initialSiteSettings);
   const maintenance=site.settings.maintenance.enabled&&!session.isAdmin;
   const [controlOpened,setControlOpened]=useState(false);
-  const [featureChoice,setFeatureChoice]=useState('');
   const catalogRequest=useRef<AbortController|null>(null);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [copyFallback, setCopyFallback] = useState<string | null>(null);
@@ -459,8 +460,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   const searchScope = section === 'library' ? (activeCategory === 'All projects' ? 'your library' : activeCategory.toLowerCase() + ' in your library') : activeCategory.toLowerCase();
   const matchesOutsideScope = hasSearch && isSearchScoped ? searchProjects(projects, { query }).length - page.total : 0;
   const isDirectory = !['studio', 'review', 'claim', 'account', 'activity', 'profile', 'member', 'control'].includes(section);
-  const featuredProjects=projects.filter(project=>project.featured===true);
-  const feature=featuredProjects.find(project=>project.id===featureChoice)||featuredProjects[0]||projects.find(project=>project.id==='vamps'&&project.featured!==false);
+  const featuredProjects = orderedSpotlights(projects);
   const publicPaused=maintenance&&!['account','control'].includes(section);
   useEffect(()=>{if(section==='control')setControlOpened(true);},[section]);
   useEffect(()=>{if(sessionStatus==='ready'&&!session.isAdmin&&!maintenance)recordSiteMetric('visit');},[sessionStatus,session.isAdmin,maintenance]);
@@ -537,14 +537,8 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
         {section==='claim'&&!site.settings.claimsOpen&&<p className='site-intake-notice'>New ownership claims are temporarily paused. Your existing claim remains saved.</p>}
         {publicPaused?<section className='site-pause'><Wrench size={34}/><h1>A little work behind the scenes.</h1><p>{site.settings.maintenance.message}</p><div className='site-pause-actions'><button className='button button-lime' onClick={()=>{void site.refresh();void refreshCatalog();}}>Check again <RefreshCw size={16}/></button><button className='button button-outline' onClick={()=>go('account')}>My account <UserRound size={16}/></button></div></section>:isDirectory ? <>
           {!hasSearch && <div className="page-heading"><div><div className="eyebrow">{heading.eyebrow}</div><h1>{heading.title}</h1><p>{heading.description}</p></div><button className="directory-jump" onClick={focusDirectory}>Browse projects <span>{page.total}</span><ArrowRight size={15} /></button></div>}
-          {section==='discover'&&!hasSearch&&category==='All projects'&&featuredProjects.length>1&&<div className='featured-switches' aria-label='Featured projects'>{featuredProjects.map(project=><button key={project.id} aria-pressed={feature?.id===project.id} onClick={()=>setFeatureChoice(project.id)}>{project.name}</button>)}</div>}
-          {section === 'discover' && !hasSearch && category === 'All projects' && feature && <section className="feature-layout discovery-feature" aria-label="Featured project and recent additions">
-            <div className="hero-card">
-              <Cover project={feature} priority={!selected} className="hero-art" />
-              <div className="hero-shade" />
-              <div className="hero-content"><span className="feature-tag"><Sparkles size={13} /> FROM THE DIRECTORY</span><div className="hero-brand">{feature.name}<span>{feature.id==='vamps'?'AFTER HOURS':feature.category.toUpperCase()}</span></div><h2>{feature.id==='vamps'?<>Enter the<br/>after hours.</>:<>Meet your next<br/>favorite.</>}</h2><p>{feature.id==='vamps'?'Games. Creative tools. A whole community to discover.':feature.tagline}</p><div className="hero-buttons"><button type="button" className="button button-lime hero-project-trigger" onClick={() => openProject(feature)} aria-haspopup="dialog">Explore {feature.name} <ArrowUpRight size={17} /></button><button className={'button hero-save ' + (saved.includes(feature.id) ? 'is-saved' : '')} disabled={!library.canSave} onClick={() => void toggleSave(feature)} aria-label={saved.includes(feature.id) ? 'Remove '+feature.name+' from library' : 'Save '+feature.name+' to library'}>{saved.includes(feature.id) ? <Check size={19} /> : <Plus size={19} />}</button></div></div>
-              <div className="hero-bottom"><span><span className="tiny-square" /> {feature.category}</span><span>CURATED PICK · NOT SPONSORED</span></div>
-            </div>
+          {section === 'discover' && !hasSearch && category === 'All projects' && (featuredProjects.length > 0 || latest.length > 0) && <section className={'feature-layout discovery-feature' + (featuredProjects.length ? '' : ' spotlight-empty')} aria-label="Featured projects and recent additions">
+            {featuredProjects.length > 0 && <ProjectSpotlights projects={featuredProjects} saved={saved} canSave={library.canSave} onOpen={openProject} onSave={toggleSave} />}
             <aside className="feature-side discovery-arrivals" aria-label="Recently added projects">
               <div className="arrivals-heading"><div><span className="card-overline">FRESH FINDS</span><h3>New to RMT<span className="new-dot" /></h3></div><Compass size={20} /></div>
               <div className="arrivals-list">{latest.map(project => <button type="button" className="arrival-card" key={project.id} onClick={() => openProject(project)} aria-label={'Explore ' + project.name} aria-haspopup="dialog"><span className="arrival-art"><Cover project={project} /></span><span className="arrival-copy"><strong>{project.name}</strong><small>{project.category}</small></span><ArrowUpRight size={16} /></button>)}</div>
@@ -585,7 +579,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
           <div className="private-workspace" key={session.userId || 'guest'} hidden={sessionStatus !== 'ready'} inert={sessionStatus !== 'ready'}>{section === 'profile' ? <ProfileEditor session={session} onToast={notify} onRetrySession={() => void refreshSession()} /> : section === 'studio' ? <Studio session={session} onToast={notify} /> : section === 'claim' && claimProject ? <ClaimProject key={claimProject.id} project={claimProject} session={session} onToast={notify} onClose={() => { go('discover'); openProject(claimProject); }} /> : <ReviewQueue session={session} onToast={notify} />}</div>
         </>}
 
-        {(controlOpened||section==='control')&&<div className='admin-workspace' key={'control-'+(session.userId||'guest')} hidden={section!=='control'||sessionStatus!=='ready'} inert={section!=='control'||sessionStatus!=='ready'}><ControlCenter session={session} onToast={notify} onRetrySession={()=>void refreshSession()} onReview={()=>go('review')} onProject={(id:string)=>{const project=projects.find(p=>p.id===id);if(project)openProject(project);else notify('This project is hidden from the public directory. Manage it in Projects.');}}/></div>}
+        {(controlOpened||section==='control')&&<div className='admin-workspace' key={'control-'+(session.userId||'guest')} hidden={section!=='control'||sessionStatus!=='ready'} inert={section!=='control'||sessionStatus!=='ready'}><ControlCenter spotlights={featuredProjects} session={session} onToast={notify} onRetrySession={()=>void refreshSession()} onReview={()=>go('review')} onProject={(id:string)=>{const project=projects.find(p=>p.id===id);if(project)openProject(project);else notify('This project is hidden from the public directory. Manage it in Projects.');}}/></div>}
         {section==='control'&&sessionStatus!=='ready'&&<p className='inline-notice' role='status'>{sessionStatus==='loading'?'Checking your administrator access…':'Your account connection needs a refresh.'}<button className='button button-outline' onClick={()=>void refreshSession()}>Check again</button></p>}
       </main>
     </div>
@@ -599,7 +593,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
           <div className="detail-cover-shade" />
           <div className="showcase-toolbar"><button onClick={closeProject} className="showcase-back"><ArrowLeft size={15} /> Back to RMT</button></div>
           <div className="showcase-title">
-            <div className="showcase-badges"><span className="showcase-category">{selected.category === 'Games' ? <Gamepad2 size={13} /> : selected.category === 'Tools' ? <Wrench size={13} /> : selected.category === 'Music' ? <Music2 size={13} /> : <Compass size={13} />}{selected.category}</span>{selected.stage && <span>{stageLabel(selected.stage)}</span>}</div>
+            <div className="showcase-badges">{selected.id === 'lammbs' && <span>RMT creator project</span>}<span className="showcase-category">{selected.category === 'Games' ? <Gamepad2 size={13} /> : selected.category === 'Tools' ? <Wrench size={13} /> : selected.category === 'Music' ? <Music2 size={13} /> : <Compass size={13} />}{selected.category}</span>{selected.stage && <span>{stageLabel(selected.stage)}</span>}</div>
             <h2 id="project-title" tabIndex={-1}><ProjectLogo project={selected} />{selected.name}</h2>
             {selected.tagline !== selected.description && <p>{selected.tagline}</p>}
           </div>

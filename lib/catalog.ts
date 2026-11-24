@@ -32,6 +32,7 @@ export type Project = {
   artwork?: {logo?: PublicArtwork; banner?: PublicArtwork};
   /** Explicit administrator selection; omitted retains the existing discovery default. */
   featured?: boolean;
+  spotlight?: import('./spotlight').Spotlight;
   claimed: boolean;
   source: 'curated' | 'community';
 };

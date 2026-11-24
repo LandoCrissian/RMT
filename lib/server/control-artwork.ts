@@ -60,8 +60,10 @@ export async function privateControlArtworkRow(db:D1Database,actor:ControlActor,
 }
 export async function publicControlArtworkRow(db:D1Database,id:string):Promise<ControlArtworkRow>{
  if(!ARTWORK_ID_PATTERN.test(id))throw new InputError('This image was not found.',404);
- const row=await db.prepare(`SELECT a.* FROM control_project_artwork a JOIN project_controls c ON c.project_id=a.project_id AND c.artwork_override=1
-  WHERE a.id=? AND a.status='ready' AND ((a.kind='logo' AND c.logo_asset_id=a.id) OR (a.kind='banner' AND c.banner_asset_id=a.id)) AND ${publicProjectSql('a.project_id')}`).bind(id).first<ControlArtworkRow>();
+ const row=await db.prepare(`SELECT a.* FROM control_project_artwork a JOIN project_controls c ON c.project_id=a.project_id
+  WHERE a.id=? AND a.status='ready' AND (
+    (c.artwork_override=1 AND ((a.kind='logo' AND c.logo_asset_id=a.id) OR (a.kind='banner' AND c.banner_asset_id=a.id)))
+    OR (a.kind='banner' AND COALESCE(c.featured,c.project_id IN ('vamps','lammbs'))=1 AND json_extract(c.spotlight_json,'$.artwork')=a.id)) AND ${publicProjectSql('a.project_id')}`).bind(id).first<ControlArtworkRow>();
  if(!row)throw new InputError('This image was not found.',404);return row;
 }
 export function controlArtworkSelectionGuard(projectId:string,logo:string|null,banner:string|null){

@@ -120,3 +120,21 @@ test('public activity, profile and share parsers accept only exact public admin 
  const bad={...project,cover:'/api/control/artwork/'+asset.id};assert.throws(()=>api.publicActivityPage({...page,items:[{...page.items[0],project:bad}]}));assert.throws(()=>api.publicProfileResponse({profile:{...profile.profile,managedProjects:[bad]}}));
  const misleading={...project,artwork:{banner:{...project.artwork.banner,url:'/media/control-project-artwork/another-id'}}};assert.equal(api.projectSocialImagePath(misleading),'/social/rmt-'+api.SOCIAL_IMAGE_VERSION+'.jpg');assert.throws(()=>api.publicActivityPage({...page,items:[{...page.items[0],project:misleading}]}));
 });
+test('a spotlight banner belongs to its project and is public only while selected on a visible spotlight', async t=>{
+  const db=database(t), store=bucket();
+  const banner=await upload(db,store);
+  const original=(await api.findPublicProject(db,'vamps'));
+  const spotlight={position:1,headline:'After hours',description:'Explore the project.',cta:'Explore VAMPS',accent:'#C23C55',artwork:banner.id};
+  await assert.rejects(change(db,'lammbs',{action:'spotlight',featured:true,spotlight}),reject(404));
+  await assert.rejects(api.publicControlArtworkRow(db,banner.id),reject(404));
+  await change(db,'vamps',{action:'spotlight',featured:true,spotlight});
+  assert.equal((await api.publicControlArtworkRow(db,banner.id)).id,banner.id);
+  const current=await api.findPublicProject(db,'vamps');
+  assert.equal(api.projectSocialImagePath(current),api.projectSocialImagePath(original));
+  assert.equal(current.cover,original.cover);
+  await change(db,'vamps',{action:'visibility',visibility:'hidden'});
+  await assert.rejects(api.publicControlArtworkRow(db,banner.id),reject(404));
+  await change(db,'vamps',{action:'visibility',visibility:'public'});
+  await change(db,'vamps',{action:'spotlight',featured:false,spotlight});
+  await assert.rejects(api.publicControlArtworkRow(db,banner.id),reject(404));
+});

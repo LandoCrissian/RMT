@@ -12,7 +12,7 @@ import {ConfirmDialog,ErrorPanel,Loading,PanelHeading,RefreshButton,RoleBadge,St
 import './control-center.css';
 
 type Section='overview'|'members'|'projects'|'content'|'analytics'|'settings'|'roles'|'audit'|'health';
-type Props={session:StudioSession;onToast:(message:string)=>void;onRetrySession?:()=>void;onReview:()=>void;onProject?:(id:string)=>void};
+type Props={spotlights:{id:string;name:string}[];session:StudioSession;onToast:(message:string)=>void;onRetrySession?:()=>void;onReview:()=>void;onProject?:(id:string)=>void};
 const sections:{id:Section;label:string;capability:ControlCapability;icon:typeof Users}[]=[
   {id:'overview',label:'Overview',capability:'overview',icon:LayoutDashboard},
   {id:'members',label:'People',capability:'members',icon:Users},
@@ -28,7 +28,7 @@ export default function ControlCenter(props:Props){
   if(!props.session.authenticated||!props.session.isAdmin||props.session.emailVerified===false)return <section className="cc-shell cc-access-gate"><span className="cc-gate-symbol"><LockKeyhole size={29}/></span><span className="cc-eyebrow">RMT CONTROL CENTER</span><h1>Your site, under your control.</h1><p>Sign in with an authorized RMT administrator account to manage the community, projects, and site settings.</p><a className="cc-button cc-primary" href="/?continue=%2F%23control#account">Open your account<ArrowUpRight size={16}/></a></section>;
   return <ControlWorkspace key={props.session.userId} {...props}/>;
 }
-function ControlWorkspace({session,onToast,onRetrySession,onReview}:Props){
+function ControlWorkspace({spotlights,session,onToast,onRetrySession,onReview}:Props){
   const api=useControlApi(session),overview=useControlResource(api,'/api/control/overview',overviewResponse);
   const [section,setSection]=useState<Section>('overview'),[dirty,setDirty]=useState(false),[nextSection,setNextSection]=useState<Section|null>(null);
   const capabilities=overview.data?.capabilities.filter(capability=>!session.controlCapabilities||session.controlCapabilities.includes(capability))??[];
@@ -44,7 +44,7 @@ function ControlWorkspace({session,onToast,onRetrySession,onReview}:Props){
       <div className="cc-workspace-body">
         {section==='overview'&&<Overview data={overview.data} capabilities={capabilities} loading={overview.loading} onRefresh={()=>void overview.reload()} onNavigate={navigate} onReview={onReview}/>}
         {section==='members'&&capabilities.includes('members')&&<ControlMembers api={api} onToast={onToast} onReview={onReview}/>}
-        {section==='projects'&&capabilities.includes('projects')&&<ControlProjects api={api} onToast={onToast} onReview={onReview} onDirty={setDirty}/>}
+        {section==='projects'&&capabilities.includes('projects')&&<ControlProjects spotlights={spotlights} api={api} onToast={onToast} onReview={onReview} onDirty={setDirty}/>}
         {section==='content'&&capabilities.includes('content')&&<ControlContent api={api} onToast={onToast}/>}
         {section==='analytics'&&capabilities.includes('health')&&<ControlAnalytics api={api}/>}
         {section==='settings'&&capabilities.includes('settings')&&<ControlAppearance api={api} onToast={onToast} onDirty={setDirty}/>}

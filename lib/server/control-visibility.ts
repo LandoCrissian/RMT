@@ -14,6 +14,6 @@ export function publicProfileSql(alias:string):string {
 export function publicUpdateControlSql(alias:string):string {
   return `${activeControlMemberSql(`${alias}.user_id`)} AND ${contentVisibleSql('update',`${alias}.id`)}`;
 }
-export type ProjectControlRow={project_id:string;source:'existing'|'admin';definition_json:string|null;name_override:string;payload_json:string|null;
+export type ProjectControlRow={project_id:string;source:'existing'|'admin';definition_json:string|null;spotlight_json:string|null;name_override:string;payload_json:string|null;
   logo_asset_id:string|null;banner_asset_id:string|null;artwork_override:number;
   normalized_name:string|null;normalized_host:string|null;base_override_revision:number;visibility:'public'|'hidden'|'archived';featured:number|null;revision:number;created_at:number;updated_at:number};
