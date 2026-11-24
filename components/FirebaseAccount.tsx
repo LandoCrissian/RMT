@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { createUserWithEmailAndPassword, onIdTokenChanged, reload, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import {firebaseAuth, firebaseAuthEnvironment, syncFirebaseSession, clearFirebaseSession, startGoogleSignIn, completeFirebaseRedirect, reportFirebaseAuthProblem, clearFirebaseAuthProblem, subscribeFirebaseAuthFlow, getFirebaseAuthFlowStatus, getFirebaseAuthFlowServerStatus} from '@/lib/firebase-client';
+import { createUserWithEmailAndPassword, onIdTokenChanged, reload, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
+import {firebaseAuth, firebaseAuthEnvironment, syncFirebaseSession, startGoogleSignIn, completeFirebaseRedirect, reportFirebaseAuthProblem, clearFirebaseAuthProblem, subscribeFirebaseAuthFlow, getFirebaseAuthFlowStatus, getFirebaseAuthFlowServerStatus} from '@/lib/firebase-client';
 import {firebaseAuthProblem, isKnownEmbeddedAuthBrowser, type FirebaseAuthEnvironment} from '@/lib/firebase-auth-flow';
 import {supportsSameOriginFirebaseAuth} from '@/lib/firebase-config';
 
@@ -32,7 +32,7 @@ export function FirebaseSessionBridge({onChange}: {onChange: () => void}) {
   return null;
 }
 
-export default function FirebaseAccount({authenticated, emailVerified, onChange}: {authenticated: boolean; emailVerified?: boolean; onChange: () => void}) {
+export default function FirebaseAccount({authenticated, emailVerified, allowAccountLinking=true, onChange}: {authenticated: boolean; emailVerified?: boolean; allowAccountLinking?: boolean; onChange: () => void}) {
   const [mode, setMode] = useState<'signin' | 'register' | 'reset'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -55,11 +55,11 @@ export default function FirebaseAccount({authenticated, emailVerified, onChange}
     if (!user) throw Object.assign(new Error('Sign in again.'), {code: 'auth/user-token-expired'});
     await syncFirebaseSession(await user.getIdToken(true), user.uid);
   }
+  if(authenticated&&emailVerified&&!allowAccountLinking&&!displayedNotice)return null;
   return <section className="firebase-account" aria-label="RMT sign-in">
     {authenticated ? <>
       {!emailVerified && <><p>Verify your email to save your library, submit projects, or make claims.</p><button disabled={controlsBusy} className="button button-outline" onClick={() => void run(async () => {const user = firebaseAuth().currentUser; if (user) {await sendEmailVerification(user); setNotice('Verification email sent. Check your inbox and spam folder.');}})}>Send verification email</button><button disabled={controlsBusy} className="button button-outline" onClick={() => void run(async () => {const user = firebaseAuth().currentUser; if (user) {await reload(user); await connect(); setNotice(user.emailVerified ? 'Email verified.' : 'Email is not verified yet. Open the link in your email first.');}})}>I verified my email</button></>}
-      <button disabled={controlsBusy} className="button button-outline" onClick={() => void run(async () => {await signOut(firebaseAuth()); await clearFirebaseSession(); location.assign('/#account'); location.reload();})}>Sign out</button>
-      {emailVerified && <details><summary>Bring over an existing RMT account</summary><p>If you used RMT before Firebase, verify your original account once, then link it. Your existing library, claims and reviewer access will stay with that account.</p><a className="text-link" href="/signin-with-chatgpt?return_to=%2F%23account" target="_top">Verify original account</a><button disabled={controlsBusy} className="button button-outline" onClick={() => void run(async () => {const user = firebaseAuth().currentUser; if (!user) throw new Error('Sign in first'); const response = await fetch('/api/auth/link', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({idToken: await user.getIdToken(true)})}); const data = await response.json() as {error?: string}; if (!response.ok) {setNotice(data.error || 'Linking failed.'); return;} setNotice('Your original RMT account is linked. Your saved records and access are preserved.');})}>Link verified accounts</button></details>}
+      {emailVerified && allowAccountLinking && <details><summary>Bring over an existing RMT account</summary><p>If you used RMT before Firebase, verify your original account once, then link it. Your existing library, claims and reviewer access will stay with that account.</p><a className="text-link" href="/signin-with-chatgpt?return_to=%2F%23account" target="_top">Verify original account</a><button disabled={controlsBusy} className="button button-outline" onClick={() => void run(async () => {const user = firebaseAuth().currentUser; if (!user) throw new Error('Sign in first'); const response = await fetch('/api/auth/link', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({idToken: await user.getIdToken(true)})}); const data = await response.json() as {error?: string}; if (!response.ok) {setNotice(data.error || 'Linking failed.'); return;} setNotice('Your original RMT account is linked. Your saved records and access are preserved.');})}>Link verified accounts</button></details>}
     </> : <>
       <h3>{mode === 'register' ? 'Create your free RMT account' : mode === 'reset' ? 'Recover your password' : 'Sign in to RMT'}</h3>
       {mode !== 'reset' && <button className="button button-outline" disabled={controlsBusy} onClick={() => void run(() => startGoogleSignIn())}>{flow.checkingRedirect ? 'Finishing sign-in…' : 'Continue with Google'}</button>}

@@ -2,6 +2,8 @@ export type StudioSession = {
   authenticated: boolean; emailVerified?: boolean; provider?: string | null;
   userId: string | null;
   displayName: string | null;
+  email?: string | null;
+  signInMethod?: 'google' | 'email' | 'chatgpt' | 'firebase' | null;
   isAdmin: boolean;
   controlRole?: 'owner'|'admin'|'moderator'|'member'|null;
   controlCapabilities?: import('@/lib/control').ControlCapability[];

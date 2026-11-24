@@ -16,10 +16,11 @@ const compiled = await build({
     ` : `
       const state = globalThis.__RMT_FIREBASE_CLIENT_TEST__;
       export function getAuth() {return state.auth;}
-      export class GoogleAuthProvider {providerId = 'google.com';}
+      export class GoogleAuthProvider {providerId = 'google.com'; setCustomParameters(value){state.googleParameters=value;}}
       export function getRedirectResult() {state.calls.push('complete-redirect'); return state.redirectResult();}
       export function signInWithPopup() {state.calls.push('popup'); return state.popup();}
       export function signInWithRedirect() {state.calls.push('redirect'); return state.redirect();}
+      export async function signOut(){state.calls.push('sign-out'); if(state.signOutError)throw state.signOutError;state.auth.currentUser=null;}
     `}));
   }}],
 });
@@ -55,6 +56,7 @@ test('mobile sign-in uses the same-origin helper without rewriting the claim ret
   assert.equal(state.apps[0].options.authDomain, 'rmtlaunch.fun');
   assert.equal(window.location.href, before);
   assert.equal(state.requests.length, 0);
+  assert.deepEqual(state.googleParameters,{prompt:'select_account'});
 });
 
 test('desktop popup starts synchronously on the click path, then connects the signed-in account', async t => {
@@ -66,6 +68,7 @@ test('desktop popup starts synchronously on the click path, then connects the si
   assert.equal(state.requests.length, 1);
   assert.equal(state.requests[0].url, '/api/auth/session');
   assert.equal(state.requests[0].method, 'POST');
+  assert.deepEqual(state.googleParameters,{prompt:'select_account'});
   assert.deepEqual(JSON.parse(state.requests[0].body), {idToken: 'member-one-token'});
 });
 
@@ -182,6 +185,39 @@ test('a delayed token from a completed popup cannot connect a different current 
   token.resolve('old-user-token');
   await attempt;
   assert.equal(state.requests.length, 0);
+});
+
+test('switching away from an ambient legacy identity deletes the server session even without an SDK user',async t=>{
+  const {api,state}=await setup(t);
+  assert.equal(state.auth.currentUser,null);
+  await api.signOutRmt();
+  assert.deepEqual(state.calls,['sign-out']);
+  assert.equal(state.requests.length,1);
+  assert.equal(state.requests[0].method,'DELETE');
+  assert.equal(state.requests[0].url,'/api/auth/session');
+});
+
+test('sign-out ends the SDK identity before queued token writes and waits for the final server deletion',async t=>{
+  const {api,state}=await setup(t),gate=deferred(),started=deferred();
+  state.auth.currentUser=state.user;
+  state.fetch=async()=>{if(state.requests.length===1){started.resolve();return gate.promise;}return new Response('{}',{status:200});};
+  const inFlight=api.syncFirebaseSession('in-flight-token');await started.promise;
+  const queued=api.syncFirebaseSession('queued-token');
+  const signOut=api.signOutRmt();
+  assert.equal(state.auth.currentUser,null);
+  gate.resolve(new Response('{}',{status:200}));
+  await Promise.all([inFlight,queued,signOut]);
+  assert.deepEqual(state.requests.map(request=>request.method),['POST','DELETE']);
+  assert.equal(JSON.parse(state.requests[0].body).idToken,'in-flight-token');
+});
+
+test('failed SDK or server sign-out is reported instead of pretending an account switch completed',async t=>{
+  const {api,state}=await setup(t);
+  state.signOutError=new Error('SDK unavailable');
+  await assert.rejects(api.signOutRmt(),/SDK unavailable/);
+  assert.equal(state.requests.length,0);
+  state.signOutError=null;state.fetch=async()=>new Response('{}',{status:503});
+  await assert.rejects(api.signOutRmt(),/Sign out failed/);
 });
 
 test('server rendering and missing browser storage globals do not break public initialization', async t => {

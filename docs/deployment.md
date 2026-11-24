@@ -1,4 +1,25 @@
-# Control Center (November 24, 2026)
+# Owner identity correction (November 24, 2026)
+
+The verified RMT Launch Firebase identity is the intended independent site owner.
+Deploy this correction together with runtime `RMT_ADMIN_USER_IDS` set to that
+exact observed canonical Firebase ID and `RMT_REVIEW_MONITOR_USER_IDS` set to the
+existing authenticated Dot identity. Store both values as secrets; never commit
+identity values or match administrator access from an email address.
+
+The separate monitor permission allows only MCP review digests and alert
+acknowledgements. It leaves the personal account without website administration.
+The Account panel shows the active email/method and supports switching from the
+legacy session. No database migration, account merge, provider, DNS or billing
+change is part of this correction. Verify the former owner loses control
+capabilities while its existing review monitor still reads successfully.
+
+Validation for this correction: all 292 tests and typecheck pass, including
+exact-ID authorization, monitor-only web rejection, suspension/revocation during
+receipt writes, protected Firebase owner linking, private session identity and
+ordered sign-out. Isolated 360px browser checks confirm the email/method and
+44px sign-out control, no horizontal overflow, and distinct owner/member views.
+
+## Control Center (November 24, 2026)
 
 This release adds phone-friendly administration to the existing public RMT Site.
 Development is isolated from the live release 12 application. The sole forward

@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowRight, ArrowUpRight, Check, Cloud, Copy, Database, KeyRound, Library, LoaderCircle, RefreshCw, ShieldCheck, Smartphone, Terminal, UserRound } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Check, Cloud, Copy, Database, KeyRound, Library, LoaderCircle, LogOut, RefreshCw, ShieldCheck, Smartphone, Terminal, UserRound } from 'lucide-react';
 import { continuationFromSearch, signInHref, type AccountContinuation } from '@/lib/account-navigation';
+import {signOutRmt} from '@/lib/firebase-client';
 import type { StudioSession } from './studio-shared';
 import type { ProjectLibrary, SessionStatus } from './use-project-library';
 import './account.css';
@@ -25,6 +26,8 @@ type Props = {
 
 export default function Account({ session, sessionStatus, library, onRetrySession, onToast, onLibrary, onStudio, onReview, onProfile, onControl }: Props) {
   const [continuation, setContinuation] = useState<AccountContinuation | null>(null);
+  const [signingOut,setSigningOut]=useState(false);
+  const [signOutError,setSignOutError]=useState('');
   useEffect(() => {
     const update = () => setContinuation(continuationFromSearch(window.location.search));
     update();
@@ -32,6 +35,12 @@ export default function Account({ session, sessionStatus, library, onRetrySessio
     return () => { window.removeEventListener('popstate', update); window.removeEventListener('hashchange', update); };
   }, []);
   const initials = (session.displayName || 'RMT').split(/\s+/).map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+  const signInMethod=session.signInMethod==='google'?'Google':session.signInMethod==='email'?'email and password':session.signInMethod==='chatgpt'||session.provider==='legacy'?'ChatGPT':'Firebase';
+  async function endSession(){
+    setSigningOut(true);setSignOutError('');
+    try{await signOutRmt();location.assign('/#account');location.reload();}
+    catch{setSignOutError('We could not finish signing out. Try again before switching accounts.');setSigningOut(false);onRetrySession();}
+  }
   async function copyReference() {
     if (!session.userId) return;
     try { await navigator.clipboard.writeText(session.userId); onToast('Your RMT account reference was copied.'); }
@@ -40,14 +49,15 @@ export default function Account({ session, sessionStatus, library, onRetrySessio
   return <div className="account-page">
     <div className="page-heading"><div><div className="eyebrow">YOUR RMT ACCOUNT</div><h1>A little more you.</h1><p>Your projects, your library, and a clear view of what’s saved.</p></div></div>
     <section className="account-identity" aria-labelledby="account-heading">
-      <div className="account-identity-main"><span className="account-avatar" aria-hidden="true">{session.authenticated ? initials : <UserRound size={30} />}</span><div><span className="account-kicker">{session.authenticated ? 'SIGNED IN TO RMT' : 'ONE ACCOUNT. YOUR RMT.'}</span><h2 id="account-heading">{sessionStatus === 'loading' ? 'Checking your account…' : session.authenticated ? session.displayName || 'Welcome back.' : 'Take your favorites with you.'}</h2><p>{session.authenticated ? 'Your RMT account connects your saved projects and Builder Studio.' : 'Sign in with Google or email to save projects across devices and build your home on RMT.'}</p></div></div>
-      <div className="account-identity-actions">{sessionStatus === 'loading' ? <span className="account-pending"><LoaderCircle className="rmt-spin" size={16} /> Connecting</span> : sessionStatus === 'error' ? <button className="button button-outline" onClick={onRetrySession}><RefreshCw size={16} /> Check again</button> : session.authenticated ? <><span className="account-role"><Check size={13} /> {session.controlRole==='owner'?'RMT owner':session.controlRole==='admin'?'RMT administrator':session.isAdmin?'RMT moderator':'RMT member'}</span></> : <a className="button button-lime" href={signInHref(continuation?.href)} target="_top">Sign in to RMT <ArrowRight size={16} /></a>}</div>
+      <div className="account-identity-main"><span className="account-avatar" aria-hidden="true">{session.authenticated ? initials : <UserRound size={30} />}</span><div><span className="account-kicker">{session.authenticated ? 'SIGNED IN TO RMT' : 'ONE ACCOUNT. YOUR RMT.'}</span><h2 id="account-heading">{sessionStatus === 'loading' ? 'Checking your account…' : session.authenticated ? session.displayName || 'Welcome back.' : 'Take your favorites with you.'}</h2>{session.authenticated&&<div className="account-signin-details" aria-label="Current sign-in">{session.email&&<span className="account-signin-email">{session.email}</span>}<span>Signed in with {signInMethod}</span></div>}<p>{session.authenticated ? 'Your RMT account connects your saved projects and Builder Studio.' : 'Sign in with Google or email to save projects across devices and build your home on RMT.'}</p></div></div>
+      <div className="account-identity-actions">{sessionStatus === 'loading' ? <span className="account-pending"><LoaderCircle className="rmt-spin" size={16} /> Connecting</span> : sessionStatus === 'error' ? <button className="button button-outline" onClick={onRetrySession}><RefreshCw size={16} /> Check again</button> : session.authenticated ? <><span className="account-role"><Check size={13} /> {session.controlRole==='owner'?'RMT owner':session.controlRole==='admin'?'RMT administrator':session.isAdmin?'RMT moderator':'RMT member'}</span><button className="button button-outline account-signout" disabled={signingOut} onClick={()=>void endSession()}><LogOut size={15}/>{signingOut?'Signing out…':'Sign out'}</button></> : <a className="button button-lime" href={signInHref(continuation?.href)} target="_top">Sign in to RMT <ArrowRight size={16} /></a>}</div>
     </section>
+    {signOutError&&<p className="inline-notice" role="alert">{signOutError}</p>}
     {continuation && <section className="library-import" aria-label="Continue where you left off">
       <div><h3>Pick up where you left off.</h3><p>{sessionStatus === 'ready' && session.authenticated ? session.emailVerified ? 'Your account is ready. Continue when you’re ready.' : 'Verify your email below to continue with this account.' : continuation.context}</p></div>
       {sessionStatus === 'ready' && session.authenticated && session.emailVerified && <a className="button button-lime" href={continuation.href}>{continuation.label} <ArrowRight size={16} /></a>}
     </section>}
-    <FirebaseAccount authenticated={session.authenticated && session.provider === 'firebase'} emailVerified={session.emailVerified} onChange={onRetrySession} />
+    <FirebaseAccount authenticated={session.authenticated && session.provider === 'firebase'} emailVerified={session.emailVerified} allowAccountLinking={session.controlRole!=='owner'} onChange={onRetrySession} />
     {sessionStatus === 'error' && <p className="inline-notice" role="alert">Your account connection could not be checked. Your saved information has not been changed.</p>}
     <div className="account-workspaces profile-workspaces">
       <section className="account-workspace-card"><span className="account-tile-icon"><Library size={24} /></span><span className="account-kicker">YOUR PERSONAL LAUNCHPAD</span><h2>My library</h2><p>Keep the communities you follow together. Open their sites, games, and collections from one place.</p><LibrarySyncStatus library={library} /><button className="text-link" onClick={onLibrary}>Open my library <ArrowRight size={15} /></button></section>

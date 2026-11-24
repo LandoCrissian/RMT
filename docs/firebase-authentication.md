@@ -21,12 +21,34 @@ Unverified email accounts can browse and verify their address, but cannot save a
 
 Original database records retain their user IDs. Migration `0004_productive_skreet.sql` adds only `account_links`; it rewrites no records. Firebase IDs are namespaced as `firebase:<uid>`. Linked accounts resolve to their original user ID, preserving libraries, claims, submissions, ownership, audit events, and the exact administrator allowlist. Existing dot tools and authenticated Sites reviewer identity remain supported.
 
-## Owner activation
+## Owner account correction (November 24, 2026)
+
+The owner chose the existing verified RMT Launch Firebase account as the
+independent administrator identity. Its exact `firebase:<uid>` is configured in
+the server-only `RMT_ADMIN_USER_IDS` secret after checking the verified live
+member record. The personal Sites account is removed from that owner allowlist.
+No role is inferred from an email address and no account records are merged.
+
+The existing Dot identity is separately configured in
+`RMT_REVIEW_MONITOR_USER_IDS` for MCP review digest and alert acknowledgement
+operations only. It cannot enter the Control Center or approve projects.
+
+The current sign-in email and method are visible only in the private Account
+panel. Sign out before choosing the intended Google account. Google sign-in
+requests explicit account selection. The same sign-out control also ends a
+legacy RMT session by suppressing the ambient Sites identity.
+A runtime-protected Firebase owner is refused legacy linking because changing
+its canonical ID would remove its exact-ID owner authorization.
+
+## Optional legacy account linking
+
+The following flow remains available for eligible ordinary accounts that need
+their old RMT records. It is not required for the independent Firebase owner.
 
 1. Open `/#account`, sign in with the intended Google account (or create and verify an email account). A legacy signed-in owner can still see the Firebase sign-in form.
 2. In **Bring over an existing RMT account**, choose **Verify original account** and complete the existing Sites sign-in. This is a one-time proof for old accounts, not a requirement for new members.
 3. Sign in freshly to Firebase if more than five minutes have passed, then choose **Link verified accounts**. Linking requires both the Sites-authenticated original identity and a fresh, verified Firebase token on the same same-origin request. Email matching alone never links accounts or grants administrator access.
-4. Confirm the reviewer workspace and old library. Confirm the dot identity/digest still reports reviewer access.
+4. Confirm the inherited library and any previously authorized workspaces. Linking does not independently grant a new role.
 
 Each Firebase UID and original ID can be linked once. An attempted conflicting link is refused. A new Firebase account with saved activity cannot be linked automatically because silently switching its record namespace would hide that activity; contact the owner for an explicit data-combination procedure. Existing records are never deleted by linking.
 

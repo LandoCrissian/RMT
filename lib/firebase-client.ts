@@ -1,6 +1,6 @@
 'use client';
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, getRedirectResult, GoogleAuthProvider, signInWithPopup, signInWithRedirect, type UserCredential } from 'firebase/auth';
+import { getAuth, getRedirectResult, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut, type UserCredential } from 'firebase/auth';
 import { firebaseConfigForOrigin, supportsSameOriginFirebaseAuth } from './firebase-config';
 import {firebaseAuthProblem, googleSignInFlow, type FirebaseAuthEnvironment, type FirebaseAuthProblem} from './firebase-auth-flow';
 
@@ -81,6 +81,7 @@ export function startGoogleSignIn(requestSamePage = false): Promise<void> {
   clearFirebaseAuthProblem();
   const auth = firebaseAuth();
   const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({prompt:'select_account'});
   // The popup call stays on the click's call stack, without a preceding fetch,
   // dynamic import, or persistence await. Mobile production uses one tab.
   if (googleSignInFlow(firebaseAuthEnvironment(), requestSamePage) === 'redirect') {
@@ -98,4 +99,10 @@ export function clearFirebaseSession() {
   });
   sessionWrites = write;
   return write;
+}
+
+/** End the SDK identity before the ordered server deletion, including legacy sessions. */
+export async function signOutRmt() {
+  await signOut(firebaseAuth());
+  await clearFirebaseSession();
 }
