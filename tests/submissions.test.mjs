@@ -543,16 +543,36 @@ test('typed project addresses support either home independently and optional bla
   }
 });
 
-test('MoneyMomos X-only submission moves from private review to the public catalog', async t => {
+test('an unlisted X-only submission moves from private review to the public catalog', async t => {
   const db = database();
   t.after(() => db.close());
   const submission = await api.createSubmission(db, user, input('money', {
-    name: 'MoneyMomos', website: '', launchUrl: '', xProfile: 'x.com/moneymomos', contactEmail: '',
+    name: 'Fixture Flock', website: '', launchUrl: '', xProfile: 'x.com/fixtureflock', contactEmail: '',
   }));
   assert.equal(submission.status, 'pending');
   assert.ok((await api.reviewQueue(db)).some(row => row.id === submission.id));
-  assert.equal((await api.catalog(db)).projects.some(row => row.name === 'MoneyMomos'), false);
+  assert.equal((await api.catalog(db)).projects.some(row => row.name === 'Fixture Flock'), false);
   await api.reviewSubmission(db, 'reviewer', submission.id, decision('approve', 1));
-  const published = (await api.catalog(db)).projects.find(row => row.name === 'MoneyMomos');
-  assert.equal(published.launchUrl, 'https://x.com/moneymomos');
+  const published = (await api.catalog(db)).projects.find(row => row.name === 'Fixture Flock');
+  assert.equal(published.launchUrl, 'https://x.com/fixtureflock');
+});
+
+test('the three expansion listings direct repeat applications to the claim workflow', async t => {
+  const db = database();
+  t.after(() => db.close());
+  for (const [name,handle] of [['MoneyMomos','MoneyMomos'],['WIF Outlaws','RobinWifHat'],['Bored Traders','BoredTrader_CO']]) {
+    const application = input('repeat',{name, website:'', launchUrl:'', xProfile:'x.com/'+handle});
+    await assert.rejects(api.createSubmission(db,user,application),error=>error.status===409 && /claim this project/i.test(error.message));
+  }
+});
+
+test('a collection claim on each expansion listing goes to review before ownership is granted', async t => {
+  const db = database();
+  t.after(() => db.close());
+  for (const projectId of ['moneymomos','wif-outlaws','bored-traders']) {
+    const claim = await submittedClaim(db,user,projectId,'opensea');
+    assert.equal(claim.status,'pending');
+    assert.equal((await api.claimOptions(db,projectId)).claimed,false);
+  }
+  assert.equal((await api.ownedProjects(db,user.userId)).projects.length,0);
 });

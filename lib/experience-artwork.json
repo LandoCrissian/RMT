@@ -131,5 +131,45 @@
     "image": "/projects/fight-club.jpg",
     "alt": "Ape Fight Club game artwork",
     "source": "https://fightclub.suitedapes.com/"
+  },
+  {
+    "project": "moneymomos", "destination": "https://elitecompound.moneymomos.com/",
+    "image": "/projects/moneymomos-elite.webp", "alt": "MoneyMomos artwork for the Elite Compound.",
+    "source": "https://moneymomos.com/assets/img/2824abc33692.jpg"
+  },
+  {
+    "project": "moneymomos", "destination": "https://council.moneymomos.com/",
+    "image": "/projects/moneymomos-council.webp", "alt": "The Council room in SteamVille.",
+    "source": "https://moneymomos.com/assets/img/council_room.jpg"
+  },
+  {
+    "project": "moneymomos", "destination": "https://jail.moneymomos.com/",
+    "image": "/projects/moneymomos-jail.webp", "alt": "The SteamVille Jail illustration.",
+    "source": "https://moneymomos.com/assets/img/7e87e835a98f.jpg"
+  },
+  {
+    "project": "moneymomos", "destination": "https://bossacademy.moneymomos.com/",
+    "image": "/projects/moneymomos-academy.webp", "alt": "MoneyMomos Boss Academy banner.",
+    "source": "https://moneymomos.com/assets/img/bossacademy_banner.jpg"
+  },
+  {
+    "project": "moneymomos", "destination": "https://momowallet.moneymomos.com/",
+    "image": "/projects/moneymomos-wallet.webp", "alt": "SteamVille’s MomoWallet illustration.",
+    "source": "https://moneymomos.com/assets/img/137c4626d214.jpg"
+  },
+  {
+    "project": "moneymomos", "destination": "https://swagshop.moneymomos.com/",
+    "image": "/projects/moneymomos-swagshop.webp", "alt": "The MoneyMomos Swagshop.",
+    "source": "https://moneymomos.com/assets/img/6e0bf261696c.webp"
+  },
+  {
+    "project": "wif-outlaws", "destination": "https://www.robinwifhat.com/agents",
+    "image": "/projects/wif-outlaws-agents.webp", "alt": "A still from RobinWifHat’s agent film.",
+    "source": "https://www.robinwifhat.com/home/images/matrix.mp4"
+  },
+  {
+    "project": "bored-traders", "destination": "https://boredtrader.co/art",
+    "image": "/projects/bored-traders-art.webp", "alt": "Bored Trader number one from the collection.",
+    "source": "https://storage.googleapis.com/bored-traders-nft/images/7117.png"
   }
 ]

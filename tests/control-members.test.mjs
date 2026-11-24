@@ -146,7 +146,7 @@ test('member search and pages remain bounded and cursor filters cannot be swappe
 });
 
 test('overview counts real records and health distinguishes configuration from verified backups',async t=>{
- const db=database(t);await member(db,'builder');await member(db,'second');const result=await api.controlOverview(db,owner);assert.equal(result.metrics.members,2);assert.equal(result.metrics.observedMembers,2);assert.equal(result.metrics.listedProjects,20);assert.equal(result.metrics.confirmedBuilders,0);assert.ok(result.observedSince>0);
+ const db=database(t);await member(db,'builder');await member(db,'second');const result=await api.controlOverview(db,owner);assert.equal(result.metrics.members,2);assert.equal(result.metrics.observedMembers,2);assert.equal(result.metrics.listedProjects,23);assert.equal(result.metrics.confirmedBuilders,0);assert.ok(result.observedSince>0);
  const health=await api.controlHealth(db,{DB:db,RMT_ADMIN_USER_IDS:'owner',BUCKET:{}},Date.now());assert.equal(health.checks.find(c=>c.id==='database').status,'ok');assert.equal(health.checks.find(c=>c.id==='backups').status,'unknown');assert.equal(health.exports.fullBackup,false);assert.equal(JSON.stringify(health).includes('PRIVATE'),false);
 });
 

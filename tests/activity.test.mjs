@@ -141,7 +141,8 @@ test('mixed-event keyset pages have stable ties, bounded size and no duplicates 
   } while (cursor);
   const expected = 16 + api.getSeedProjects().filter(project => project.listedAt).length;
   assert.equal(rows.length, expected); assert.equal(new Set(rows.map(item => item.id)).size, expected);
-  assert.deepEqual(rows.map(item => item.id), rows.map(item => item.id).sort().reverse());
+  const ordered = [...rows].sort((a,b) => b.publishedAt - a.publishedAt || b.id.localeCompare(a.id));
+  assert.deepEqual(rows.map(item => item.id), ordered.map(item => item.id));
 });
 
 test('filtering happens before pagination and cursors cannot cross activity filters', async t => {
