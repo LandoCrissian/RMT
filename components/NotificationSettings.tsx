@@ -13,7 +13,7 @@ type NotificationReport = {
   batchSize: number;
   deliveryConfirmed: boolean;
   recent: Array<{
-    id: string; kind: "submission" | "claim" | "edit"; projectName: string; channel: "email" | "sms";
+    id: string; kind: "submission" | "claim" | "edit" | "update"; projectName: string; channel: "email" | "sms";
     status: AlertStatus; attempts: number; providerId: string | null; issue: string | null;
     createdAt: number; updatedAt: number; acceptedAt: number | null; retryable: boolean;
   }>;
@@ -101,7 +101,7 @@ export default function NotificationSettings({session, onToast}: StudioProps) {
 
       {report.recent.length === 0 ? <div className="nt-empty"><Inbox size={27} /><h4>No alerts yet.</h4><p>The first application or ownership request will start this history.</p></div> : <ol className="nt-history">{report.recent.map(item => <li key={item.id}>
         <span className="nt-history-icon"><Mail size={18} /></span>
-        <div className="nt-history-copy"><strong>{item.projectName}</strong><span>{item.kind === "claim" ? "Ownership claim" : item.kind === "edit" ? "Project update" : "Project application"} · Email · {formattedDate(item.createdAt)}</span>{item.issue && <p>{item.issue}</p>}{item.providerId && ["failed", "uncertain"].includes(item.status) && <code>Provider reference: {item.providerId}</code>}</div>
+        <div className="nt-history-copy"><strong>{item.projectName}</strong><span>{item.kind === "claim" ? "Ownership claim" : item.kind === "update" ? "Project announcement" : item.kind === "edit" ? "Listing edit" : "Project application"} · Email · {formattedDate(item.createdAt)}</span>{item.issue && <p>{item.issue}</p>}{item.providerId && ["failed", "uncertain"].includes(item.status) && <code>Provider reference: {item.providerId}</code>}</div>
         <div className="nt-history-state"><span className={`nt-badge nt-state-${item.status}`}>{statusLabels[item.status]}</span><small>{item.attempts ? `${item.attempts} attempt${item.attempts === 1 ? "" : "s"}` : "Not attempted"}</small></div>
       </li>)}</ol>}
       <p className="nt-footnote">Each alert opens the private review workspace. Publication still requires your review decision. Text alerts are off.</p>

@@ -14,10 +14,13 @@ const pendingEventsSql = `
   UNION ALL
   SELECT 'edit:' || id || ':revision:' || revision || ':pending',
     'edit', id, project_name, revision, updated_at FROM project_edits WHERE status = 'pending'
+  UNION ALL
+  SELECT 'update:' || id || ':revision:' || revision || ':pending',
+    'update', id, project_name, revision, updated_at FROM project_updates WHERE status = 'pending'
 `;
 
 type PendingEvent = {
-  event_key: string; kind: "submission" | "claim" | "edit";
+  event_key: string; kind: "submission" | "claim" | "edit" | "update";
   entity_id: string; project_name: string; revision: number; updated_at: number;
 };
 
@@ -56,7 +59,7 @@ export function validateAlertAcknowledgement(input: unknown): string[] {
   if (Object.keys(body).length !== 1 || !Array.isArray(body.eventKeys) || !body.eventKeys.length || body.eventKeys.length > REVIEW_ALERT_BATCH_SIZE) {
     throw new InputError(`Acknowledge between 1 and ${REVIEW_ALERT_BATCH_SIZE} event keys at a time.`);
   }
-  if (body.eventKeys.some(key => typeof key !== "string" || !/^(submission|claim|edit):[a-z\d_-]{1,128}:revision:[1-9]\d{0,8}:pending$/i.test(key))) {
+  if (body.eventKeys.some(key => typeof key !== "string" || !/^(submission|claim|edit|update):[a-z\d_-]{1,128}:revision:[1-9]\d{0,8}:pending$/i.test(key))) {
     throw new InputError("An alert event key is invalid.");
   }
   return [...new Set(body.eventKeys as string[])];

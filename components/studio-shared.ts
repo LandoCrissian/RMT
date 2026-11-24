@@ -10,7 +10,7 @@ export type StudioProps = {
   onToast: (text: string) => void;
 };
 
-export type ProjectStage = "starting" | "building" | "live";
+export type ProjectStage = "starting" | "building" | "beta" | "live";
 
 export type Submission = {
   id: string;
@@ -67,7 +67,7 @@ export function claimStatusLabel(status: string) {
 }
 
 export function stageLabel(stage?: string) {
-  return ({ starting: "Starting out", building: "In development", live: "Live" } as Record<string, string>)[stage ?? "building"] ?? "In development";
+  return ({ starting: "Starting out", building: "In development", beta: "Beta", live: "Live" } as Record<string, string>)[stage ?? "building"] ?? "In development";
 }
 
 export function formattedDate(value: string | number) {
