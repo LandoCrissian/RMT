@@ -11,7 +11,9 @@ async function image(context: Context, head: boolean) {
     const row = await publicArtworkRow(database(),id);
     const bucket = runtime().BUCKET;
     if (!bucket) throw new InputError('This project image is temporarily unavailable.',503);
-    return artworkResponse(bucket,row,head);
+    const response=await artworkResponse(bucket,row,head);
+    try{await publicArtworkRow(database(),id);}catch(error){await response.body?.cancel().catch(()=>{});throw error;}
+    return response;
   });
 }
 export async function GET(_request: Request, context: Context) { return image(context,false); }

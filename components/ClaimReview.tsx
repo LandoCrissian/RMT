@@ -57,7 +57,7 @@ export function ClaimReview({ session, onToast }: StudioProps) {
     if (action === "approve" && !confirmedOwnership) { setActionError("Check the ownership proof before approving this claim."); return; }
     setBusy(action);
     try {
-      await readApiResponse(await fetch(`/api/admin/claims/${encodeURIComponent(selected.id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, note, expectedRevision: selected.revision, confirmedOwnership }) }));
+      await readApiResponse(await fetch(`/api/admin/claims/${encodeURIComponent(selected.id)}`, { method: "POST", headers: { "Content-Type": "application/json", "X-RMT-Account":session.userId||"" }, body: JSON.stringify({ action, note, expectedRevision: selected.revision, confirmedOwnership }) }));
       onToast(action === "approve" ? "Ownership confirmed. The project manager can now propose changes." : action === "revoke" ? "Project management access removed." : "Ownership claim declined.");
       setSelectedId(null); await load();
     } catch (cause) { setActionError(cause instanceof Error ? cause.message : "The ownership decision could not be saved."); }
@@ -113,7 +113,7 @@ export function EditReview({ session, onToast }: StudioProps) {
     if (action === "approve" && !checkedLinks) { setActionError("Check the proposed links before approving this update."); return; }
     setBusy(action);
     try {
-      await readApiResponse(await fetch(`/api/admin/project-edits/${encodeURIComponent(selected.id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, note, checkedLinks, expectedRevision: selected.revision }) }));
+      await readApiResponse(await fetch(`/api/admin/project-edits/${encodeURIComponent(selected.id)}`, { method: "POST", headers: { "Content-Type": "application/json", "X-RMT-Account":session.userId||"" }, body: JSON.stringify({ action, note, checkedLinks, expectedRevision: selected.revision }) }));
       onToast(action === "approve" ? "Project changes approved and published." : "Proposed changes declined. The current page is unchanged.");
       setSelectedId(null); await load();
     } catch (cause) { setActionError(cause instanceof Error ? cause.message : "The project update decision could not be saved."); }

@@ -2,6 +2,7 @@ import {InputError} from '@/lib/submission-validation';
 import {ARTWORK_ID_PATTERN,validateArtworkImage} from '@/lib/project-artwork-validation';
 import {PROFILE_UPLOAD_LIMIT,type ProfileArtwork,type ProfileArtworkKind,type UploadedProfileArtwork} from '@/lib/profiles';
 import type {PlatformIdentity} from './auth';
+import {publicProfileSql} from './control-visibility';
 import {readArtworkUpload} from './project-artwork';
 export {readArtworkUpload as readProfileArtworkUpload};
 
@@ -49,7 +50,7 @@ export async function privateProfileArtworkRow(db:D1Database,userId:string,id:st
 }
 export async function publicProfileArtworkRow(db:D1Database,id:string):Promise<ProfileArtworkRow> {
   if(!ARTWORK_ID_PATTERN.test(id))throw new InputError('This image was not found.',404);
-  const row=await db.prepare(`SELECT a.* FROM profile_artwork a JOIN profiles p ON p.user_id=a.user_id AND p.visibility='public'
+  const row=await db.prepare(`SELECT a.* FROM profile_artwork a JOIN profiles p ON p.user_id=a.user_id AND ${publicProfileSql('p')}
     WHERE a.id=? AND a.status='ready' AND ((a.kind='avatar' AND p.avatar_asset_id=a.id) OR (a.kind='banner' AND p.banner_asset_id=a.id))`)
     .bind(id).first<ProfileArtworkRow>();
   if(!row)throw new InputError('This image was not found.',404);

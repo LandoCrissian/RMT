@@ -5,7 +5,7 @@ import { publicHttpsUrl } from '../submission-validation';
 const idPattern = /^[a-z0-9][a-z0-9_-]{0,127}$/i;
 const colorPattern = /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i;
 const localImagePattern = /^\/projects\/[a-z0-9][a-z0-9._-]{0,180}\.(?:png|jpe?g|webp|svg)$/i;
-const publicArtworkPattern = /^\/media\/project-artwork\/[a-z0-9][a-z0-9_-]{0,127}$/i;
+const publicArtworkPattern = /^\/media\/(?:project-artwork|control-project-artwork)\/[a-z0-9][a-z0-9_-]{0,127}$/i;
 const invalid = () => new Error('Activity could not be loaded. Please try again.');
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid();
@@ -17,7 +17,7 @@ function localImage(value: unknown): string {
 }
 function artwork(value: unknown): PublicArtwork {
   const image = record(value);
-  if (typeof image.id !== 'string' || !idPattern.test(image.id) || image.url !== `/media/project-artwork/${image.id}` ||
+  if (typeof image.id !== 'string' || !idPattern.test(image.id) || ![`/media/project-artwork/${image.id}`,`/media/control-project-artwork/${image.id}`].includes(String(image.url)) ||
       !Number.isSafeInteger(image.width) || (image.width as number) < 1 || (image.width as number) > 8192 ||
       !Number.isSafeInteger(image.height) || (image.height as number) < 1 || (image.height as number) > 8192 ||
       !['image/png', 'image/jpeg', 'image/webp'].includes(String(image.mime))) throw invalid();

@@ -1,3 +1,4 @@
+import {requireCommunityIntake} from '@/lib/server/control-settings';
 import { InputError, validateSubmission } from "@/lib/submission-validation";
 import { resubmit } from "@/lib/server/repository";
 import { database, requireIdentity, runtime } from "@/lib/server/runtime";
@@ -14,6 +15,7 @@ export async function PATCH(request: Request, context: {params: Promise<{id: str
     const input = validateSubmission(fields);
     const {id} = await context.params;
     const db = database();
+    await requireCommunityIntake(db,'submissions');
     const submission = await resubmit(db, user, id, input, expectedRevision as number);
     await dispatchNotifications(db, runtime());
     return json({submission});

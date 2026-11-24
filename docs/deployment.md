@@ -1,4 +1,17 @@
-# Activity and profiles — release 12 (November 24, 2026)
+# Control Center — release 13 (November 24, 2026)
+
+This release adds phone-friendly administration to the existing public RMT Site.
+Development is isolated from the live release 12 application. The sole forward
+migration is 0008; it adds new management tables and preserves existing data.
+Protected owner configuration, existing Firebase identity/account linking,
+runtime bindings, public audience, domain and billing remain in place.
+
+See [Control Center](control-center.md) for operations, roles, metrics definitions,
+verification, service boundaries and the rollback constraint. Publish only the
+exact source and archive passing the release gates. The dashboard never changes
+maintenance, grants roles or moderates real records as part of its deployment.
+
+## Historical: activity and profiles — release 12 (November 24, 2026)
 
 This release adds public ecosystem activity and optional member profiles on the
 existing application. Before this upgrade, the public site was release 11,

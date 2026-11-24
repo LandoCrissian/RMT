@@ -2,6 +2,8 @@ import { getSeedProjects, type PublicArtwork } from '@/lib/catalog';
 import { InputError, type ProjectEditInput } from '@/lib/submission-validation';
 import { ARTWORK_BYTE_LIMIT, ARTWORK_ID_PATTERN, ARTWORK_UPLOAD_LIMIT, validateArtworkImage, type ArtworkKind, type ArtworkMime } from '@/lib/project-artwork-validation';
 import { hasSameOrigin, type PlatformIdentity } from './auth';
+import {publicProjectSql} from './control-visibility';
+import {activeControlMemberSql} from './control-sql';
 
 export type ArtworkRow = {
   id: string; project_id: string; user_id: string; ownership_revision: number; kind: ArtworkKind;
@@ -16,15 +18,14 @@ export function privateArtwork(row: ArtworkRow) {
   return {id: row.id, kind: row.kind, width: row.width, height: row.height, mime: row.mime, byteSize: row.byte_size,
     previewUrl: '/api/project-artwork/' + encodeURIComponent(row.id), createdAt: row.created_at};
 }
-export async function isPublicArtworkProject(db: D1Database, projectId: string): Promise<boolean> {
-  if (getSeedProjects().some(project => project.id === projectId)) return true;
-  if (!projectId.startsWith('community-')) return false;
-  return Boolean(await db.prepare("SELECT id FROM submissions WHERE id=? AND status='approved'").bind(projectId.slice(10)).first());
+export async function isPublicArtworkProject(db:D1Database,projectId:string):Promise<boolean>{
+  return Boolean(await db.prepare(`WITH candidate(project_id) AS (SELECT ?) SELECT project_id FROM candidate WHERE ${publicProjectSql('candidate.project_id')}`).bind(projectId).first());
 }
+
 export async function assertArtworkOwner(db: D1Database, user: PlatformIdentity, projectId: string) {
   if (!user.emailVerified) throw new InputError('Verify your email before uploading project artwork.', 403);
   if (!projectId || projectId.length > 120 || !await isPublicArtworkProject(db, projectId)) throw new InputError('This project is not available.',404);
-  const owner = await db.prepare("SELECT revision FROM project_owners WHERE project_id=? AND user_id=? AND status='active'").bind(projectId,user.userId).first<{revision:number}>();
+  const owner = await db.prepare(`SELECT revision FROM project_owners WHERE project_id=? AND user_id=? AND status='active' AND ${activeControlMemberSql('user_id')}`).bind(projectId,user.userId).first<{revision:number}>();
   if (!owner) throw new InputError('Only this project’s confirmed manager can upload artwork.',404);
   return owner;
 }
@@ -58,7 +59,7 @@ export async function uploadProjectArtwork(db: D1Database, bucket: R2Bucket, use
   const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',Uint8Array.from(image.bytes).buffer))).map(byte => byte.toString(16).padStart(2,'0')).join('');
   const inserted = await db.prepare(`INSERT INTO project_artwork (id,project_id,user_id,ownership_revision,kind,object_key,mime,width,height,byte_size,digest,status,created_at)
     SELECT ?,?,?,?,?,?,?,?,?,?,?,'uploading',?
-    WHERE EXISTS(SELECT 1 FROM project_owners WHERE project_id=? AND user_id=? AND status='active' AND revision=?)
+    WHERE EXISTS(SELECT 1 FROM project_owners WHERE project_id=? AND user_id=? AND status='active' AND revision=? AND ${activeControlMemberSql('user_id')})
     AND (SELECT COUNT(*) FROM project_artwork WHERE user_id=? AND created_at>=?)<?`)
     .bind(id,projectId,user.userId,owner.revision,kind,objectKey,image.mime,image.width,image.height,image.bytes.length,digest,now,
       projectId,user.userId,owner.revision,user.userId,now-86_400_000,ARTWORK_UPLOAD_LIMIT).run();
@@ -70,7 +71,7 @@ export async function uploadProjectArtwork(db: D1Database, bucket: R2Bucket, use
   try {
     await bucket.put(objectKey,image.bytes,{httpMetadata:{contentType:image.mime},customMetadata:{digest}});
     const ready = await db.prepare(`UPDATE project_artwork SET status='ready' WHERE id=? AND status='uploading'
-      AND EXISTS(SELECT 1 FROM project_owners WHERE project_id=? AND user_id=? AND status='active' AND revision=?)`)
+      AND EXISTS(SELECT 1 FROM project_owners WHERE project_id=? AND user_id=? AND status='active' AND revision=? AND ${activeControlMemberSql('user_id')})`)
       .bind(id,projectId,user.userId,owner.revision).run();
     if (ready.meta.changes !== 1) throw new InputError('Project ownership changed during this upload. Refresh before trying again.',409);
   } catch (error) {
@@ -106,10 +107,16 @@ export function artworkEditGuard(alias = 'project_edits'): string {
 export async function normalizeEditArtwork(db: D1Database, userId: string, ownerRevision: number, input: ProjectEditInput): Promise<ProjectEditInput> {
   const published = await db.prepare("SELECT p.payload_json FROM project_overrides p JOIN project_edits e ON e.id=p.edit_id AND e.status='approved' WHERE p.project_id=?").bind(input.projectId).first<{payload_json:string}>();
   const previous = published ? JSON.parse(published.payload_json) as ProjectEditInput : {} as ProjectEditInput;
+  const admin = await db.prepare('SELECT artwork_override,logo_asset_id,banner_asset_id FROM project_controls WHERE project_id=?').bind(input.projectId).first<{artwork_override:number;logo_asset_id:string|null;banner_asset_id:string|null}>();
   const result = {...input};
   for (const kind of ['logo','banner'] as const) {
     const key = `${kind}AssetId` as const;
-    const id = input[key] === undefined ? previous[key] ?? null : input[key];
+    let id = input[key] === undefined ? previous[key] ?? null : input[key];
+    // An older builder form may have initialized its fields from public admin
+    // images. Retain the prior builder selection for this exact published asset;
+    // this never grants access to arbitrary administrator uploads.
+    const selectedAdminId=kind==='logo'?admin?.logo_asset_id:admin?.banner_asset_id;
+    if(id&&admin?.artwork_override===1&&id===selectedAdminId)id=previous[key]??null;
     if (id) {
       if (!ARTWORK_ID_PATTERN.test(id)) throw new InputError('Choose valid project artwork.');
       const row = await db.prepare("SELECT * FROM project_artwork WHERE id=? AND project_id=? AND kind=? AND status='ready'").bind(id,input.projectId,kind).first<ArtworkRow>();
@@ -137,14 +144,15 @@ export async function publicArtworkRow(db: D1Database, id: string): Promise<Artw
   const row = await db.prepare(`SELECT a.* FROM project_artwork a
     JOIN project_overrides p ON p.project_id=a.project_id
     JOIN project_edits e ON e.id=p.edit_id AND e.status='approved'
-    WHERE a.id=? AND a.status='ready' AND
+    WHERE a.id=? AND a.status='ready'
+      AND NOT EXISTS(SELECT 1 FROM project_controls c WHERE c.project_id=a.project_id AND c.artwork_override=1) AND
       ((a.kind='logo' AND json_extract(p.payload_json,'$.logoAssetId')=a.id)
        OR (a.kind='banner' AND json_extract(p.payload_json,'$.bannerAssetId')=a.id))`).bind(id).first<ArtworkRow>();
   if (!row || !await isPublicArtworkProject(db,row.project_id)) throw new InputError('This image was not found.',404);
   return row;
 }
 
-export async function artworkResponse(bucket: R2Bucket, row: ArtworkRow, head = false): Promise<Response> {
+export async function artworkResponse(bucket: R2Bucket, row: Pick<ArtworkRow,'id'|'object_key'|'byte_size'|'mime'|'kind'>, head = false): Promise<Response> {
   const object = await bucket.get(row.object_key);
   if (!object || object.size !== row.byte_size) throw new InputError('This image is temporarily unavailable.',404);
   return new Response(head ? null : object.body,{headers:{'Content-Type':row.mime,'Content-Length':String(row.byte_size),

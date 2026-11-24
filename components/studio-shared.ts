@@ -3,6 +3,9 @@ export type StudioSession = {
   userId: string | null;
   displayName: string | null;
   isAdmin: boolean;
+  controlRole?: 'owner'|'admin'|'moderator'|'member'|null;
+  controlCapabilities?: import('@/lib/control').ControlCapability[];
+  suspended?: boolean;
 };
 
 export type StudioProps = {

@@ -195,3 +195,38 @@ export const profileArtwork = sqliteTable('profile_artwork', {
   check('profile_artwork_valid_mime',sql`${table.mime} = 'image/png'`),
   check('profile_artwork_valid_status',sql`${table.status} IN ('uploading','ready','failed')`),
 ]);
+
+// Release 13 management records are additive; runtime owner IDs stay in secrets.
+export const controlMembers = sqliteTable('control_members', {
+ userId:text('user_id').primaryKey(),email:text('email').notNull().default(''),displayName:text('display_name').notNull().default(''),
+ providersJson:text('providers_json').notNull().default('[]'),emailVerified:integer('email_verified'),
+ firstSeenAt:integer('first_seen_at'),lastSeenAt:integer('last_seen_at'),historicalSinceAt:integer('historical_since_at'),
+ status:text('status').notNull().default('active'),statusReason:text('status_reason').notNull().default(''),revision:integer('revision').notNull().default(1),
+ createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),
+},table=>[index('control_members_status_user').on(table.status,table.userId),index('control_members_seen').on(table.lastSeenAt),check('control_members_status_valid',sql`${table.status} IN ('active','suspended')`),check('control_members_verified_valid',sql`${table.emailVerified} IS NULL OR ${table.emailVerified} IN (0,1)`)]);
+export const controlRoles=sqliteTable('control_roles',{
+ userId:text('user_id').primaryKey().references(()=>controlMembers.userId),role:text('role').notNull().default('member'),revision:integer('revision').notNull().default(1),updatedAt:integer('updated_at').notNull(),updatedBy:text('updated_by').notNull(),
+},table=>[check('control_roles_valid',sql`${table.role} IN ('member','admin','moderator')`)]);
+export const controlAuditEvents=sqliteTable('control_audit_events',{
+ id:text('id').primaryKey(),actorId:text('actor_id').notNull(),action:text('action').notNull(),entityType:text('entity_type').notNull(),entityId:text('entity_id').notNull(),reason:text('reason').notNull(),beforeJson:text('before_json').notNull().default('{}'),afterJson:text('after_json').notNull().default('{}'),createdAt:integer('created_at').notNull(),
+},table=>[index('control_audit_created').on(table.createdAt,table.id),index('control_audit_entity').on(table.entityType,table.entityId,table.createdAt)]);
+export const controlInstallation=sqliteTable('control_installation',{
+ id:integer('id').primaryKey(),observedSince:integer('observed_since').notNull(),
+},table=>[check('control_installation_singleton',sql`${table.id}=1`)]);
+export const projectControls=sqliteTable('project_controls',{
+ projectId:text('project_id').primaryKey(),source:text('source').notNull().default('existing'),definitionJson:text('definition_json'),nameOverride:text('name_override').notNull().default(''),payloadJson:text('payload_json'),
+ normalizedName:text('normalized_name'),normalizedHost:text('normalized_host'),logoAssetId:text('logo_asset_id'),bannerAssetId:text('banner_asset_id'),artworkOverride:integer('artwork_override').notNull().default(0),baseOverrideRevision:integer('base_override_revision').notNull().default(0),visibility:text('visibility').notNull().default('public'),featured:integer('featured'),revision:integer('revision').notNull().default(1),createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),
+},table=>[index('project_controls_visibility_updated').on(table.visibility,table.updatedAt),index('project_controls_source_created').on(table.source,table.createdAt),uniqueIndex('project_controls_unique_admin_name').on(table.normalizedName).where(sql`${table.source}='admin' AND ${table.normalizedName} IS NOT NULL`),uniqueIndex('project_controls_unique_admin_host').on(table.normalizedHost).where(sql`${table.source}='admin' AND ${table.normalizedHost} IS NOT NULL`),check('project_controls_source_valid',sql`${table.source} IN ('existing','admin')`),check('project_controls_visibility_valid',sql`${table.visibility} IN ('public','hidden','archived')`),check('project_controls_featured_valid',sql`${table.featured} IS NULL OR ${table.featured} IN (0,1)`),check('project_controls_artwork_override_valid',sql`${table.artworkOverride} IN (0,1)`)]);
+export const controlContent=sqliteTable('control_content',{
+ entityType:text('entity_type').notNull(),entityId:text('entity_id').notNull(),hidden:integer('hidden').notNull().default(0),reason:text('reason').notNull().default(''),revision:integer('revision').notNull().default(1),createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),
+},table=>[primaryKey({columns:[table.entityType,table.entityId]}),index('control_content_hidden_updated').on(table.hidden,table.updatedAt),check('control_content_type_valid',sql`${table.entityType} IN ('profile','update')`),check('control_content_hidden_valid',sql`${table.hidden} IN (0,1)`)]);
+export const controlSettings=sqliteTable('control_settings',{
+ id:text('id').primaryKey(),payloadJson:text('payload_json').notNull(),revision:integer('revision').notNull(),updatedAt:integer('updated_at').notNull(),updatedBy:text('updated_by').notNull(),
+},table=>[check('control_settings_singleton',sql`${table.id}='site'`)]);
+export const controlMetricEvents=sqliteTable('control_metric_events',{
+ id:text('id').primaryKey(),day:text('day').notNull(),kind:text('kind').notNull(),projectId:text('project_id').notNull().default(''),createdAt:integer('created_at').notNull(),
+},table=>[index('control_metric_day_kind').on(table.day,table.kind),index('control_metric_project_day').on(table.projectId,table.day),check('control_metric_kind_valid',sql`${table.kind} IN ('visit','project_view','outbound')`)]);
+
+export const controlProjectArtwork=sqliteTable('control_project_artwork',{
+ id:text('id').primaryKey(),projectId:text('project_id').notNull(),uploaderId:text('uploader_id').notNull(),objectKey:text('object_key').notNull(),kind:text('kind').notNull(),mime:text('mime').notNull(),width:integer('width').notNull(),height:integer('height').notNull(),byteSize:integer('byte_size').notNull(),digest:text('digest').notNull(),status:text('status').notNull().default('uploading'),createdAt:integer('created_at').notNull(),
+},table=>[uniqueIndex('control_artwork_object_key').on(table.objectKey),index('control_artwork_uploader_created').on(table.uploaderId,table.createdAt),index('control_artwork_project_status').on(table.projectId,table.status),check('control_artwork_kind_valid',sql`${table.kind} IN ('logo','banner')`),check('control_artwork_mime_valid',sql`${table.mime}='image/png'`),check('control_artwork_status_valid',sql`${table.status} IN ('uploading','ready','failed')`)]);

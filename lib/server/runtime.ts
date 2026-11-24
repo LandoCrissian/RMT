@@ -1,7 +1,9 @@
 import { env } from "cloudflare:workers";
 import { InputError } from "@/lib/submission-validation";
-import { identityFromHeaders, isAdministrator } from "./auth";
+import { identityFromHeaders } from "./auth";
 
+import {controlRole,capabilitiesForRole,memberSuspended} from './control-access';
+import {observeMember} from './control-members';
 import { verifyFirebaseToken, cookieValue, sessionCookie, checkFirebaseAccount } from "./firebase-auth";
 
 type RmtEnvironment = {DB?: D1Database; BUCKET?: R2Bucket; RMT_ADMIN_USER_IDS?: string};
@@ -17,11 +19,16 @@ async function resolveIdentity(request: Request) {
     const user = await verifyFirebaseToken(token);
     await checkFirebaseAccount(token, user.firebaseUid, user.authTime);
     const link = await database().prepare("SELECT legacy_user_id FROM account_links WHERE firebase_uid = ?").bind(user.firebaseUid).first<{legacy_user_id: string}>();
-    return {...user, userId: link?.legacy_user_id ?? user.userId, provider: "firebase"};
+    const canonical={...user,userId:link?.legacy_user_id??user.userId,provider:"firebase"};
+    await observeMember(database(),canonical);
+    return {...canonical,suspended:await memberSuspended(database(),canonical.userId,runtime().RMT_ADMIN_USER_IDS)};
   }
   if (cookieValue(request, "rmt-signed-out") === "1") return null;
   const legacy = identityFromHeaders(request.headers);
-  return legacy ? {...legacy, emailVerified: true, provider: "legacy"} : null;
+  if(!legacy)return null;
+  const user={...legacy,emailVerified:true,provider:"legacy"};
+  await observeMember(database(),user);
+  return {...user,suspended:await memberSuspended(database(),user.userId,runtime().RMT_ADMIN_USER_IDS)};
 }
 // Weak keys keep verification scoped to this one request, including MCP calls.
 const identities = new WeakMap<Request, ReturnType<typeof resolveIdentity>>();
@@ -33,14 +40,20 @@ export function identity(request: Request) {
 export async function requireIdentity(request: Request) {
   const user = await identity(request);
   if (!user) throw new InputError("Sign in to submit or manage a project.", 401);
+  if(user.suspended)throw new InputError("Your RMT account is suspended. Contact the site owner for help.",403);
   if (!user.emailVerified) throw new InputError("Verify your email before saving or submitting projects.", 403);
   return user;
 }
 export async function isAdmin(request: Request): Promise<boolean> {
-  return isAdministrator((await identity(request))?.userId, runtime().RMT_ADMIN_USER_IDS);
+  const user=await identity(request);
+  if(!user||!user.emailVerified||user.suspended)return false;
+  const access=await controlRole(database(),user.userId,runtime().RMT_ADMIN_USER_IDS);
+  return capabilitiesForRole(access.role).includes('review');
 }
 export async function requireAdmin(request: Request) {
   const user = await requireIdentity(request);
-  if (!isAdministrator(user.userId, runtime().RMT_ADMIN_USER_IDS)) throw new InputError("This page is only available to an RMT reviewer.", 403);
-  return user;
+  const access=await controlRole(database(),user.userId,runtime().RMT_ADMIN_USER_IDS);
+  const capabilities=capabilitiesForRole(access.role);
+  if(access.role==='member'||!capabilities.includes('review'))throw new InputError("This page is only available to an RMT reviewer.",403);
+  return {...user,role:access.role,roleRevision:access.revision,capabilities};
 }
