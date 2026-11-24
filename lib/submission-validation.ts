@@ -1,6 +1,6 @@
 export const categories = ["Games", "Music", "Tools", "Community"] as const;
 export type Category = (typeof categories)[number];
-export const projectStages = ["starting", "building", "live"] as const;
+export const projectStages = ["starting", "building", "beta", "live"] as const;
 export type ProjectStage = (typeof projectStages)[number];
 export type SubmissionInput = {
   name: string;

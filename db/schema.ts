@@ -92,7 +92,7 @@ export const notificationOutbox = sqliteTable('notification_outbox', {
   createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),
 },table=>[
   uniqueIndex('outbox_event_channel').on(table.eventKey,table.channel),index('outbox_status_created').on(table.status,table.createdAt),
-  check('outbox_valid_kind',sql`${table.kind} IN ('submission','claim','edit')`),check('outbox_valid_channel',sql`${table.channel} IN ('email','sms')`),
+  check('outbox_valid_kind',sql`${table.kind} IN ('submission','claim','edit','update')`),check('outbox_valid_channel',sql`${table.channel} IN ('email','sms')`),
   check('outbox_valid_status',sql`${table.status} IN ('pending','sending','sent','failed','unconfigured','uncertain')`),
 ]);
 
@@ -133,4 +133,31 @@ export const projectArtwork = sqliteTable('project_artwork', {
   check('artwork_valid_kind', sql`${table.kind} IN ('logo','banner')`),
   check('artwork_valid_mime', sql`${table.mime} IN ('image/png','image/jpeg','image/webp')`),
   check('artwork_valid_status', sql`${table.status} IN ('uploading','ready','failed')`),
+]);
+
+
+export const projectUpdates = sqliteTable('project_updates', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), projectName: text('project_name').notNull(),
+  userId: text('user_id').notNull(), ownershipRevision: integer('ownership_revision').notNull(),
+  kind: text('kind').notNull(), title: text('title').notNull(), body: text('body').notNull(),
+  linkLabel: text('link_label').notNull().default(''), linkUrl: text('link_url').notNull().default(''),
+  status: text('status').notNull().default('draft'), reviewNote: text('review_note').notNull().default(''),
+  revision: integer('revision').notNull().default(1), publishedAt: integer('published_at'),
+  createdAt: integer('created_at').notNull(), updatedAt: integer('updated_at').notNull(),
+}, table => [
+  uniqueIndex('updates_one_pending_project').on(table.projectId).where(sql`${table.status} = 'pending'`),
+  index('updates_user_updated').on(table.userId, table.updatedAt, table.id),
+  index('updates_project_published').on(table.projectId, table.status, table.publishedAt, table.id),
+  index('updates_review_updated').on(table.status, table.updatedAt, table.id),
+  check('updates_valid_status', sql`${table.status} IN ('draft','pending','approved','rejected','archived')`),
+  check('updates_valid_kind', sql`${table.kind} IN ('announcement','progress','release')`),
+]);
+export const projectUpdateEvents = sqliteTable('project_update_events', {
+  id: text('id').primaryKey(), updateId: text('update_id').notNull().references(() => projectUpdates.id),
+  actorId: text('actor_id').notNull(), action: text('action').notNull(), previousStatus: text('previous_status').notNull(),
+  nextStatus: text('next_status').notNull(), note: text('note').notNull().default(''),
+  revision: integer('revision').notNull(), createdAt: integer('created_at').notNull(),
+}, table => [
+  index('update_events_update_created').on(table.updateId, table.createdAt),
+  index('update_events_actor_action_created').on(table.actorId, table.action, table.createdAt),
 ]);

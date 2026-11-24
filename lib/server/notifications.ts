@@ -11,7 +11,7 @@ export type NotificationEnvironment = ReturnType<typeof runtime> & {
 type Channel = "email" | "sms";
 type Status = "pending" | "sending" | "sent" | "failed" | "unconfigured" | "uncertain";
 type NotificationRow = {
-  id: string; event_key: string; kind: "submission" | "claim" | "edit";
+  id: string; event_key: string; kind: "submission" | "claim" | "edit" | "update";
   entity_id: string; project_name: string; channel: Channel; status: Status;
   attempt_count: number; provider_id: string; last_error: string; payload_json: string;
   first_attempt_at: number | null; created_at: number; updated_at: number; sent_at: number | null;
@@ -137,7 +137,7 @@ function projectName(name: string): string { return name.replace(/[\u0000-\u001f
 async function newPayload(row: NotificationRow, env: NotificationEnvironment): Promise<SavedPayload> {
   const reviewUrl = notificationReviewUrl(env)!;
   const name = projectName(row.project_name);
-  const event = row.kind === "claim" ? "ownership claim" : row.kind === "edit" ? "project update" : "project application";
+  const event = row.kind === "claim" ? "ownership claim" : row.kind === "edit" ? "listing edit" : row.kind === "update" ? "project announcement" : "project application";
   return {
     version: 1, channel: "email", ambiguous: false,
     credentialFingerprint: await fingerprint(value(env.RESEND_API_KEY)),

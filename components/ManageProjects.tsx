@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowRight, ArrowUpRight, CheckCircle2, Clock3, FolderKanban, LoaderCircle, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, CheckCircle2, Clock3, FilePenLine, FolderKanban, LoaderCircle, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { Project } from "@/lib/catalog";
 import { signInHref } from "@/lib/account-navigation";
 import { formattedDate, readApiResponse, stageLabel, statusLabel, type ProjectStage, type StudioProps } from "./studio-shared";
 import "./studio.css";
 import ProjectArtworkFields, { type ArtworkSelection } from "./ProjectArtworkFields";
+import ProjectUpdatesManager from "./ProjectUpdatesManager";
+import "./project-updates-studio.css";
 
 export type ProjectEdit = {
   id: string;
@@ -46,7 +48,11 @@ function editableProject({ project, editableLinks }: OwnedProject): EditForm {
   return { summary: project.description, category: project.category, stage: project.stage ?? "building", website: project.website ?? "", launchUrl: project.launchUrl ?? "", xProfile: xProfile(project), links: editableLinks.map(link => ({ ...link })), logoAssetId: project.artwork?.logo?.id ?? null, bannerAssetId: project.artwork?.banner?.id ?? null };
 }
 
-export default function ManageProjects({ session, onToast, onAddProject }: ManageProjectsProps) {
+export default function ManageProjects(props: ManageProjectsProps) {
+  return <ManagedProjectsWorkspace key={props.session.userId ?? "guest"} {...props} />;
+}
+
+function ManagedProjectsWorkspace({ session, onToast, onAddProject }: ManageProjectsProps) {
   const [owned, setOwned] = useState<OwnedProject[]>([]);
   const [edits, setEdits] = useState<ProjectEdit[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,19 +62,36 @@ export default function ManageProjects({ session, onToast, onAddProject }: Manag
   const [formError, setFormError] = useState("");
   const [selected, setSelected] = useState<OwnedProject | null>(null);
   const [form, setForm] = useState<EditForm | null>(null);
+  const [updatesProject, setUpdatesProject] = useState<Project | null>(null);
+  const request = useRef<AbortController | null>(null);
+  const sequence = useRef(0);
+  const active = useRef(true);
   const hasOfficialCollection = Boolean(selected?.project.collections?.length);
 
   const load = useCallback(async () => {
-    if (!session.authenticated) return;
+    if (!session.authenticated || !session.userId) return;
+    const requestSequence = ++sequence.current;
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
     setLoading(true); setError("");
     try {
-      const data = await readApiResponse(await fetch("/api/projects/owned", { cache: "no-store" }));
-      setOwned(Array.isArray(data.projects) ? data.projects as OwnedProject[] : []);
-      setEdits(Array.isArray(data.edits) ? data.edits as ProjectEdit[] : []);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Your projects could not be loaded."); }
-    finally { setLoading(false); }
-  }, [session.authenticated]);
-  useEffect(() => { void load(); }, [load]);
+      const data = await readApiResponse(await fetch("/api/projects/owned", { cache: "no-store", signal: controller.signal, headers: { "X-RMT-Account": session.userId } }));
+      if (!Array.isArray(data.projects) || !Array.isArray(data.edits)) throw new Error("Your projects response was incomplete. Refresh to try again.");
+      if (!active.current || controller.signal.aborted || sequence.current !== requestSequence) return;
+      setOwned(data.projects as OwnedProject[]);
+      setEdits(data.edits as ProjectEdit[]);
+    } catch (cause) {
+      if (active.current && !controller.signal.aborted && sequence.current === requestSequence) setError(cause instanceof Error ? cause.message : "Your projects could not be loaded.");
+    } finally {
+      if (active.current && sequence.current === requestSequence) setLoading(false);
+    }
+  }, [session.authenticated, session.userId]);
+  useEffect(() => {
+    active.current = true;
+    void load();
+    return () => { active.current = false; request.current?.abort(); sequence.current++; };
+  }, [load]);
 
   function edit(item: OwnedProject) { setSelected(item); setForm(editableProject(item)); setFormError(""); }
   function change<K extends keyof EditForm>(key: K, value: EditForm[K]) { setForm(previous => previous ? { ...previous, [key]: value } : previous); }
@@ -83,19 +106,22 @@ export default function ManageProjects({ session, onToast, onAddProject }: Manag
     if (!form.website.trim() && !form.xProfile.trim() && !hasOfficialCollection) { setFormError("Keep at least one official home: a website or the project’s X profile."); return; }
     setBusy(true);
     try {
-      const data = await readApiResponse(await fetch("/api/project-edits", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId: selected.project.id, baseRevision: selected.revision, ...form, links: form.links.map(link => ({ label: link.label, url: link.url, ...(link.type?.trim() ? { type: link.type.trim() } : {}) })) }) }));
+      const data = await readApiResponse(await fetch("/api/project-edits", { method: "POST", headers: { "Content-Type": "application/json", "X-RMT-Account": session.userId ?? "" }, body: JSON.stringify({ projectId: selected.project.id, baseRevision: selected.revision, ...form, links: form.links.map(link => ({ label: link.label, url: link.url, ...(link.type?.trim() ? { type: link.type.trim() } : {}) })) }) }));
+      if (!active.current) return;
       if (!(data.edit as ProjectEdit | undefined)?.id) throw new Error("We couldn’t confirm your changes were received. Refresh your projects before trying again.");
       onToast("Changes submitted for review. Your current page stays online.");
       setSelected(null); setForm(null);
       await load();
-    } catch (cause) { setFormError(cause instanceof Error ? cause.message : "Your changes could not be submitted."); }
-    finally { setBusy(false); }
+    } catch (cause) { if (active.current) setFormError(cause instanceof Error ? cause.message : "Your changes could not be submitted."); }
+    finally { if (active.current) setBusy(false); }
   }
 
   if (!session.authenticated) return <section className="st-panel st-signin"><div className="st-symbol"><FolderKanban size={25} /></div><h2>A home for your projects.</h2><p>Sign in to manage projects you’ve submitted or claimed.</p><a className="st-button st-primary" href={signInHref("/?studio=projects#studio")} target="_top">Sign in <ArrowRight size={16} /></a></section>;
 
+  if (updatesProject) return <ProjectUpdatesManager session={session} onToast={onToast} project={updatesProject} onBack={() => setUpdatesProject(null)} />;
+
   if (selected && form) return <section className="st-owner-editor"><button type="button" className="st-text-button st-back-link" onClick={() => { setSelected(null); setForm(null); }}><ArrowLeft size={14} /> My projects</button><div className="st-section-heading"><div><h2>Update {selected.project.name}</h2></div><span className="st-status st-status-approved">Confirmed manager</span></div><p className="st-panel-intro">Update your project’s artwork, details, and official links. Your current page stays online while the changes are reviewed.</p><form className="st-panel st-form" onSubmit={submit}>
-    <div className="st-fields-two"><label className="st-field">Category<select value={form.category} onChange={event => change("category", event.target.value as Project["category"])}><option>Games</option><option>Music</option><option>Tools</option><option>Community</option></select></label><label className="st-field">Project stage<select value={form.stage} onChange={event => change("stage", event.target.value as ProjectStage)}><option value="starting">Starting out</option><option value="building">Building</option><option value="live">Live</option></select></label></div>
+    <div className="st-fields-two"><label className="st-field">Category<select value={form.category} onChange={event => change("category", event.target.value as Project["category"])}><option>Games</option><option>Music</option><option>Tools</option><option>Community</option></select></label><label className="st-field">Project stage<select value={form.stage} onChange={event => change("stage", event.target.value as ProjectStage)}><option value="starting">Starting out</option><option value="building">In development</option><option value="beta">Beta</option><option value="live">Live</option></select></label></div>
     <label className="st-field">Short description<textarea value={form.summary} onChange={event => change("summary", event.target.value)} minLength={30} maxLength={280} required rows={3} /><span className="st-field-hint"><span>30–280 characters</span><span>{form.summary.length}/280</span></span></label>
     <ProjectArtworkFields key={selected.project.id} projectId={selected.project.id} currentArtwork={selected.project.artwork} value={{logoAssetId: form.logoAssetId, bannerAssetId: form.bannerAssetId}} onChange={artwork => setForm(previous => previous ? {...previous,...artwork} : previous)} onBusyChange={setArtworkBusy} disabled={busy} />
     <div className="st-fields-two"><label className="st-field">Official website<input type="url" value={form.website} onChange={event => change("website", event.target.value)} maxLength={2048} placeholder="https://yourproject.com" /></label><label className="st-field">Official X profile<input type="url" value={form.xProfile} onChange={event => change("xProfile", event.target.value)} maxLength={2048} placeholder="https://x.com/yourproject" /></label></div><p className="st-hint st-lift-hint">{hasOfficialCollection ? "Your existing collection remains your official home. A website or X profile is optional." : "Keep at least one official home: your website or X profile."}</p>
@@ -108,7 +134,7 @@ export default function ManageProjects({ session, onToast, onAddProject }: Manag
     <div className="st-submit-row"><p><Clock3 size={17} /><span>Reviewed before going live.<br />One set of changes at a time.</span></p><button type="submit" className="st-button st-primary" disabled={busy || artworkBusy}>{busy || artworkBusy ? <LoaderCircle size={16} className="st-spin" /> : <ArrowRight size={16} />} {artworkBusy ? "Finishing upload…" : "Submit changes"}</button></div>
   </form></section>;
 
-  return <section className="st-owned-workspace"><div className="st-section-heading"><div><h2>My projects</h2><span className="st-count">{owned.length}</span></div><button type="button" className="st-text-button" disabled={loading} onClick={() => void load()}><RefreshCw size={14} className={loading ? "st-spin" : ""} /> Refresh</button></div>{error ? <p className="st-error" role="alert">{error}</p> : loading && !owned.length ? <div className="st-panel st-review-empty"><LoaderCircle size={25} className="st-spin" /><p>Loading your projects…</p></div> : !owned.length ? <div className="st-panel st-review-empty"><div className="st-symbol"><FolderKanban size={26} /></div><h2>Your next chapter starts here.</h2><p>Approved applications and confirmed project claims will appear here. You can add a new project or claim an existing listing from its project page.</p><div className="st-empty-actions">{onAddProject && <button type="button" className="st-button st-primary" onClick={onAddProject}><Plus size={15} /> Add a project</button>}<a href="#discover" className="st-button st-secondary">Find my listing <ArrowRight size={15} /></a></div></div> : <div className="st-owned-grid">{owned.map(item => { const pending = edits.find(edit => edit.projectId === item.project.id && edit.status === "pending"); const latest = edits.filter(edit => edit.projectId === item.project.id).sort((a, b) => b.createdAt - a.createdAt)[0]; return <article className="st-panel st-owned-card" key={item.project.id}><div className="st-owned-card-heading"><span className="st-project-initial">{item.project.initials}</span><div><span className="st-kicker">{stageLabel(item.project.stage)} · {item.project.category}</span><h3>{item.project.name}</h3></div><CheckCircle2 size={17} /></div><p>{item.project.description}</p><div className="st-owned-actions"><a className="st-text-button" href={`#project/${encodeURIComponent(item.project.id)}`}>View project page <ArrowUpRight size={14} /></a><button type="button" className="st-button st-secondary" disabled={!!pending} onClick={() => edit(item)}><Pencil size={14} /> {pending ? "Changes in review" : "Edit project"}</button></div>{pending ? <div className="st-information"><Clock3 size={14} /><span>Your changes from {formattedDate(pending.createdAt)} are in review. The current public page is still visible.</span></div> : latest && <div className="st-edit-outcome"><span className={`st-status st-status-${latest.status}`}>{latest.status === "approved" ? "Changes published" : statusLabel(latest.status)}</span>{latest.reviewNote && <p>{latest.reviewNote}</p>}</div>}</article>; })}</div>}
+  return <section className="st-owned-workspace"><div className="st-section-heading"><div><h2>My projects</h2><span className="st-count">{owned.length}</span></div><button type="button" className="st-text-button" disabled={loading} onClick={() => void load()}><RefreshCw size={14} className={loading ? "st-spin" : ""} /> Refresh</button></div>{error ? <p className="st-error" role="alert">{error}</p> : loading && !owned.length ? <div className="st-panel st-review-empty"><LoaderCircle size={25} className="st-spin" /><p>Loading your projects…</p></div> : !owned.length ? <div className="st-panel st-review-empty"><div className="st-symbol"><FolderKanban size={26} /></div><h2>Your next chapter starts here.</h2><p>Approved applications and confirmed project claims will appear here. You can add a new project or claim an existing listing from its project page.</p><div className="st-empty-actions">{onAddProject && <button type="button" className="st-button st-primary" onClick={onAddProject}><Plus size={15} /> Add a project</button>}<a href="#discover" className="st-button st-secondary">Find my listing <ArrowRight size={15} /></a></div></div> : <div className="st-owned-grid">{owned.map(item => { const pending = edits.find(edit => edit.projectId === item.project.id && edit.status === "pending"); const latest = edits.filter(edit => edit.projectId === item.project.id).sort((a, b) => b.createdAt - a.createdAt)[0]; return <article className="st-panel st-owned-card" key={item.project.id}><div className="st-owned-card-heading"><span className="st-project-initial">{item.project.initials}</span><div><span className="st-kicker">{stageLabel(item.project.stage)} · {item.project.category}</span><h3>{item.project.name}</h3></div><CheckCircle2 size={17} /></div><p>{item.project.description}</p><div className="up-owned-actions"><button type="button" className="st-button st-primary" onClick={() => setUpdatesProject(item.project)}><FilePenLine size={14} />Post an update</button><span>Share what you’re building.</span></div><div className="st-owned-actions"><a className="st-text-button" href={`#project/${encodeURIComponent(item.project.id)}`}>View project page <ArrowUpRight size={14} /></a><button type="button" className="st-button st-secondary" disabled={!!pending} onClick={() => edit(item)}><Pencil size={14} /> {pending ? "Changes in review" : "Edit project"}</button></div>{pending ? <div className="st-information"><Clock3 size={14} /><span>Your changes from {formattedDate(pending.createdAt)} are in review. The current public page is still visible.</span></div> : latest && <div className="st-edit-outcome"><span className={`st-status st-status-${latest.status}`}>{latest.status === "approved" ? "Changes published" : statusLabel(latest.status)}</span>{latest.reviewNote && <p>{latest.reviewNote}</p>}</div>}</article>; })}</div>}
     {edits.length > 0 && <section className="st-panel st-form st-edit-history"><div className="st-section-heading"><div><h2>Recent changes</h2></div></div>{edits.slice(0, 12).map(edit => <article className="st-history-row" key={edit.id}><div><h3>{edit.projectName}</h3><p>Submitted {formattedDate(edit.createdAt)}</p>{edit.reviewNote && <p className="st-feedback">{edit.reviewNote}</p>}</div><span className={`st-status st-status-${edit.status}`}>{edit.status === "approved" ? "Changes published" : statusLabel(edit.status)}</span></article>)}</section>}
   </section>;
 }
