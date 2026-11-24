@@ -4,7 +4,7 @@ import { identityFromHeaders, isAdministrator } from "./auth";
 
 import { verifyFirebaseToken, cookieValue, sessionCookie, checkFirebaseAccount } from "./firebase-auth";
 
-type RmtEnvironment = {DB?: D1Database; RMT_ADMIN_USER_IDS?: string};
+type RmtEnvironment = {DB?: D1Database; BUCKET?: R2Bucket; RMT_ADMIN_USER_IDS?: string};
 export function runtime(): RmtEnvironment { return env as RmtEnvironment; }
 export function database(): D1Database {
   const db = runtime().DB;

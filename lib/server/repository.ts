@@ -3,6 +3,7 @@ import { getSeedProjects } from "@/lib/catalog";
 import { InputError, projectIdentityKey, normalizeName, type SubmissionInput, type DecisionInput, type ProjectEditInput, type ProjectStage } from "@/lib/submission-validation";
 import type { PlatformIdentity } from "./auth";
 import { pendingNotifications } from "./outbox-events";
+import { publicArtwork, type ArtworkRow } from './project-artwork';
 
 export type SubmissionStatus = "pending" | "needs_changes" | "approved" | "rejected" | "suspended";
 export type SubmissionRow = {
@@ -105,21 +106,33 @@ function approvedDestinationLinks(edit:ProjectEditInput):Project['links'] {
 }
 
 export async function catalog(db: D1Database) {
-  const [rows,owners,overrides] = await Promise.all([
+  const [rows,owners,overrides,artworkRows] = await Promise.all([
     db.prepare("SELECT * FROM submissions WHERE status = 'approved' ORDER BY name COLLATE NOCASE LIMIT 500").all<SubmissionRow>(),
     db.prepare("SELECT project_id,status FROM project_owners").all<{project_id:string;status:string}>(),
-    db.prepare("SELECT project_id,payload_json,revision FROM project_overrides").all<{project_id:string;payload_json:string;revision:number}>(),
+    db.prepare("SELECT p.project_id,p.payload_json,p.revision FROM project_overrides p JOIN project_edits e ON e.id=p.edit_id AND e.status='approved'").all<{project_id:string;payload_json:string;revision:number}>(),
+    db.prepare(`SELECT a.* FROM project_artwork a JOIN project_overrides p ON p.project_id=a.project_id
+      JOIN project_edits e ON e.id=p.edit_id AND e.status='approved' WHERE a.status='ready'
+      AND ((a.kind='logo' AND json_extract(p.payload_json,'$.logoAssetId')=a.id)
+        OR (a.kind='banner' AND json_extract(p.payload_json,'$.bannerAssetId')=a.id))`).all<ArtworkRow>(),
   ]);
   const ownership = new Map(owners.results.map(row => [row.project_id,row.status]));
   const approvedEdits = new Map(overrides.results.map(row => [row.project_id,JSON.parse(row.payload_json) as ProjectEditInput]));
+  const approvedArtwork = new Map(artworkRows.results.map(row => [row.id,row]));
   const curated = getSeedProjects();
   const community = rows.results.map(publicProject);
   const projects = [...curated,...community].map(project => {
     const edit = approvedEdits.get(project.id);
     const ownerStatus = ownership.get(project.id);
+    const logoRow = edit?.logoAssetId ? approvedArtwork.get(edit.logoAssetId) : undefined;
+    const bannerRow = edit?.bannerAssetId ? approvedArtwork.get(edit.bannerAssetId) : undefined;
+    const logo = logoRow?.project_id === project.id && logoRow.kind === 'logo' ? publicArtwork(logoRow) : undefined;
+    const banner = bannerRow?.project_id === project.id && bannerRow.kind === 'banner' ? publicArtwork(bannerRow) : undefined;
+    const artwork = logo || banner ? {logo,banner} : undefined;
     return {...project,claimed:ownerStatus ? ownerStatus === 'active' : project.claimed,
       ...(edit ? {tagline:edit.summary,description:edit.summary,category:edit.category,stage:edit.stage,
-        website:edit.website,launchUrl:edit.launchUrl,links:approvedDestinationLinks(edit)} : {})};
+        website:edit.website,launchUrl:edit.launchUrl,links:approvedDestinationLinks(edit)} : {}),
+      ...(artwork ? {artwork,cover:banner?.url || logo!.url,coverFit:banner ? 'cover' as const : 'contain' as const,
+        coverAspectRatio:banner ? banner.width / banner.height : logo!.width / logo!.height} : {})};
   });
   return {projects,counts:{curated:curated.length,community:community.length}};
 }

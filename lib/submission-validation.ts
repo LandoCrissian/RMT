@@ -145,6 +145,7 @@ export type ProjectLink = {label: string; url: string; type?: string};
 export type ProjectEditInput = {
   projectId: string; baseRevision: number; summary: string; category: Category; stage: ProjectStage;
   website: string; launchUrl: string; xProfile: string; links: ProjectLink[];
+  logoAssetId?: string | null; bannerAssetId?: string | null;
 };
 function objectFields(value: unknown, fields: string[]): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new InputError('Send a valid request.');
@@ -158,7 +159,7 @@ export function expectedRevision(value: unknown, allowZero = false): number {
   return value as number;
 }
 export function validateProjectEdit(value: unknown): ProjectEditInput {
-  const input = objectFields(value, ['projectId','baseRevision','summary','category','stage','website','launchUrl','xProfile','links']);
+  const input = objectFields(value, ['projectId','baseRevision','summary','category','stage','website','launchUrl','xProfile','links','logoAssetId','bannerAssetId']);
   const projectId = field(input, 'projectId', 1, 120, 'Project');
   const baseRevision = expectedRevision(input.baseRevision, true);
   const summary = field(input, 'summary', 30, 280, 'Description');
@@ -176,7 +177,14 @@ export function validateProjectEdit(value: unknown): ProjectEditInput {
     const type = link.type === undefined || link.type === '' ? undefined : field(link, 'type', 1, 40, 'Link type');
     return {label,url,...(type ? {type} : {})};
   });
-  return {projectId, baseRevision, summary, category: input.category as Category, stage: input.stage as ProjectStage, website, launchUrl, xProfile, links};
+  const artwork: Pick<ProjectEditInput,'logoAssetId'|'bannerAssetId'> = {};
+  for (const key of ['logoAssetId','bannerAssetId'] as const) {
+    if (input[key] === undefined) continue;
+    if (input[key] === null) { artwork[key] = null; continue; }
+    if (typeof input[key] !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(input[key])) throw new InputError('Choose an image uploaded for this project.');
+    artwork[key] = input[key];
+  }
+  return {projectId, baseRevision, summary, category: input.category as Category, stage: input.stage as ProjectStage, website, launchUrl, xProfile, links, ...artwork};
 }
 export type ClaimMethod = 'website'|'x'|'opensea';
 export function validateClaimDraft(value: unknown): {projectId:string;method:ClaimMethod} {

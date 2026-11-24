@@ -1,3 +1,25 @@
+# Artwork and builder improvements — November 24, 2026
+
+Built on deployed Sites release 7 without replacing its Firebase project, session verification, original-account linking, reviewer allowlist, or existing records.
+
+## Changes
+
+- Restored artwork-aware fitting in consistent 16:9 directory frames. Scenic covers fill the frame; complete logos and panoramic banners remain visible. Showcase titles no longer obscure the complete logo/panorama composition. Abstract Workers uses its meaningful art area in directory cards.
+- Recovered larger official source images for Hood Vandalz, Pixel Hood Arcade, CannaCats V2, and 1KiSS, then created compact WebP assets. Exact source URLs, dimensions, and hashes are recorded in `artwork-source-upgrades.json`.
+- Added current-manager logo/banner uploads, private previews, submission through existing edit review, and public images only after approval. Additive migration `0005_aromatic_dracula.sql` and the `BUCKET` R2 binding support this workflow.
+- Approved banners supply project-specific Open Graph/X images. Curated cards now use versioned v2 assets, and panoramic compositions retain their full width.
+- Signing in from a claim, project, library, or Studio section preserves the destination and offers an explicit continuation after verification.
+
+## Validation
+
+Typecheck and all 119 tests passed. Browser checks used the managed preview at 320, 390, 768, and 1280 px: no horizontal document overflow; consistent card heights; 16px search text; partial `sui ` matching Suited Apes; whole-card body activation; bookmarks independent of project navigation; complete panoramic and logo headers; and the claim destination retained on the account page. New artwork tests exercise actual image decoding/conversion, private pending assets, ownership changes, review races, upload quotas, replacement/removal, and approved metadata. All 17 curated share cards pass dimensions, format, size and metadata checks.
+
+The current cloud browser and shell returned platform-level access errors for the production domain before publication, while the Sites service confirmed the site is public and live on release 7. Visual checks therefore used the managed preview. Do not interpret that environment restriction as a DNS failure. This release does not claim a completed production owner upload/review, live email delivery, or X-side composer rendering. The existing hourly Dot review monitor remains configured; email-provider delivery remains unconfigured. No payment feature or billing upgrade was added.
+
+Publication status and exact source commit are recorded by the Sites saved version and deployment result.
+
+---
+
 # Firebase authentication and UI refinement — deployed
 
 November 24, 2026: Sites version 7 deployed successfully at https://rmtlaunch.fun (platform URL https://rmt-hub.wise-elf-8473.chatgpt.site), runtime environment revision 3. Deployed source commit: `66d471b30eb8e44b75538201bf7a47b6704cf261`, pushed to both the retained Sites source and GitHub main. Deployment `appgdep_6b05a9726a188191afaa76d1c6c6d36d` succeeded. No DNS or existing runtime-secret changes were made.

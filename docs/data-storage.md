@@ -17,6 +17,7 @@ The Site audience is public. Account libraries, claims, applications, proposed e
 | A guest's saved-project library | That browser's local storage. It does not automatically follow the visitor to another device. Clearing browser storage can remove it. |
 | Project applications, ownership claims, and proposed updates | Hosted D1 database. Pending records remain private to the submitter and authorized reviewers. |
 | Contact information and ownership evidence | Private application/claim records, not the public catalog or GitHub source. |
+| Uploaded project logos and banners | Private R2 object storage, with D1 metadata. Only the current approved image is exposed publicly; pending previews require the current manager or a reviewer. |
 | Review decisions and history | Hosted D1 database, with reviewer identity and record revisions. |
 | Notification queue and monitor acknowledgements | Hosted D1 database. Provider credentials and the owner's notification recipient remain server runtime settings. |
 

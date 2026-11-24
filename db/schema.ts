@@ -119,3 +119,18 @@ export const accountLinks = sqliteTable("account_links", {
   legacyUserId: text("legacy_user_id").notNull().unique(),
   createdAt: integer("created_at").notNull(),
 });
+
+export const projectArtwork = sqliteTable('project_artwork', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), userId: text('user_id').notNull(),
+  ownershipRevision: integer('ownership_revision').notNull(), kind: text('kind').notNull(),
+  objectKey: text('object_key').notNull(), mime: text('mime').notNull(), width: integer('width').notNull(),
+  height: integer('height').notNull(), byteSize: integer('byte_size').notNull(), digest: text('digest').notNull(),
+  status: text('status').notNull().default('uploading'), createdAt: integer('created_at').notNull(),
+}, table => [
+  index('artwork_user_created').on(table.userId, table.createdAt),
+  index('artwork_project_status').on(table.projectId, table.status),
+  uniqueIndex('artwork_object_key').on(table.objectKey),
+  check('artwork_valid_kind', sql`${table.kind} IN ('logo','banner')`),
+  check('artwork_valid_mime', sql`${table.mime} IN ('image/png','image/jpeg','image/webp')`),
+  check('artwork_valid_status', sql`${table.status} IN ('uploading','ready','failed')`),
+]);

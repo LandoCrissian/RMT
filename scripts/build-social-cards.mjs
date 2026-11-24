@@ -28,24 +28,24 @@ function titleLines(value, max = 22) {
   return lines;
 }
 
-function overlay(project) {
+function overlay(project, panoramic = false) {
   const lines = titleLines(project.name);
   const size = lines.length > 2 ? 57 : 70;
   const lineHeight = size + 10;
-  const startY = 489 - (lines.length - 1) * lineHeight;
+  const startY = (panoramic ? 505 : 489) - (lines.length - 1) * lineHeight;
   return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
     <defs>
       <linearGradient id="shade" x1="0" x2="1" y1="0" y2="0"><stop stop-color="#0c0e0b" stop-opacity=".95"/><stop offset=".48" stop-color="#0c0e0b" stop-opacity=".76"/><stop offset="1" stop-color="#0c0e0b" stop-opacity=".09"/></linearGradient>
       <linearGradient id="floor" x1="0" x2="0" y1="0" y2="1"><stop offset=".2" stop-color="#0c0e0b" stop-opacity="0"/><stop offset="1" stop-color="#0c0e0b" stop-opacity=".88"/></linearGradient>
     </defs>
-    <rect width="1200" height="630" fill="url(#shade)"/><rect width="1200" height="630" fill="url(#floor)"/>
+    ${panoramic ? '<rect x="0" y="385" width="1200" height="245" fill="#10150f" fill-opacity=".94"/>' : '<rect width="1200" height="630" fill="url(#shade)"/><rect width="1200" height="630" fill="url(#floor)"/>'}
     <g font-family="DejaVu Sans, Arial, sans-serif">
       <rect x="58" y="47" width="65" height="39" rx="10" fill="#c6ff42"/>
       <text x="90" y="74" text-anchor="middle" font-size="21" font-weight="800" fill="#10120c">RMT</text>
       <text x="140" y="74" font-size="16" letter-spacing="2.6" fill="#fff" opacity=".85">DISCOVER</text>
       <text x="1140" y="73" text-anchor="end" font-size="16" fill="#fff" opacity=".83">rmtlaunch.fun</text>
-      <rect x="60" y="${startY - 77}" width="32" height="3" rx="1.5" fill="${xml(project.accent)}"/>
-      <text x="107" y="${startY - 70}" font-size="14" font-weight="700" letter-spacing="2.5" fill="#e5e8df">PROJECT SHOWCASE</text>
+      <rect x="60" y="${panoramic ? 413 : startY - 77}" width="32" height="3" rx="1.5" fill="${xml(project.accent)}"/>
+      <text x="107" y="${panoramic ? 421 : startY - 70}" font-size="14" font-weight="700" letter-spacing="2.5" fill="#e5e8df">PROJECT SHOWCASE</text>
       ${lines.map((line, index) => `<text x="56" y="${startY + index * lineHeight}" font-size="${size}" font-weight="800" letter-spacing="-2.5" fill="#fff">${xml(line)}</text>`).join('')}
       <text x="60" y="548" font-size="23" fill="#e6e9e0">Explore their world.</text>
       <circle cx="1108" cy="535" r="31" fill="#c6ff42"/>
@@ -62,14 +62,22 @@ for (const project of seedProjects) {
   const source = await readFile(sourcePath);
   const base = await sharp(source).resize(width, height, {fit: 'cover', position: 'centre'}).flatten({background: '#11140f'}).toBuffer();
   const cards = [];
-  if (project.coverFit === 'contain') {
+  const sourceSize = await sharp(source).metadata();
+  const panoramic = sourceSize.width / sourceSize.height > 2.2;
+  if (panoramic) {
+    // Complete wide wordmarks and outer characters stay visible above the title.
+    const backdrop = await sharp(base).blur(18).modulate({brightness: .35}).toBuffer();
+    const foreground = await sharp(source).resize(1080, 270, {fit: 'inside'}).png().toBuffer();
+    const art = await sharp(foreground).metadata();
+    cards.push({input: backdrop, left: 0, top: 0}, {input: foreground, left: Math.round((width - art.width) / 2), top: 104 + Math.round((270 - art.height) / 2)});
+  } else if (project.coverFit === 'contain') {
     // Keep the complete primary art on logo-led listings, with a soft backdrop.
     const backdrop = await sharp(base).blur(15).modulate({brightness: .7}).toBuffer();
     const foreground = await sharp(source).resize(490, 490, {fit: 'inside'}).png().toBuffer();
     const art = await sharp(foreground).metadata();
     cards.push({input: backdrop, left: 0, top: 0}, {input: foreground, left: 655 + Math.round((490 - art.width) / 2), top: Math.round((height - art.height) / 2)});
   }
-  cards.push({input: overlay(project), left: 0, top: 0});
+  cards.push({input: overlay(project, panoramic), left: 0, top: 0});
   const output = await sharp(base).composite(cards).jpeg({quality: 88, mozjpeg: true}).toBuffer();
   if (output.length >= 5_000_000) throw new Error(`Social card is too large: ${project.slug}`);
   await writeFile(join(destination, `${project.slug}-${version}.jpg`), output);
