@@ -42,9 +42,9 @@ For this environment, Sites provides the authenticated gateway and provisions D1
 
 ### Hosting
 
-The complete app runs at `https://rmt-hub.wise-elf-8473.chatgpt.site`, with its database and ChatGPT sign-in. The v0.4 configuration makes the GitHub-connected Netlify project build a small redirect entrypoint to that app; it does not run a second backend. Its live redirect still needs verification after deployment. See [Netlify entrypoint](docs/netlify-entry.md) for the build command and publish directory.
+The complete v0.4 app is published at `https://rmt-hub.wise-elf-8473.chatgpt.site`, with its database and ChatGPT sign-in. The GitHub-connected Netlify project at `https://rmthub.netlify.app` is deployed as a small redirect entrypoint to that app. Its live redirect preserves paths and queries, and browser navigation preserves fragments. Netlify does not run a second backend. See [Netlify entrypoint](docs/netlify-entry.md) for the build command and publish directory.
 
-`rmtlaunch.fun` and `www.rmtlaunch.fun` now have DNS records pointing to the Sites custom-domain service. TLS is active, but the latest domain check returned HTTP 403 **Site Unavailable**. Custom-domain activation is still being investigated; the working platform URL remains canonical. The app remains owner-private.
+`rmtlaunch.fun` and `www.rmtlaunch.fun` have active Sites domain bindings and TLS. Checks from this environment still return HTTP 403 **Site Unavailable** with `x-openai-site-blocked: true`, identifying a platform/network block rather than an RMT application error. Its precise source is unresolved, so custom-domain access for users is not established. The working platform URL remains canonical, and the app remains owner-private.
 
 ### Local database
 
@@ -77,7 +77,7 @@ One server-controlled owner assignment can be active for each project. Holding a
 
 ## Current scope
 
-The app launches external experiences. Signed-in libraries live in the hosted database; guest libraries stay on the device. Artwork uploads, third-party game hosting, payments, and public launch remain outside the current release. Domain routing is configured, with application access still under verification. Before inviting builders, verify the deployed reviewer authorization, the chosen notification connection, custom-domain access, and the intended public audience. No new token or wallet is required.
+The app launches external experiences. Signed-in libraries live in the hosted database; guest libraries stay on the device. Artwork uploads, third-party game hosting, payments, and public launch remain outside the current release. Reviewer authentication and digest reads are verified, and hourly review monitoring is enabled using the `America/Denver` schedule timezone. No pending work was available to verify a real alert and acknowledgement; email delivery is not configured. Custom-domain access and the intended public audience still need resolution before inviting builders. No new token or wallet is required.
 
 See [accounts and saved information](docs/data-storage.md) for the sign-in model, private data boundaries, library limits, and hosting portability. See [notification configuration](docs/notifications.md) for delivery semantics and required server settings.
 
