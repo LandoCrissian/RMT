@@ -38,6 +38,19 @@ test('ordinary project discovery and library destinations remain available', () 
   assert.equal(signInHref('/#account'), '/#account');
 });
 
+test('activity and profile sign-in preserve only local approved destinations', () => {
+  for (const destination of ['/#activity', '/#profile', '/u/a-builder', '/u/member_123']) {
+    const url = new URL(signInHref(destination), 'https://rmtlaunch.fun');
+    assert.equal(url.pathname, '/');
+    assert.equal(url.hash, '#account');
+    assert.equal(continuationFromSearch(url.search).href, destination);
+  }
+  for (const destination of ['/u/../review', '/u/a', '/u/member?continue=//example.dev', '/u/member%2Fextra', '/u/member#edit', '/u/' + 'a'.repeat(25), '/#profile?next=//example.dev']) {
+    assert.equal(accountContinuation(destination), null);
+    assert.equal(signInHref(destination), '/#account');
+  }
+});
+
 test('external, encoded, malformed, and unapproved continuations fail closed', () => {
   for (const destination of ['https://attacker.example/', '//attacker.example/', 'https://rmtlaunch.fun/#studio', 'javascript:alert(1)', '/\\attacker.example', '/api/auth/link', '/signin-with-chatgpt', '/#review', '/#claim/../account', '/projects/vamps?next=//attacker.example', '/projects/vamps#updates?next=//attacker.example', '/projects/vamps#unapproved', '/#claim/vamps%2Fextra', '/#studio\n', '/#studio\r', ' /#studio', '/?studio=projects&next=evil#studio', '/?studio=unknown#studio', '/#claim/' + 'x'.repeat(121), null, 3]) {
     assert.equal(accountContinuation(destination), null, String(destination));

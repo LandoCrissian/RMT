@@ -21,8 +21,14 @@ export async function POST(request: Request) {
     const activity = await db.prepare(`SELECT 1 AS found FROM saved_projects WHERE user_id = ?
       UNION ALL SELECT 1 FROM submissions WHERE user_id = ?
       UNION ALL SELECT 1 FROM project_claims WHERE user_id = ?
-      UNION ALL SELECT 1 FROM project_edits WHERE user_id = ? LIMIT 1`)
-      .bind(user.userId, user.userId, user.userId, user.userId).first();
+      UNION ALL SELECT 1 FROM project_edits WHERE user_id = ?
+      UNION ALL SELECT 1 FROM project_updates WHERE user_id = ?
+      UNION ALL SELECT 1 FROM project_artwork WHERE user_id = ?
+      UNION ALL SELECT 1 FROM profiles WHERE user_id = ?
+      UNION ALL SELECT 1 FROM profile_artwork WHERE user_id = ? LIMIT 1`)
+      .bind(user.userId, user.userId, user.userId, user.userId, user.userId, user.userId, user.userId, user.userId).first();
+    // Linking changes the canonical identity. Keep any existing profile,
+    // uploaded image, or draft reachable instead of silently orphaning it.
     if (activity) throw new InputError('This new account already has saved activity. Contact RMT to combine accounts without losing records.', 409);
     // Both identities are proved on this request. No records or reviewer IDs change.
     await db.prepare('INSERT INTO account_links (firebase_uid, legacy_user_id, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING')

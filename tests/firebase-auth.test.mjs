@@ -59,6 +59,27 @@ test('session creation requires same-origin proof and uses a secure HttpOnly exp
  disabled=false;
  assert.match((await api.logout(request('/api/auth/session',{}, {method:'DELETE'}))).headers.get('set-cookie'),/Max-Age=0/);
 });
+test('linking cannot orphan a Firebase profile, profile upload, project upload, or update draft',async()=>{
+ const idToken=await token(),userId='firebase:new-owner';
+ const fixtures={
+  profiles:{user_id:userId,created_at:1,updated_at:1},
+  profile_artwork:{id:'profile-link-fixture',user_id:userId,kind:'avatar',object_key:'private-profile-object',mime:'image/png',width:128,height:128,byte_size:123,digest:'fixture',status:'ready',created_at:1},
+  project_artwork:{id:'project-link-fixture',project_id:'vamps',user_id:userId,ownership_revision:1,kind:'logo',object_key:'private-project-object',mime:'image/png',width:128,height:128,byte_size:123,digest:'fixture',status:'ready',created_at:1},
+  project_updates:{id:'update-link-fixture',project_id:'vamps',project_name:'VAMPS',user_id:userId,ownership_revision:1,kind:'progress',title:'Private saved draft',body:'Unpublished project work must remain in this account.',created_at:1,updated_at:1},
+ };
+ for(const [table,values] of Object.entries(fixtures)){
+  const columns=Object.keys(values);
+  sqlite.prepare(`INSERT INTO ${table}(${columns.join(',')}) VALUES(${columns.map(()=>'?').join(',')})`).run(...Object.values(values));
+  const before=sqlite.prepare(`SELECT * FROM ${table} WHERE user_id=?`).all(userId);
+  const response=await api.link(request('/api/auth/link',{idToken},{legacy:'old-owner'}));
+  assert.equal(response.status,409,table);
+  assert.match((await response.json()).error,/already has saved activity/);
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM account_links').get().n,0);
+  assert.deepEqual(sqlite.prepare(`SELECT * FROM ${table} WHERE user_id=?`).all(userId),before);
+  assert.equal((await api.requireIdentity(request('/',null,{cookie:idToken,method:'GET'}))).userId,userId);
+  sqlite.prepare(`DELETE FROM ${table} WHERE user_id=?`).run(userId);
+ }
+});
 test('linking requires both identities, fresh verified sign-in and preserves library and exact reviewer access',async()=>{
  const idToken=await token();
  assert.equal((await api.link(request('/api/auth/link',{idToken}))).status,401);
