@@ -9,7 +9,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const environment = {};
 globalThis.__RMT_MONITOR_TEST_ENV__ = environment;
 const compiled = await build({
-  stdin: {contents: `export * from './lib/server/review-monitor'; export {POST} from './app/mcp/route';`, resolveDir: root, loader: 'ts'},
+  stdin: {contents: `export * from './lib/server/review-monitor'; export {isAdmin,requireAdmin} from './lib/server/runtime'; export {GET as membersGET} from './app/api/control/members/route'; export {GET as sessionGET} from './app/api/session/route'; export {POST} from './app/mcp/route';`, resolveDir: root, loader: 'ts'},
   absWorkingDir: root, bundle: true, write: false, platform: 'node', format: 'esm', target: 'node24',
   plugins: [{name: 'monitor-test-runtime', setup(build) {
     build.onResolve({filter: /^cloudflare:workers$/}, () => ({path: 'test-runtime', namespace: 'test-runtime'}));
@@ -36,9 +36,10 @@ function database(t) {
   }
   let batches = Promise.resolve();
   const db = {
-    prepare, raw: sqlite,
+    prepare, raw: sqlite, beforeBatch: null,
     batch(statements) {
       const result = batches.then(async () => {
+        if (db.beforeBatch) { const hook=db.beforeBatch; db.beforeBatch=null; hook(); }
         sqlite.exec('BEGIN');
         try { const results = []; for (const statement of statements) results.push(await statement.run()); sqlite.exec('COMMIT'); return results; }
         catch (error) { sqlite.exec('ROLLBACK'); throw error; }
@@ -95,11 +96,82 @@ test('identity tool returns only the caller reference and never grants reviewer 
   database(t);
   assert.equal((await call('rmt_identity', {}, null)).result.isError, true);
   const account = await call('rmt_identity', {}, 'visitor', {'oai-authenticated-user-full-name': 'Builder%20Name', 'oai-authenticated-user-full-name-encoding': 'percent-encoded-utf-8'});
-  assert.deepEqual(account.data, {userId: 'visitor', displayName: 'Builder Name', isReviewer: false,controlRole:'member',controlCapabilities:[],hasLinkedSignIn:false});
+  assert.deepEqual(account.data, {userId: 'visitor', displayName: 'Builder Name', isReviewer: false,controlRole:'member',controlCapabilities:[],hasLinkedSignIn:false,canMonitorReviewAlerts:false});
   assert.equal(JSON.stringify(account.body).includes('private-reviewer@example.com'), false);
   assert.equal((await call('rmt_identity', {userId: 'reviewer'}, 'visitor')).result.isError, true);
   assert.equal((await call('rmt_identity')).data.isReviewer, true);
   assert.equal((await call('rmt_identity')).data.controlRole,'owner');
+  assert.equal((await call('rmt_identity')).data.canMonitorReviewAlerts,true);
+});
+
+test('an exact-ID alert monitor can read summaries and acknowledge receipts without website administration', async t => {
+  const db=database(t),key=seed(db,'submission','monitor-summary');
+  environment.RMT_ADMIN_USER_IDS='brand-owner';
+  environment.RMT_REVIEW_MONITOR_USER_IDS=' original-monitor ';
+  const account=await call('rmt_identity',{},'original-monitor');
+  assert.equal(account.data.isReviewer,false);
+  assert.equal(account.data.controlRole,'member');
+  assert.deepEqual(account.data.controlCapabilities,[]);
+  assert.equal(account.data.canMonitorReviewAlerts,true);
+  const digest=await call('rmt_review_digest',{},'original-monitor');
+  assert.equal(digest.result.isError,false);
+  assert.deepEqual(digest.data.items.map(item=>item.eventKey),[key]);
+  for(const value of ['private@builder','PRIVATE ownership','PRIVATE-CODE','PRIVATE draft'])assert.equal(JSON.stringify(digest.body).includes(value),false);
+  assert.equal(await api.isAdmin(request('tools/list',null,'original-monitor')),false);
+  await assert.rejects(api.requireAdmin(request('tools/list',null,'original-monitor')),error=>error.status===403);
+  assert.equal((await api.membersGET(request('tools/list',null,'original-monitor',{'x-rmt-account':'original-monitor'}))).status,403);
+  const session=await (await api.sessionGET(request('tools/list',null,'original-monitor'))).json();
+  assert.equal(session.isAdmin,false);assert.equal(session.controlRole,null);assert.deepEqual(session.controlCapabilities,[]);
+  const acknowledged=await call('rmt_acknowledge_review_alerts',{eventKeys:[key]},'original-monitor');
+  assert.deepEqual(acknowledged.data,{acknowledgedCount:1,unchangedCount:0,reviewDecisionsChanged:false});
+  assert.equal(db.raw.prepare('SELECT status FROM submissions WHERE id=?').get('monitor-summary').status,'pending');
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM review_events').get().count,0);
+  assert.equal((await call('rmt_review_digest',{},'original-monitor')).data.newPendingCount,0);
+  assert.equal((await call('rmt_review_digest',{},'brand-owner')).data.newPendingCount,1);
+});
+
+test('monitor grants match exact server IDs and ignore email matches, prefixes, and client claims', async t => {
+  const db=database(t),key=seed(db,'claim','monitor-exact');
+  environment.RMT_ADMIN_USER_IDS='brand-owner';
+  environment.RMT_REVIEW_MONITOR_USER_IDS='original-monitor';
+  for(const id of ['visitor','original-monitor-copy','original','private-reviewer@example.com']){
+    const denied=await call('rmt_review_digest',{},id,{'x-rmt-monitor':'true'});
+    assert.equal(denied.result.isError,true);
+    assert.equal(JSON.stringify(denied.body).includes('monitor-exact'),false);
+    assert.equal((await call('rmt_acknowledge_review_alerts',{eventKeys:[key]},id)).result.isError,true);
+  }
+  environment.RMT_REVIEW_MONITOR_USER_IDS='';
+  assert.equal((await call('rmt_review_digest',{},'original-monitor')).result.isError,true);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM review_alert_receipts').get().count,0);
+});
+
+test('a suspended alert monitor is blocked and suspension during acknowledgement rolls back receipts', async t => {
+  const db=database(t),key=seed(db,'submission','monitor-suspension');
+  environment.RMT_ADMIN_USER_IDS='brand-owner';
+  environment.RMT_REVIEW_MONITOR_USER_IDS='original-monitor';
+  assert.equal((await call('rmt_identity',{},'original-monitor')).data.canMonitorReviewAlerts,true);
+  db.raw.prepare("UPDATE control_members SET status='suspended' WHERE user_id=?").run('original-monitor');
+  assert.equal((await call('rmt_review_digest',{},'original-monitor')).result.isError,true);
+  assert.equal((await call('rmt_acknowledge_review_alerts',{eventKeys:[key]},'original-monitor')).result.isError,true);
+  db.raw.prepare("UPDATE control_members SET status='active' WHERE user_id=?").run('original-monitor');
+  db.beforeBatch=()=>db.raw.prepare("UPDATE control_members SET status='suspended' WHERE user_id=?").run('original-monitor');
+  const raced=await call('rmt_acknowledge_review_alerts',{eventKeys:[key]},'original-monitor');
+  assert.equal(raced.result.isError,true);assert.match(raced.result.content[0].text,/Review-alert access changed/);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM review_alert_receipts').get().count,0);
+  assert.equal(db.raw.prepare('SELECT status FROM submissions WHERE id=?').get('monitor-suspension').status,'pending');
+});
+
+test('delegated reviewers retain alert access and role revocation during acknowledgement remains atomic', async t => {
+  const db=database(t),key=seed(db,'edit','delegated-alert');
+  await call('rmt_identity',{},'helper');
+  db.raw.prepare('INSERT INTO control_roles VALUES(?,?,?,?,?)').run('helper','moderator',1,now,'reviewer');
+  assert.equal((await call('rmt_identity',{},'helper')).data.isReviewer,true);
+  assert.equal((await call('rmt_review_digest',{},'helper')).data.items[0].eventKey,key);
+  db.beforeBatch=()=>db.raw.prepare("UPDATE control_roles SET role='member',revision=revision+1 WHERE user_id=?").run('helper');
+  const raced=await call('rmt_acknowledge_review_alerts',{eventKeys:[key]},'helper');
+  assert.equal(raced.result.isError,true);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM review_alert_receipts').get().count,0);
+  assert.equal(db.raw.prepare('SELECT status FROM project_edits WHERE id=?').get('delegated-alert').status,'pending');
 });
 
 test('review tools require exact server allowlist and ignore client admin claims', async t => {

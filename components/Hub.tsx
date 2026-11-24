@@ -176,6 +176,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
       const response = await fetch('/api/session', { cache: 'no-store', credentials: 'same-origin', signal: controller.signal });
       if (!response.ok) throw new Error('Account unavailable');
       const value = await response.json() as Session;
+      if ((value.email!==undefined&&value.email!==null&&(typeof value.email!=='string'||value.email.length>254)) || (value.signInMethod!==undefined&&value.signInMethod!==null&&!['google','email','chatgpt','firebase'].includes(value.signInMethod))) throw new Error('Invalid account identity');
       if ((value.controlRole!==undefined && value.controlRole!==null && !['owner','admin','moderator','member'].includes(value.controlRole)) || (value.controlCapabilities!==undefined && (!Array.isArray(value.controlCapabilities)||value.controlCapabilities.some(item=>typeof item!=='string'))) || typeof value.authenticated !== 'boolean' || typeof value.isAdmin !== 'boolean' || (value.authenticated && (typeof value.userId !== 'string' || !value.userId.trim())) || (value.displayName !== null && typeof value.displayName !== 'string')) throw new Error('Invalid account response');
       if (controller.signal.aborted) return;
       setSession(value); setSessionStatus('ready');

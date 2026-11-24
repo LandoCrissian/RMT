@@ -3,7 +3,7 @@ import { verifyFirebaseToken, checkFirebaseAccount } from '@/lib/server/firebase
 import { database, runtime } from '@/lib/server/runtime';
 import { handle, json, readMutation } from '@/lib/server/http';
 import { InputError } from '@/lib/submission-validation';
-import {memberSuspended} from '@/lib/server/control-access';
+import {memberSuspended,protectedOwner} from '@/lib/server/control-access';
 import {observeMember,mergeLinkedObservation} from '@/lib/server/control-members';
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +17,9 @@ export async function POST(request: Request) {
     if (!user.emailVerified || Date.now() / 1000 - user.authTime > 300) throw new InputError('Sign in to your verified Firebase account again before linking.', 403);
     await checkFirebaseAccount(body.idToken, user.firebaseUid, user.authTime);
     const db = database();
+    // A Firebase owner is already the canonical protected account. Linking it
+    // under a legacy ID would remove the exact-ID owner grant on its next request.
+    if(protectedOwner(user.userId,runtime().RMT_ADMIN_USER_IDS))throw new InputError('This is already the protected RMT owner account. Keep it separate from your original account.',409,'protected_owner_link');
     if(await memberSuspended(db,legacy.userId,runtime().RMT_ADMIN_USER_IDS)||await memberSuspended(db,user.userId,runtime().RMT_ADMIN_USER_IDS))throw new InputError('A suspended account cannot be linked. Contact the site owner.',403);
     const delegated=await db.prepare("SELECT 1 AS found FROM control_roles WHERE user_id=? AND role<>'member'").bind(user.userId).first();
     if(delegated)throw new InputError('This account already has delegated site access. Remove that grant before linking accounts.',409);
