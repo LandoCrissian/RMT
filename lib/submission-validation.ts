@@ -62,14 +62,34 @@ export function normalizeHost(url: string): string {
   return new URL(url).hostname.toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
 }
 
+/** Accept a typed public hostname while preserving the existing HTTPS policy. */
+export function projectLink(value: unknown, label: string): string {
+  if (typeof value !== 'string') return publicHttpsUrl(value, label);
+  const text = value.trim();
+  const candidate = text.toLowerCase().startsWith('https://') ? text.slice(8) : text;
+  if (/[\\\s]/u.test(text) || !/^[^/:?#]+\.[^/:?#]+/u.test(candidate)) {
+    throw new InputError(label + ' must be a public HTTPS URL, such as https://yourproject.com.');
+  }
+  const normalized = publicHttpsUrl('https://' + candidate, label);
+  const hostname = new URL(normalized).hostname;
+  if (normalized.length > 2048 || hostname.split('.').some(part => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(part))) {
+    throw new InputError(label + ' must contain a valid public domain name.');
+  }
+  return normalized;
+}
+
+function isBlank(value: unknown): boolean {
+  return value === undefined || (typeof value === 'string' && !value.trim());
+}
+
 export function optionalHttpsUrl(value: unknown, label: string): string {
-  if (value === undefined || value === "") return "";
-  return publicHttpsUrl(value, label);
+  if (isBlank(value)) return "";
+  return projectLink(value, label);
 }
 
 export function optionalXProfile(value: unknown): string {
-  if (value === undefined || value === "") return "";
-  const profile = new URL(publicHttpsUrl(value, "X profile"));
+  if (isBlank(value)) return "";
+  const profile = new URL(projectLink(value, "X profile"));
   const handle = profile.pathname.match(/^\/([A-Za-z0-9_]{1,15})\/?$/)?.[1];
   if (!["x.com", "www.x.com", "twitter.com", "www.twitter.com"].includes(profile.hostname) || !handle ||
       ["home", "search", "explore", "settings", "messages", "notifications", "intent", "i"].includes(handle.toLowerCase())) {
@@ -95,10 +115,10 @@ export function projectIdentityKey(website: string, xProfile = ""): string {
 
 export function field(input: Record<string, unknown>, key: string, min: number, max: number, label: string): string {
   const value = input[key];
-  if (typeof value !== "string") throw new InputError(`${label} is required.`);
+  if (typeof value !== "string") throw new InputError(`${label} is required.`, 400, "field:" + key);
   const clean = value.normalize("NFKC").trim();
   if (clean.length < min || clean.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(clean)) {
-    throw new InputError(`${label} must be ${min}–${max} characters.`);
+    throw new InputError(`${label} must be ${min}–${max} characters.`, 400, "field:" + key);
   }
   return clean;
 }
@@ -119,8 +139,8 @@ export function validateSubmission(value: unknown): SubmissionInput {
   const launchUrl = optionalHttpsUrl(input.launchUrl, "Launch link") || website || xProfile;
   const stage = input.stage === undefined ? "building" : input.stage;
   if (!projectStages.includes(stage as ProjectStage)) throw new InputError("Choose a valid development stage.");
-  const contactEmail = input.contactEmail === undefined || input.contactEmail === "" ? "" : field(input, "contactEmail", 3, 254, "Contact email");
-  if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) throw new InputError("Enter a valid contact email.");
+  const contactEmail = isBlank(input.contactEmail) ? "" : field(input, "contactEmail", 3, 254, "Contact email");
+  if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) throw new InputError("Enter a valid contact email.", 400, "field:contactEmail");
   const ownershipEvidence = field(input, "ownershipEvidence", 20, 1000, "Ownership evidence");
   return {name, summary, category: input.category as Category, stage: stage as ProjectStage, website, launchUrl, xProfile, contactEmail,
     ownershipEvidence, normalizedHost: projectIdentityKey(website, xProfile), normalizedName: normalizeName(name)};
@@ -175,8 +195,8 @@ export function validateProjectEdit(value: unknown): ProjectEditInput {
   const links: ProjectLink[] = input.links.map((value, index) => {
     const link = objectFields(value, ['label','url','type']);
     const label = field(link, 'label', 1, 50, `Link ${index+1} label`);
-    const url = publicHttpsUrl(link.url, `Link ${index+1}`);
-    const type = link.type === undefined || link.type === '' ? undefined : field(link, 'type', 1, 40, 'Link type');
+    const url = projectLink(link.url, `Link ${index+1}`);
+    const type = isBlank(link.type) ? undefined : field(link, 'type', 1, 40, 'Link type');
     return {label,url,...(type ? {type} : {})};
   });
   const artwork: Pick<ProjectEditInput,'logoAssetId'|'bannerAssetId'> = {};
@@ -197,7 +217,7 @@ export function validateClaimDraft(value: unknown): {projectId:string;method:Cla
 }
 export function validateClaimProof(value: unknown): {proofUrl:string;note:string;expectedRevision:number} {
   const input = objectFields(value, ['proofUrl','note','expectedRevision']);
-  return {proofUrl:publicHttpsUrl(input.proofUrl,'Proof link'), note:input.note === undefined || input.note === '' ? '' : field(input,'note',1,1000,'Note'), expectedRevision:expectedRevision(input.expectedRevision)};
+  return {proofUrl:projectLink(input.proofUrl,'Proof link'), note:isBlank(input.note) ? '' : field(input,'note',1,1000,'Note'), expectedRevision:expectedRevision(input.expectedRevision)};
 }
 export function validateClaimDecision(value: unknown): {action:'approve'|'reject'|'revoke';note:string;expectedRevision:number} {
   const input = objectFields(value,['action','note','expectedRevision','confirmedOwnership']);

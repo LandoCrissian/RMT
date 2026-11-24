@@ -524,3 +524,35 @@ test('twelve custom owner links survive reopening and a second review alongside 
   assert.equal(final.project.links.length,14);
   assert.equal(final.project.links.at(-1).label,'Custom experience 12');
 });
+
+test('typed project addresses support either home independently and optional blanks', () => {
+  const cases = [
+    ['moneymomos.com', '', '', 'https://moneymomos.com/'],
+    ['', 'x.com/moneymomos', '', 'https://x.com/moneymomos'],
+    ['moneymomos.com', 'twitter.com/moneymomos', 'play.moneymomos.com', 'https://play.moneymomos.com/'],
+    ['  ', '  x.com/moneymomos  ', '  ', 'https://x.com/moneymomos'],
+  ];
+  for (const [website, xProfile, launchUrl, expected] of cases) {
+    const result = input('homes', {website, xProfile, launchUrl, contactEmail: ''});
+    assert.equal(result.launchUrl, expected);
+    assert.equal(result.website, website.trim() ? 'https://moneymomos.com/' : '');
+    assert.equal(result.xProfile, xProfile.trim() ? 'https://x.com/moneymomos' : '');
+  }
+  for (const [website, xProfile] of [['',''],['bad address',''],['','x.com/a/status/12'],['//wrong.dev',''],['https:///wrong.dev','']]) {
+    assert.throws(() => input('invalid', {website, xProfile}), rejection(400));
+  }
+});
+
+test('MoneyMomos X-only submission moves from private review to the public catalog', async t => {
+  const db = database();
+  t.after(() => db.close());
+  const submission = await api.createSubmission(db, user, input('money', {
+    name: 'MoneyMomos', website: '', launchUrl: '', xProfile: 'x.com/moneymomos', contactEmail: '',
+  }));
+  assert.equal(submission.status, 'pending');
+  assert.ok((await api.reviewQueue(db)).some(row => row.id === submission.id));
+  assert.equal((await api.catalog(db)).projects.some(row => row.name === 'MoneyMomos'), false);
+  await api.reviewSubmission(db, 'reviewer', submission.id, decision('approve', 1));
+  const published = (await api.catalog(db)).projects.find(row => row.name === 'MoneyMomos');
+  assert.equal(published.launchUrl, 'https://x.com/moneymomos');
+});

@@ -85,12 +85,17 @@ export function safeHttpsLink(value: string | null | undefined) {
   try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password ? url.href : null; } catch { return null; }
 }
 
+export class FormFieldError extends Error {
+  constructor(public field: string, message: string) { super(message); }
+}
+
 export async function readApiResponse(response: Response): Promise<Record<string, unknown>> {
   let data: Record<string, unknown>;
   try { data = await response.json(); } catch { throw new Error("We couldn’t reach RMT. Please try again in a moment."); }
   if (!response.ok) {
     const details = data.error;
     const message = typeof details === "string" ? details : details && typeof details === "object" && "message" in details ? String(details.message) : typeof data.message === "string" ? data.message : "Something went wrong. Please try again.";
+    if (typeof data.code === "string" && data.code.startsWith("field:")) throw new FormFieldError(data.code.slice(6), message);
     throw new Error(message);
   }
   return data;

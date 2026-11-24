@@ -56,9 +56,9 @@ test('draft validation preserves plain text, allows unfinished text and rejects 
 });
 
 test('private drafts persist after reopening and never enter public output, reviewer queue or notifications',async t=>{
- const dir=await mkdtemp(join(tmpdir(),'rmt-updates-'));t.after(()=>rm(dir,{recursive:true,force:true}));const file=join(dir,'data.sqlite');let db=database(t,file);seedOwner(db);
+ const dir=await mkdtemp(join(tmpdir(),'rmt-updates-'));const file=join(dir,'data.sqlite');let db=database(t,file);seedOwner(db);
  const saved=await draft(db,'vamps',{title:'',body:'',linkLabel:'',linkUrl:''});assert.equal(saved.status,'draft');assert.equal(saved.canManage,true);assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM notification_outbox').get().n,0);
- db.close();db=database(t,file,false);const own=await api.ownProjectUpdates(db,owner.userId,page);assert.equal(own.updates[0].id,saved.id);
+ db.close();db=database(t,file,false);t.after(()=>rm(dir,{recursive:true,force:true}));const own=await api.ownProjectUpdates(db,owner.userId,page);assert.equal(own.updates[0].id,saved.id);
  assert.equal((await api.publicProjectUpdates(db,'vamps',page)).updates.length,0);assert.equal((await api.projectUpdatesQueue(db,page)).updates.length,0);
  await assert.rejects(action(db,own.updates[0],'submit'),reject(400));assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM project_update_events').get().n,0);
 });

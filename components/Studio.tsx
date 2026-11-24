@@ -1,4 +1,5 @@
 "use client";
+import ProjectLinkInput from "./ProjectLinkInput";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { signInHref, studioSectionFromSearch } from "@/lib/account-navigation";
@@ -7,7 +8,7 @@ import "./studio.css";
 
 import ManageProjects from "./ManageProjects";
 import { MyClaims } from "./ClaimProject";
-import { formattedDate, readApiResponse, statusLabel, stageLabel, type StudioProps, type Submission, type ProjectStage } from "./studio-shared";
+import { FormFieldError, formattedDate, readApiResponse, statusLabel, stageLabel, type StudioProps, type Submission, type ProjectStage } from "./studio-shared";
 export { formattedDate, readApiResponse, statusLabel } from "./studio-shared";
 export type { StudioProps, StudioSession, Submission } from "./studio-shared";
 
@@ -34,6 +35,7 @@ export default function Studio({ session, onToast }: StudioProps) {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [fieldError, setFieldError] = useState<FormFieldError | null>(null);
   const [listError, setListError] = useState("");
   const [received, setReceived] = useState<Submission | null>(null);
   const [editing, setEditing] = useState<Submission | null>(null);
@@ -51,12 +53,17 @@ export default function Studio({ session, onToast }: StudioProps) {
 
   useEffect(() => { void loadSubmissions(); }, [loadSubmissions]);
 
-  const change = (key: keyof SubmissionForm, value: string) => setForm(previous => ({ ...previous, [key]: value }));
+  const change = (key: keyof SubmissionForm, value: string) => {
+    if (fieldError?.field === key) setFieldError(null);
+    setForm(previous => ({ ...previous, [key]: value }));
+  };
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     setError("");
+    setFieldError(null);
+    const element = event.currentTarget;
     if (!form.website.trim() && !form.xProfile.trim()) {
       setError("Add your official website or your project’s X profile so we can find you.");
       return;
@@ -75,7 +82,13 @@ export default function Studio({ session, onToast }: StudioProps) {
       setEditing(null);
       onToast("Application received. Your project is in review.");
       await loadSubmissions();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Your application could not be submitted."); }
+    } catch (cause) {
+      if (cause instanceof FormFieldError) {
+        setFieldError(cause);
+        const field = element.elements.namedItem(cause.field);
+        if (field instanceof HTMLElement) field.focus();
+      } else setError(cause instanceof Error ? cause.message : "Your application could not be submitted.");
+    }
     finally { setBusy(false); }
   }
 
@@ -131,18 +144,18 @@ export default function Studio({ session, onToast }: StudioProps) {
               <div className="st-section-heading"><div><span className="st-step">01</span><h2>{editing ? "Update your application" : "Tell us what you’re building"}</h2></div><span>Required unless marked optional</span></div>
               {editing && <div className="st-information">Your edits will go back into review. {editing.reviewNote || editing.reviewerNote || "Check the feedback on your application below."}<button type="button" onClick={() => { setEditing(null); setForm(emptyForm); }}>Cancel editing</button></div>}
               <div className="st-fields-two">
-                <label className="st-field">Project name<input name="name" autoComplete="organization" placeholder="Your project’s name" minLength={3} maxLength={70} required value={form.name} onChange={event => change("name", event.target.value)} /></label>
+                <label className="st-field">Project name<input name="name" autoComplete="organization" placeholder="Your project’s name" minLength={3} maxLength={70} required value={form.name} onChange={event => change("name", event.target.value)} />{fieldError?.field === "name" && <span className="st-error" role="alert">{fieldError.message}</span>}</label>
                 <label className="st-field">Category<select name="category" value={form.category} onChange={event => change("category", event.target.value)}><option>Games</option><option>Music</option><option>Tools</option><option>Community</option></select></label>
               </div>
-              <label className="st-field">Short description<textarea name="summary" placeholder="What are you creating, and who is it for? Early ideas are welcome." minLength={30} maxLength={280} rows={3} required value={form.summary} onChange={event => change("summary", event.target.value)} /><span className="st-field-hint"><span>30–280 characters. Keep it clear and useful.</span><span>{form.summary.length}/280</span></span></label>
+              <label className="st-field">Short description<textarea name="summary" placeholder="What are you creating, and who is it for? Early ideas are welcome." minLength={30} maxLength={280} rows={3} required value={form.summary} onChange={event => change("summary", event.target.value)} /><span className="st-field-hint"><span>30–280 characters. Keep it clear and useful.</span><span>{form.summary.length}/280</span></span>{fieldError?.field === "summary" && <span className="st-error" role="alert">{fieldError.message}</span>}</label>
               <label className="st-field">Where are you in the journey?<select name="stage" value={form.stage} onChange={event => change("stage", event.target.value)}><option value="starting">Starting out — an idea taking shape</option><option value="building">In development — work in progress</option><option value="beta">Beta — ready for early feedback</option><option value="live">Live — ready to explore</option></select><span className="st-hint">You can join before launching an NFT, token, game, or app.</span></label>
               <div className="st-information">Add your official website, your project’s X profile, or both. One public home is enough to get started.</div>
-              <label className="st-field">Official website <span className="st-optional">Optional if you add an X profile</span><input name="website" type="url" placeholder="https://yourproject.com" maxLength={2048} value={form.website} onChange={event => change("website", event.target.value)} /></label>
-              <label className="st-field">Game or app link <span className="st-optional">Optional · add when it’s ready</span><input name="launchUrl" type="url" placeholder="https://yourproject.com/play" maxLength={2048} value={form.launchUrl} onChange={event => change("launchUrl", event.target.value)} /><span className="st-hint">Leave this blank while you’re building. We’ll use your official website or X profile as the starting point.</span></label>
+              <label className="st-field">Official website <span className="st-optional">Optional if you add an X profile</span><ProjectLinkInput name="website" label="Official website" missingHome={!form.website.trim() && !form.xProfile.trim()} placeholder="https://yourproject.com" maxLength={2048} value={form.website} onChange={event => change("website", event.target.value)} /></label>
+              <label className="st-field">Game or app link <span className="st-optional">Optional · add when it’s ready</span><ProjectLinkInput name="launchUrl" label="Launch link" placeholder="https://yourproject.com/play" maxLength={2048} value={form.launchUrl} onChange={event => change("launchUrl", event.target.value)} /><span className="st-hint">Leave this blank while you’re building. We’ll use your official website or X profile as the starting point.</span></label>
               <div className="st-section-heading st-section-divider"><div><span className="st-step">02</span><h2>Show us it’s your project</h2></div></div>
-              <label className="st-field">Official X profile <span className="st-optional">Optional if you add a website</span><input name="xProfile" type="url" placeholder="https://x.com/yourproject" maxLength={2048} value={form.xProfile} onChange={event => change("xProfile", event.target.value)} /></label>
-              <label className="st-field">Contact email <span className="st-optional">Optional · kept private</span><input name="contactEmail" type="email" autoComplete="email" placeholder="you@yourproject.com" maxLength={254} value={form.contactEmail} onChange={event => change("contactEmail", event.target.value)} /></label>
-              <label className="st-field">How can we confirm you represent this project?<textarea name="ownershipEvidence" placeholder="Share a team page, a post from the project’s account, or tell us how you can show you’re the person building it." minLength={20} maxLength={1000} rows={4} required value={form.ownershipEvidence} onChange={event => change("ownershipEvidence", event.target.value)} /><span className="st-hint">Only you and the RMT review team can see this. Never include passwords or wallet recovery phrases.</span></label>
+              <label className="st-field">Official X profile <span className="st-optional">Optional if you add a website</span><ProjectLinkInput name="xProfile" label="X profile" profile placeholder="https://x.com/yourproject" maxLength={2048} value={form.xProfile} onChange={event => change("xProfile", event.target.value)} /></label>
+              <label className="st-field">Contact email <span className="st-optional">Optional · kept private</span><input name="contactEmail" type="email" autoComplete="email" placeholder="you@yourproject.com" maxLength={254} value={form.contactEmail} onChange={event => change("contactEmail", event.target.value)} />{fieldError?.field === "contactEmail" && <span className="st-error" role="alert">{fieldError.message}</span>}</label>
+              <label className="st-field">How can we confirm you represent this project?<textarea name="ownershipEvidence" placeholder="Share a team page, a post from the project’s account, or tell us how you can show you’re the person building it." minLength={20} maxLength={1000} rows={4} required value={form.ownershipEvidence} onChange={event => change("ownershipEvidence", event.target.value)} /><span className="st-hint">Only you and the RMT review team can see this. Never include passwords or wallet recovery phrases.</span>{fieldError?.field === "ownershipEvidence" && <span className="st-error" role="alert">{fieldError.message}</span>}</label>
               <div className="st-honeypot" aria-hidden="true"><label>Company fax<input name="companyFax" tabIndex={-1} autoComplete="off" value={form.companyFax} onChange={event => change("companyFax", event.target.value)} /></label></div>
               {error && <p className="st-error" role="alert">{error}</p>}
               <div className="st-submit-row"><p><ShieldCheck size={17} /><span>Nothing goes live until it’s approved.<br /><strong>Joining RMT is free.</strong></span></p><button type="submit" className="st-button st-primary" disabled={busy}>{busy ? <><LoaderCircle size={17} className="st-spin" /> Sending…</> : <>{editing ? "Resubmit for review" : "Submit for review"} <ArrowRight size={17} /></>}</button></div>

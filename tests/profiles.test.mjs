@@ -122,7 +122,7 @@ test('profile edit quota is atomic but can never prevent hiding a public profile
 });
 
 test('profile text and permanent handle survive reopening the database',async t=>{
- const dir=await mkdtemp(join(tmpdir(),'rmt-profiles-'));t.after(()=>rm(dir,{recursive:true,force:true}));const path=join(dir,'data.sqlite');let db=database(t,path);const row=await save(db,{visibility:'public'});db.close();db=database(t,path,false);const loaded=await api.ownProfile(db,owner.userId);assert.equal(loaded.handle,row.handle);assert.equal(loaded.handleLocked,true);assert.equal((await api.publicProfile(db,row.handle)).displayName,row.displayName);
+ const dir=await mkdtemp(join(tmpdir(),'rmt-profiles-'));const path=join(dir,'data.sqlite');let db=database(t,path);const row=await save(db,{visibility:'public'});db.close();db=database(t,path,false);t.after(()=>rm(dir,{recursive:true,force:true}));const loaded=await api.ownProfile(db,owner.userId);assert.equal(loaded.handle,row.handle);assert.equal(loaded.handleLocked,true);assert.equal((await api.publicProfile(db,row.handle)).displayName,row.displayName);
 });
 
 test('profile artwork is fully validated PNG and requires the verified account',async t=>{
