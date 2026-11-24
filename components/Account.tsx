@@ -1,12 +1,14 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { ArrowRight, ArrowUpRight, Check, Cloud, Copy, Database, KeyRound, Library, LoaderCircle, RefreshCw, ShieldCheck, Smartphone, Terminal, UserRound } from 'lucide-react';
+import { continuationFromSearch, signInHref, type AccountContinuation } from '@/lib/account-navigation';
 import type { StudioSession } from './studio-shared';
 import type { ProjectLibrary, SessionStatus } from './use-project-library';
 import './account.css';
 import FirebaseAccount from './FirebaseAccount';
 
-export function signInHref(_returnTo = '/#account') { return '/#account'; }
+export { signInHref };
 
 export function LibrarySyncStatus({ library }: { library: ProjectLibrary }) {
   const Icon = library.status === 'loading' || library.busy ? LoaderCircle : library.isCloud ? Cloud : Smartphone;
@@ -21,6 +23,13 @@ type Props = {
 };
 
 export default function Account({ session, sessionStatus, library, onRetrySession, onToast, onLibrary, onStudio, onReview }: Props) {
+  const [continuation, setContinuation] = useState<AccountContinuation | null>(null);
+  useEffect(() => {
+    const update = () => setContinuation(continuationFromSearch(window.location.search));
+    update();
+    window.addEventListener('popstate', update); window.addEventListener('hashchange', update);
+    return () => { window.removeEventListener('popstate', update); window.removeEventListener('hashchange', update); };
+  }, []);
   const initials = (session.displayName || 'RMT').split(/\s+/).map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
   async function copyReference() {
     if (!session.userId) return;
@@ -31,8 +40,12 @@ export default function Account({ session, sessionStatus, library, onRetrySessio
     <div className="page-heading"><div><div className="eyebrow">YOUR RMT ACCOUNT</div><h1>A little more you.</h1><p>Your projects, your library, and a clear view of what’s saved.</p></div></div>
     <section className="account-identity" aria-labelledby="account-heading">
       <div className="account-identity-main"><span className="account-avatar" aria-hidden="true">{session.authenticated ? initials : <UserRound size={30} />}</span><div><span className="account-kicker">{session.authenticated ? 'SIGNED IN TO RMT' : 'ONE ACCOUNT. YOUR RMT.'}</span><h2 id="account-heading">{sessionStatus === 'loading' ? 'Checking your account…' : session.authenticated ? session.displayName || 'Welcome back.' : 'Take your favorites with you.'}</h2><p>{session.authenticated ? 'Your RMT account connects your saved projects and Builder Studio.' : 'Sign in with Google or email to save projects across devices and build your home on RMT.'}</p></div></div>
-      <div className="account-identity-actions">{sessionStatus === 'loading' ? <span className="account-pending"><LoaderCircle className="rmt-spin" size={16} /> Connecting</span> : sessionStatus === 'error' ? <button className="button button-outline" onClick={onRetrySession}><RefreshCw size={16} /> Check again</button> : session.authenticated ? <><span className="account-role"><Check size={13} /> {session.isAdmin ? 'RMT reviewer' : 'RMT member'}</span></> : <a className="button button-lime" href={signInHref()} target="_top">Sign in to RMT <ArrowRight size={16} /></a>}</div>
+      <div className="account-identity-actions">{sessionStatus === 'loading' ? <span className="account-pending"><LoaderCircle className="rmt-spin" size={16} /> Connecting</span> : sessionStatus === 'error' ? <button className="button button-outline" onClick={onRetrySession}><RefreshCw size={16} /> Check again</button> : session.authenticated ? <><span className="account-role"><Check size={13} /> {session.isAdmin ? 'RMT reviewer' : 'RMT member'}</span></> : <a className="button button-lime" href={signInHref(continuation?.href)} target="_top">Sign in to RMT <ArrowRight size={16} /></a>}</div>
     </section>
+    {continuation && <section className="library-import" aria-label="Continue where you left off">
+      <div><h3>Pick up where you left off.</h3><p>{sessionStatus === 'ready' && session.authenticated ? session.emailVerified ? 'Your account is ready. Continue when you’re ready.' : 'Verify your email below to continue with this account.' : continuation.context}</p></div>
+      {sessionStatus === 'ready' && session.authenticated && session.emailVerified && <a className="button button-lime" href={continuation.href}>{continuation.label} <ArrowRight size={16} /></a>}
+    </section>}
     <FirebaseAccount authenticated={session.authenticated && session.provider === 'firebase'} emailVerified={session.emailVerified} onChange={onRetrySession} />
     {sessionStatus === 'error' && <p className="inline-notice" role="alert">Your account connection could not be checked. Your saved information has not been changed.</p>}
     <div className="account-workspaces">
@@ -42,7 +55,7 @@ export default function Account({ session, sessionStatus, library, onRetrySessio
     <section className="account-storage" aria-labelledby="storage-heading"><div className="account-section-heading"><div><span className="eyebrow">NO GUESSWORK</span><h2 id="storage-heading">Where does everything go?</h2></div><Database size={23} /></div><div className="storage-list">
       <div><span className="storage-icon"><Cloud size={20} /></span><div><h3>With your RMT account</h3><p>When you’re signed in, your library, project submissions, ownership claims, and review history are saved in RMT’s hosted database. Use the same RMT account to return to them on another device.</p></div><span className="storage-label">ACROSS DEVICES</span></div>
       <div><span className="storage-icon"><Smartphone size={20} /></span><div><h3>On this device</h3><p>Favorites saved while signed out stay in this browser. You can choose to bring them into your account after signing in. Clearing browser data can remove these device favorites.</p></div><span className="storage-label">GUEST FAVORITES</span></div>
-      <div><span className="storage-icon"><ShieldCheck size={20} /></span><div><h3>Private until reviewed</h3><p>Your sign-in identity, pending applications, contact details, and ownership evidence are available to you and RMT’s authorized reviewers. Approved listing details appear in the directory.</p></div><span className="storage-label">REVIEWED BY RMT</span></div>
+      <div><span className="storage-icon"><ShieldCheck size={20} /></span><div><h3>Private until reviewed</h3><p>Your pending applications, uploaded artwork, contact details, and ownership evidence are available to you and RMT’s authorized reviewers. Approved listing details and artwork appear in the directory.</p></div><span className="storage-label">REVIEWED BY RMT</span></div>
       <div><span className="storage-icon"><ArrowUpRight size={20} /></span><div><h3>At each project’s home</h3><p>Games, music, and tools open on their creators’ websites. Those services handle their own accounts, files, and progress.</p></div><span className="storage-label">EXTERNAL EXPERIENCES</span></div>
     </div></section>
     <div className="account-access-note"><KeyRound size={18} /><p><strong>Your choice of sign-in.</strong> Use Google or an email and password. You don’t need a wallet or an NFT to save projects or submit your work.</p></div>

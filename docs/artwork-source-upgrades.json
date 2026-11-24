@@ -1,0 +1,50 @@
+[
+  {
+    "projectId": "hood-vandalz",
+    "sourceUrl": "https://i2c.seadn.io/collection/hood-vandalz-833262719/image_type_logo/abe6ab8e4195e35a03379172ac9d3b/42abe6ab8e4195e35a03379172ac9d3b.jpeg?w=2000",
+    "retrievedOn": "2026-11-24",
+    "sourceWidth": 400,
+    "sourceHeight": 400,
+    "sourceBytes": 34261,
+    "output": "/projects/hood-vandalz-v2.webp",
+    "outputBytes": 37478,
+    "outputSha256": "6a6d8e9708aa5de7b882381f418fbfdee3eb671b8347da9311a436a3b1f26f8b",
+    "processing": "Preserved full composition; resized to at most 768px without enlargement; WebP quality 90."
+  },
+  {
+    "projectId": "pixel-hood-arcade",
+    "sourceUrl": "https://i2c.seadn.io/collection/pixel-hood-arcade/image_type_logo/069001541267fa125d755df3e07295/ff069001541267fa125d755df3e07295.png?w=2000",
+    "retrievedOn": "2026-11-24",
+    "sourceWidth": 768,
+    "sourceHeight": 768,
+    "sourceBytes": 461176,
+    "output": "/projects/pixel-hood-arcade-v2.webp",
+    "outputBytes": 54656,
+    "outputSha256": "ca35ee9825b41a825fbcd238f8f8412e95cfc905a8170c1025609fe58c3e8397",
+    "processing": "Preserved full composition; resized to at most 768px without enlargement; WebP quality 90."
+  },
+  {
+    "projectId": "cannacats-v2",
+    "sourceUrl": "https://i2c.seadn.io/collection/cannacats-v2/image_type_logo/0eaee47560315fe4dd6073405bed70/ca0eaee47560315fe4dd6073405bed70.png?w=2000",
+    "retrievedOn": "2026-11-24",
+    "sourceWidth": 1254,
+    "sourceHeight": 1254,
+    "sourceBytes": 3074128,
+    "output": "/projects/cannacats-v2-art-v2.webp",
+    "outputBytes": 145950,
+    "outputSha256": "757da57da30984e3bad2e580225d53ab2801ff20627538379cb6f1e823400497",
+    "processing": "Preserved full composition; resized to at most 768px without enlargement; WebP quality 90."
+  },
+  {
+    "projectId": "1kiss",
+    "sourceUrl": "https://i2c.seadn.io/collection/1kissrh/image_type_logo/d0c07339e768d6224d28b56f01ccea/1fd0c07339e768d6224d28b56f01ccea.png?w=2000",
+    "retrievedOn": "2026-11-24",
+    "sourceWidth": 1254,
+    "sourceHeight": 1254,
+    "sourceBytes": 2070235,
+    "output": "/projects/1kiss-v2.webp",
+    "outputBytes": 115916,
+    "outputSha256": "411ef746c6a46ec84f680266e640d6a429799da8abe573d2336e531c5974dbaa",
+    "processing": "Preserved full composition; resized to at most 768px without enlargement; WebP quality 90."
+  }
+]

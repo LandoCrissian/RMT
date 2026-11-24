@@ -19,6 +19,7 @@ RMT is an independent discovery and launch hub for community projects, games, mu
 - Free listing and claiming, including projects just starting out. No payment prompts or paid placement.
 - Expiring ownership challenges through existing official project websites, X profiles, or OpenSea collection descriptions.
 - Reviewed owner edit proposals, ownership revocation, immutable audit events, and server-owned publication state.
+- Free logo and banner uploads for confirmed managers, private previews, and reviewer approval before publication. Approved banners supply project-specific Open Graph and X images; curated projects also have versioned share cards.
 - Durable email alert queue with a Resend adapter; sending requires a configured recipient, verified sender, and provider credential. Phone and SMS are not launch requirements.
 - Authenticated tools for an owner's dot to read new review work and record which notices were acknowledged. Monitoring does not approve projects or change their publication state.
 
@@ -36,9 +37,9 @@ npm run build
 npm run dev
 ```
 
-The app uses React, TypeScript, the Next-compatible Vinext runtime, and a Cloudflare Worker. Structured data lives in D1 (SQLite). Hosting-specific authentication is isolated in `lib/server/auth.ts` and `lib/server/runtime.ts`. Dependencies are locked.
+The app uses React, TypeScript, the Next-compatible Vinext runtime, and a Cloudflare Worker. Structured data lives in D1 (SQLite); reviewed project artwork is stored privately in R2 and served through application authorization checks. Authentication is isolated in `lib/server/auth.ts`, `lib/server/firebase-auth.ts`, and `lib/server/runtime.ts`. Dependencies are locked.
 
-For this environment, Sites provides the legacy reviewer gateway; Firebase supplies ordinary user accounts. Sites provisions D1 from `.openai/hosting.json`. Read [deployment notes](docs/deployment.md) before moving to a different host. A raw Worker that trusts visitor-supplied identity headers is **not** a supported deployment.
+For this environment, Sites provides the legacy reviewer gateway; Firebase supplies ordinary user accounts. Sites provisions the D1 `DB` and R2 `BUCKET` bindings declared in `.openai/hosting.json`. Read [deployment notes](docs/deployment.md) before moving to a different host. A raw Worker that trusts visitor-supplied identity headers is **not** a supported deployment.
 
 ### Hosting
 
@@ -55,6 +56,8 @@ node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_chief_impossible_man.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_eager_hulk.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0003_nosy_tag.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0004_productive_skreet.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0005_aromatic_dracula.sql
 ```
 
 Do not replay migrations already applied. Hosted deployment applies tracked migrations separately. No request handler creates tables.
@@ -73,11 +76,21 @@ Admin access requires an exact site-specific user ID in the server environment v
 
 A builder opens a project and chooses **Claim this project**, signs in, and chooses one of its existing official channels. RMT creates a random seven-day challenge. The applicant publishes that code through the official channel and submits the proof URL. A reviewer verifies the actual code and authority before approval.
 
-One server-controlled owner assignment can be active for each project. Holding an NFT does not grant control of its directory page. Draft claims do not reserve a project against other applicants, expired challenges cannot be approved, and repeated approvals cannot assign competing owners. Owners can propose changes to descriptions, stages, categories, websites, launch links, X profiles, and experience links. Changes remain private until approved. Collection relationships remain curated; a builder can propose a collection destination as a reviewed link.
+One server-controlled owner assignment can be active for each project. Holding an NFT does not grant control of its directory page. Draft claims do not reserve a project against other applicants, expired challenges cannot be approved, and repeated approvals cannot assign competing owners. Owners can propose changes to descriptions, stages, categories, websites, launch links, X profiles, experience links, logos, and banners. Changes remain private until approved. Collection relationships remain curated; a builder can propose a collection destination as a reviewed link.
+
+### Project artwork and sharing
+
+Confirmed managers with a verified account can choose a static PNG, JPEG, or WebP logo or banner in **Builder Studio → My projects → Edit project**. Images are limited to 2 MiB each, with up to eight uploads per account in a rolling 24-hour window. The uploader prepares a validated PNG, saves a private preview, and includes the selected image in the manager’s edit proposal. A reviewer checks the proposed artwork and links before approving the update.
+
+Approved logos appear with the project name. An approved banner becomes its project cover and the image referenced by its Open Graph and X metadata. Projects without an approved banner use their curated share card or the RMT fallback. The current curated cards are versioned at `/social/{slug}-v2.jpg`; wide source artwork is preserved in a separate panoramic layout. Replaced or removed uploaded images stop being available at their old public URLs.
+
+See [reviewed project artwork](docs/project-artwork.md) for validation, storage and ownership rules, and [project sharing](docs/social-sharing.md) for metadata, image selection and verification limits.
 
 ## Current scope
 
-The app launches external experiences. Signed-in libraries live in the hosted database; guest libraries stay on the device. Artwork uploads, third-party game hosting, and payments remain outside the current release. Reviewer authentication and digest reads are verified, and hourly review monitoring is enabled using the `America/Denver` schedule timezone. No pending work was available to verify a real alert and acknowledgement; email delivery is not configured. Production owner account linking, email delivery checks, and X composer previews remain owner activation checks. No new token or wallet is required.
+The app launches external experiences and supports reviewed project artwork. Signed-in libraries live in the hosted database; guest libraries stay on the device. Third-party game hosting and payments remain outside the current release. Public browsing requires no account; Google or email/password accounts support saved libraries, applications, claims, and project management. No new token, wallet, or ChatGPT account is required for ordinary users.
+
+Reviewer authentication and digest reads have been verified, and hourly review monitoring is enabled using the `America/Denver` schedule timezone. No pending work was available to verify a real alert and acknowledgement; email delivery is not configured. Production owner account linking, an actual owner upload/review cycle, email delivery checks, and X composer previews remain separate activation checks. Automated tests and on-site previews do not establish those live outcomes.
 
 See [accounts and saved information](docs/data-storage.md) for the sign-in model, private data boundaries, library limits, and hosting portability. See [notification configuration](docs/notifications.md) for delivery semantics and required server settings.
 

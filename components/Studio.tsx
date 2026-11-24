@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { signInHref, studioSectionFromSearch } from "@/lib/account-navigation";
 import { ArrowRight, Check, CheckCircle2, Clock3, Copy, ExternalLink, LoaderCircle, Plus, ShieldCheck, FolderKanban, KeyRound, Sprout } from "lucide-react";
 import "./studio.css";
 
@@ -27,6 +28,7 @@ const emptyForm: SubmissionForm = { name: "", summary: "", category: "Games", st
 
 export default function Studio({ session, onToast }: StudioProps) {
   const [section, setSection] = useState<"add" | "projects" | "claims">("add");
+  useEffect(() => { setSection(studioSectionFromSearch(window.location.search)); }, []);
   const [form, setForm] = useState<SubmissionForm>(emptyForm);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(false);
@@ -113,7 +115,7 @@ export default function Studio({ session, onToast }: StudioProps) {
               <div className="st-symbol"><Plus size={25} /></div>
               <h2>Give your project a home.</h2>
               <p>Sign in to submit your project and follow its review. No wallet is required to browse or apply.</p>
-              <a className="st-button st-primary" href="/#account" target="_top">Sign in to apply <ArrowRight size={17} /></a>
+              <a className="st-button st-primary" href={signInHref('/#studio')} target="_top">Sign in to apply <ArrowRight size={17} /></a>
             </section>
           ) : received ? (
             <section className="st-panel st-received" aria-live="polite">

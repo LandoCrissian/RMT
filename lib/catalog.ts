@@ -2,6 +2,8 @@ import { additionalProjects } from './curated-projects';
 
 export type Category = 'Games' | 'Music' | 'Tools' | 'Community';
 
+export type PublicArtwork = {id: string; url: string; width: number; height: number; mime: 'image/png' | 'image/jpeg' | 'image/webp'};
+
 export type Project = {
   id: string;
   slug: string;
@@ -20,6 +22,8 @@ export type Project = {
   accent: string;
   cover: string;
   coverFit?: 'cover' | 'contain';
+  coverAspectRatio?: number;
+  artwork?: {logo?: PublicArtwork; banner?: PublicArtwork};
   claimed: boolean;
   source: 'curated' | 'community';
 };
@@ -40,7 +44,7 @@ export const seedProjects: Project[] = [
       { label: 'Official website', url: 'https://vamps.wtf/', type: 'Community' },
       { label: 'VAMPS on X', url: 'https://x.com/VampsOnChain', type: 'Social' },
     ],
-    initials: 'V', accent: '#c69cff', cover: '/projects/vamps-scene.webp', claimed: false, source: 'curated',
+    initials: 'V', accent: '#c69cff', cover: '/projects/vamps-scene.webp', coverAspectRatio: 1.777778, claimed: false, source: 'curated',
   },
   {
     id: 'lammbs', slug: 'lammbs', name: 'LAMMBs',
@@ -53,7 +57,7 @@ export const seedProjects: Project[] = [
       { label: 'Genesis collection', url: 'https://lammb.fun/genesis/', type: 'Explore' },
       { label: 'Collection on OpenSea', url: 'https://opensea.io/collection/lammbs-59693791', type: 'External collection' },
     ],
-    initials: 'L', accent: '#d5f59b', cover: '/projects/lammb-character.webp', claimed: false, source: 'curated',
+    initials: 'L', accent: '#d5f59b', cover: '/projects/lammb-character.webp', coverAspectRatio: 1, coverFit: 'contain', claimed: false, source: 'curated',
   },
   {
     id: 'suited-apes', slug: 'suited-apes', name: 'Suited Apes Society',
@@ -66,7 +70,7 @@ export const seedProjects: Project[] = [
       { label: 'Ape Fight Club', url: 'https://fightclub.suitedapes.com/', type: 'Game · wallet required' },
       { label: 'Official website', url: 'https://suitedapes.com/', type: 'Community' },
     ],
-    initials: 'SA', accent: '#ffcd86', cover: '/projects/fight-club.jpg', claimed: false, source: 'curated',
+    initials: 'SA', accent: '#ffcd86', cover: '/projects/fight-club.jpg', coverAspectRatio: 1.904762, claimed: false, source: 'curated',
   },
   ...additionalProjects,
 ];

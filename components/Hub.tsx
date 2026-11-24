@@ -40,11 +40,21 @@ function domain(url: string) { try { return new URL(url).hostname.replace(/^www\
 function Cover({ project, className = '' }: { project: Project; className?: string }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => { setFailed(false); }, [project.cover]);
-  return <div className={'project-art art-' + project.slug + (project.coverFit === 'contain' ? ' art-contained' : '') + ' ' + className} style={{ '--accent': project.accent } as React.CSSProperties}>
+  const panoramic = (project.coverAspectRatio ?? 0) > 2.2;
+  const complete = project.coverFit === 'contain' || panoramic;
+  return <div className={'project-art art-' + project.slug + (complete ? ' art-contained' : '') + (panoramic ? ' art-panoramic' : '') + ' ' + className} style={{ '--accent': project.accent } as React.CSSProperties}>
     {project.cover.startsWith('/') && !failed
-      ? <img src={project.cover} alt={project.name + ' project artwork'} onError={() => setFailed(true)} loading="lazy" />
+      ? <><span className="art-ambient" aria-hidden="true" /><img className="art-foreground" src={project.cover} alt={project.name + ' project artwork'} onError={() => setFailed(true)} loading="lazy" decoding="async" /></>
       : <span className="art-monogram">{project.initials}</span>}
   </div>;
+}
+
+function ProjectLogo({project}: {project: Project}) {
+  const [failed, setFailed] = useState(false);
+  const source = project.artwork?.logo?.url;
+  useEffect(() => { setFailed(false); }, [source]);
+  if (!source || failed) return null;
+  return <img className="approved-project-logo" src={source} alt="" width="58" height="58" loading="lazy" decoding="async" onError={() => setFailed(true)} />;
 }
 
 export default function Hub({ initialProjectId, initialProjects = seedProjects }: { initialProjectId?: string; initialProjects?: Project[] } = {}) {
@@ -393,8 +403,8 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects }
             {hasSearch && (section !== 'library' || library.status === 'ready') && <div className="search-feedback"><div role="status" aria-live="polite" aria-atomic="true"><p><strong>{filtered.length} {filtered.length === 1 ? 'result' : 'results'}</strong> for “{query.trim()}” in <strong>{searchScope}</strong>.</p>{matchesOutsideScope > 0 && <span>{matchesOutsideScope} more {matchesOutsideScope === 1 ? 'match is' : 'matches are'} outside this view.</span>}</div>{isSearchScoped && filtered.length > 0 && <button type="button" onClick={searchAllProjects}>Search all projects <ArrowRight size={14} /></button>}</div>}
             {catalogError && <p className="inline-notice" role="status">Community submissions are temporarily unavailable. You can still explore the curated directory.</p>}
             {section === 'library' && library.status !== 'ready' ? null : filtered.length ? <div className="project-grid">{[...filtered].sort((a, b) => a.name.localeCompare(b.name)).map(project => <article className="project-card" key={project.id}>
-              <div className="project-image-button"><Cover project={project} /><span className="card-category">{project.category}</span></div>
-              <div className="project-card-body"><div className="project-card-heading"><div className="project-name-button"><h3><button type="button" className="project-card-trigger" onClick={() => openProject(project)} aria-label={'Explore ' + project.name} aria-haspopup="dialog">{project.name}</button></h3></div><button type="button" className={'save-button ' + (saved.includes(project.id) ? 'saved' : '')} aria-label={(saved.includes(project.id) ? 'Remove ' : 'Save ') + project.name + (saved.includes(project.id) ? ' from library' : ' to library')} aria-pressed={saved.includes(project.id)} disabled={!library.canSave} onClick={() => void toggleSave(project)}>{saved.includes(project.id) ? <Bookmark size={18} fill="currentColor" /> : <Bookmark size={18} />}</button></div><p>{project.tagline}</p><div className="project-card-footer"><span>{destinationCount(project)} destinations{project.stage && project.stage !== 'live' ? ' · ' + (project.stage === 'starting' ? 'Starting out' : 'In development') : ''}</span><span className="project-card-explore" aria-hidden="true">Explore <ArrowUpRight size={14} /></span></div></div>
+              <div className="project-image-button"><Cover project={project} className="directory-art" /><span className="card-category">{project.category}</span></div>
+              <div className="project-card-body"><div className="project-card-heading"><div className="project-name-button"><h3><button type="button" className="project-card-trigger" onClick={() => openProject(project)} aria-label={'Explore ' + project.name} aria-haspopup="dialog"><ProjectLogo project={project} />{project.name}</button></h3></div><button type="button" className={'save-button ' + (saved.includes(project.id) ? 'saved' : '')} aria-label={(saved.includes(project.id) ? 'Remove ' : 'Save ') + project.name + (saved.includes(project.id) ? ' from library' : ' to library')} aria-pressed={saved.includes(project.id)} disabled={!library.canSave} onClick={() => void toggleSave(project)}>{saved.includes(project.id) ? <Bookmark size={18} fill="currentColor" /> : <Bookmark size={18} />}</button></div><p>{project.tagline}</p><div className="project-card-footer"><span>{destinationCount(project)} destinations{project.stage && project.stage !== 'live' ? ' · ' + (project.stage === 'starting' ? 'Starting out' : 'In development') : ''}</span><span className="project-card-explore" aria-hidden="true">Explore <ArrowUpRight size={14} /></span></div></div>
             </article>)}</div> : <div className="empty-state"><div className="empty-state-icon">{section === 'library' ? <Library size={29} /> : section === 'music' ? <Music2 size={29} /> : <Search size={29} />}</div><h3>{hasSearch ? (matchesOutsideScope > 0 ? 'There’s more beyond this view.' : 'No projects found.') : section === 'library' ? 'Your next favorite belongs here.' : 'The first spot could be yours.'}</h3><p>{hasSearch ? (matchesOutsideScope > 0 ? 'Your search matches projects elsewhere in the directory. Open all projects to see them without changing your search.' : isSearchScoped ? 'Try a shorter name, or search all projects to look beyond your current filters.' : 'Try a project name, part of a name, a game, or a website.') : section === 'library' ? (library.isCloud ? 'Tap the bookmark on any project to save it to your account. Your favorites will be ready here on any device.' : 'Tap the bookmark on any project to keep it here. Sign in to take your library to another device.') : 'We’re opening this part of the directory to builders. Have an experience people should discover?'}</p><button className="button button-lime" onClick={() => hasSearch ? (isSearchScoped ? searchAllProjects() : setQuery('')) : go(section === 'library' ? 'discover' : 'studio')}>{hasSearch ? (isSearchScoped ? 'Search all projects' : 'Clear search') : section === 'library' ? 'Find a project' : 'Submit your project'}<ArrowRight size={16} /></button></div>}
           </section>
           {section === 'discover' && <section className="community-banner"><div className="community-banner-icon"><LayoutGrid size={26} /></div><div><h3>Your community built it. Let people find it.</h3><p>Games, creative tools, and projects deserve more than a buried link.</p></div><button className="button button-outline" onClick={() => go('studio')}>Join the directory <ArrowUpRight size={16} /></button></section>}
@@ -418,7 +428,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects }
           <button className="dialog-close" onClick={closeProject} aria-label="Close project"><X size={20} /></button>
           <div className="showcase-title">
             <div className="showcase-badges"><span className="showcase-category">{selected.category === 'Games' ? <Gamepad2 size={13} /> : selected.category === 'Tools' ? <Wrench size={13} /> : selected.category === 'Music' ? <Music2 size={13} /> : <Compass size={13} />}{selected.category}</span>{selected.stage && selected.stage !== 'live' && <span>{selected.stage === 'starting' ? 'Starting out' : 'In development'}</span>}</div>
-            <h2 id="project-title" tabIndex={-1}>{selected.name}</h2>
+            <h2 id="project-title" tabIndex={-1}><ProjectLogo project={selected} />{selected.name}</h2>
             <p>{selected.tagline}</p>
           </div>
         </div>

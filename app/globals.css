@@ -230,8 +230,37 @@ body.project-is-open{overflow:hidden}
 .mobile-brand .mobile-rmt-word{color:var(--text)}
 .mobile-brand .mobile-rmt-word>span{color:var(--lime)}
 
-/* Consistent uncropped directory artwork; preserve each source image's proportions. */
-.project-image-button{height:auto;aspect-ratio:16/9;background:#20252a}
-.project-image-button .project-art img,.project-image-button .project-art.art-contained img{object-fit:contain;object-position:center;padding:12px;filter:none}
-.project-card:hover .project-art img,.project-image-button:hover img{transform:none}
-@media(max-width:700px){.project-image-button{height:auto;aspect-ratio:2/1}.project-card-body{padding:10px 14px 0}.project-card-body>p{margin:3px 0 10px}.project-card-footer{min-height:36px}.project-image-button .project-art.art-contained img{padding:10px}}
+/* Artwork uses the source's shape: scenic covers fill the frame; marks and wide banners remain complete. */
+.project-image-button{height:auto;aspect-ratio:16/9;background:#171d22}
+.project-art .art-ambient{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 45%,color-mix(in srgb,var(--accent) 18%,#1a2025),#151a20 85%);opacity:0}
+.project-art.art-contained .art-ambient{opacity:1}
+.project-art .art-foreground{position:relative;z-index:1}
+.project-image-button .project-art .art-foreground{object-fit:cover;object-position:center;padding:0;filter:none}
+.project-image-button .project-art.art-contained .art-foreground{object-fit:contain;object-position:center;padding:4px}
+.project-image-button .project-art.art-panoramic .art-foreground{padding:0}
+.project-card:hover .project-art .art-foreground,.project-image-button:hover .art-foreground{transform:none}
+.project-image-button .art-lammbs .art-foreground{object-position:center 33%}
+.project-image-button .art-suited-apes .art-foreground{object-position:center 40%}
+.project-image-button .project-art.art-abstract-workers2 .art-foreground{object-fit:cover;object-position:center 10%;padding:0}
+.project-image-button .card-category{left:10px;bottom:10px;z-index:2;background:#10171bea}
+.project-card-trigger{display:flex;align-items:center;gap:9px}
+.approved-project-logo{width:28px;height:28px;flex:0 0 28px;object-fit:contain;border-radius:7px;background:#161d22;padding:2px}
+.showcase-title h2{display:flex;align-items:center;gap:15px}
+.showcase-title h2 .approved-project-logo{width:58px;height:58px;flex-basis:58px;border-radius:13px;padding:5px;border:1px solid #ffffff25}
+.showcase-cover .project-art.art-contained:not(.art-panoramic) .art-foreground{padding:52px 20px 140px;object-fit:contain;object-position:center;filter:none}
+.showcase-cover:has(.art-contained) .detail-cover-shade{background:linear-gradient(0deg,#14181c 0%,transparent 35%)}
+.showcase-cover .project-art.art-panoramic .art-foreground{object-fit:contain;object-position:center 30%;padding:62px 20px 120px;filter:none}
+.related-project-art .project-art.art-contained .art-foreground,.quick-icon .project-art.art-contained .art-foreground{object-fit:contain;padding:2px}
+@media(max-width:700px){
+  .project-image-button{height:auto;aspect-ratio:16/9}
+  .project-card-body{padding:12px 14px 0}
+  .project-card-body>p{margin:4px 0 12px}
+  .project-card-footer{min-height:40px}
+  .project-image-button .project-art.art-contained .art-foreground{padding:4px}
+  .project-image-button .project-art.art-panoramic .art-foreground{padding:0}
+  .showcase-title h2{gap:10px}
+  .showcase-title h2 .approved-project-logo{width:46px;height:46px;flex-basis:46px;border-radius:10px}
+  .showcase-cover:has(.art-contained:not(.art-panoramic)){height:400px}
+  .showcase-cover .project-art.art-contained:not(.art-panoramic) .art-foreground{padding:60px 18px 155px;object-position:center}
+  .showcase-cover .project-art.art-panoramic .art-foreground{padding:66px 12px 140px;object-position:center}
+}

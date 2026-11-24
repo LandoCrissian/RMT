@@ -1,3 +1,11 @@
+# Artwork and builder navigation update (November 24, 2026)
+
+The current app keeps public browsing, release 7 Firebase authentication and secure account linking. This update appends `0005_aromatic_dracula.sql` and declares an R2 binding named `BUCKET` for reviewed project artwork. Sites provisions the binding and applies the new schema; existing D1 records, domain settings, runtime authentication secrets and Dot monitoring are retained.
+
+Project logos and banners remain private until the existing reviewer approves their listing edit. See [project artwork](project-artwork.md) for upload, storage and visibility details.
+
+The following sections retain the authentication release and earlier deployment history. Earlier owner-private and blocked-domain observations are historical unless explicitly dated as a current verification limitation.
+
 # Current authentication release (November 24, 2026)
 
 The Site is now public (access revision 2), including anonymous catalog and project pages. Direct HTTP checks to `/api/session` on rmtlaunch.fun, www.rmtlaunch.fun, and the platform origin returned 200 before this release. Earlier private-audience and environment-block observations below are historical.

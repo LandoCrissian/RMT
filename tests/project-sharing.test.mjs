@@ -60,7 +60,7 @@ test('new projects and mismatched artwork use the RMT fallback without stale pro
   const vamps = api.seedProjects.find(project => project.id === 'vamps');
   const unknown = {...vamps, id: 'community-new', slug: 'project-new', name: 'New project', cover: 'community'};
   for (const project of [unknown, {...vamps, name: 'A changed name'}, {...vamps, cover: '/new-approved-artwork.png'}]) {
-    assert.equal(api.projectSocialImagePath(project), '/social/rmt-v1.jpg');
+    assert.equal(api.projectSocialImagePath(project), `/social/rmt-${api.SOCIAL_IMAGE_VERSION}.jpg`);
     assert.equal(api.projectMetadata(project).openGraph.images[0].alt, 'RMT — discover projects, games, and creative tools');
   }
 });
@@ -105,7 +105,7 @@ test('unknown showcases return no listing and catalog failures do not revive old
 });
 
 test('all served social images are actual 1200×630 JPEGs below 5 MB', async () => {
-  const paths = [...api.seedProjects.map(api.projectSocialImagePath), '/social/rmt-v1.jpg'];
+  const paths = [...api.seedProjects.map(api.projectSocialImagePath), `/social/rmt-${api.SOCIAL_IMAGE_VERSION}.jpg`];
   for (const path of paths) {
     const bytes = await readFile(new URL('../public' + path, import.meta.url));
     const metadata = await sharp(bytes).metadata();
