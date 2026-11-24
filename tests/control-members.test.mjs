@@ -36,6 +36,27 @@ test('control endpoints require a verified reviewer with the exact account scope
  assert.equal((await api.memberPATCH(request('/api/control/members/person',{method:'PATCH',body:{action:'suspend',expectedRevision:1,reason:'Unexpected authority field.',userId:'owner'}}),ctx('person'))).status,400);
 });
 
+test('private account details identify the active verified credential rather than an ambient account or profile',async t=>{
+ const db=database(t);
+ const guest=await api.sessionGET(request('/api/session',{user:null}));
+ assert.equal(guest.headers.get('cache-control'),'no-store');
+ const guestData=await guest.json();assert.equal(guestData.email,null);assert.equal(guestData.signInMethod,null);
+ const legacyResponse=await api.sessionGET(request('/api/session'));
+ assert.equal(legacyResponse.headers.get('cache-control'),'no-store');
+ const legacy=await legacyResponse.json();assert.equal(legacy.email,'PRIVATE-owner@rmt.dev');assert.equal(legacy.signInMethod,'chatgpt');
+ const fixture={userId:'firebase:brand-fixture',firebaseUid:'brand-fixture',email:'brand@fixture.invalid',displayName:'Same display name',emailVerified:true,signInProvider:'google.com'};
+ globalThis.__RMT_CONTROL_MEMBER_AUTH__=fixture;
+ const googleResponse=await api.sessionGET(request('/api/session',{cookie:'fixture-session=verified'}));
+ const google=await googleResponse.json();
+ assert.equal(googleResponse.headers.get('cache-control'),'no-store');
+ assert.equal(google.email,fixture.email);assert.equal(google.displayName,fixture.displayName);assert.equal(google.signInMethod,'google');
+ assert.equal(google.userId,fixture.userId);assert.equal(google.isAdmin,false);
+ globalThis.__RMT_CONTROL_MEMBER_AUTH__={...fixture,signInProvider:'password'};
+ const password=await api.sessionGET(request('/api/session',{cookie:'fixture-session=verified'}));
+ assert.equal((await password.json()).signInMethod,'email');
+ assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM account_links').get().n,0);
+});
+
 test('protected owner and self cannot be suspended or downgraded; unknown accounts cannot receive roles',async t=>{
  const db=database(t);await member(db,'owner');await member(db,'helper');const admin=await grant(db,'helper');
  await assert.rejects(api.setMemberStatus(db,admin,'owner',{action:'suspend',expectedRevision:1,reason:'Try to suspend protected owner.'},'owner'),reject(403));

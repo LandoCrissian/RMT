@@ -7,8 +7,15 @@ menu or **My account → Your Control Center**. It uses the existing verified RM
 identity. Google and email/password sign-in, secure account linking, and public
 browsing remain in place. The protected owner remains the exact identity in
 server configuration, never the first visitor or an email/name supplied by a
-client. An unlinked Google account must use the existing account-link flow to
-join its owner identity; matching an email is not an administrator grant.
+client. A verified Firebase account may be configured directly by its exact UID
+as an independent owner. Matching an email is not an administrator grant.
+The private account panel shows the current sign-in email and method so a
+display name cannot be mistaken for the account holding access.
+
+The November 24 owner correction uses the verified RMT Launch Firebase account
+as the independent protected owner. The former personal Sites identity retains
+only the separately configured Dot review-monitor permission. Accounts, records,
+profiles and saved libraries remain separate; no account-link merge is required.
 
 The workspace contains real, bounded, searchable data:
 
@@ -42,6 +49,14 @@ the dashboard. Administrators manage projects, members, content, settings,
 exports and reviews. Moderators have overview, review and content capabilities.
 Only the protected owner assigns administrator or moderator roles. Members have
 no control APIs. An administrator cannot suspend themselves or an owner.
+
+`RMT_REVIEW_MONITOR_USER_IDS` is a separate exact-ID runtime allowlist for MCP
+digest reads and acknowledgement receipts. It grants no Control Center,
+review-decision, member-email, project-edit, export or settings access. Monitor
+identity reports this permission separately from reviewer or administrator status.
+Suspending a monitor account also blocks its monitor calls. A protected Firebase
+owner cannot use legacy account linking to change its canonical identity and
+lose its configured owner access.
 
 New private management APIs require a verified current identity, a matching
 `X-RMT-Account`, and the appropriate current server capability. Writes require

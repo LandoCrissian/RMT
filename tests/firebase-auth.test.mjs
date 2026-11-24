@@ -100,6 +100,20 @@ test('linking cannot bypass suspension, delegated-role grants, or activity creat
  assert.equal(sqlite.prepare('SELECT user_id FROM project_owners WHERE project_id=?').get('vamps').user_id,userId);
  sqlite.prepare('DELETE FROM project_owners WHERE user_id=?').run(userId);
 });
+test('a directly protected Firebase owner cannot be relinked under a legacy ID and lose its owner grant',async()=>{
+ const previous=environment.RMT_ADMIN_USER_IDS,idToken=await token();
+ environment.RMT_ADMIN_USER_IDS='firebase:new-owner';
+ try{
+  assert.equal((await api.requireAdmin(request('/',null,{cookie:idToken,method:'GET'}))).role,'owner');
+  const response=await api.link(request('/api/auth/link',{idToken},{legacy:'old-owner'}));
+  assert.equal(response.status,409);
+  const error=await response.json();assert.equal(error.code,'protected_owner_link');assert.match(error.error,/already the protected RMT owner/);
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM account_links').get().n,0);
+  const after=await api.requireAdmin(request('/',null,{cookie:idToken,method:'GET'}));
+  assert.equal(after.userId,'firebase:new-owner');assert.equal(after.role,'owner');
+  assert.equal(await api.isAdmin(request('/',null,{legacy:'old-owner',method:'GET'})),false);
+ }finally{environment.RMT_ADMIN_USER_IDS=previous;}
+});
 test('linking requires both identities, fresh verified sign-in and preserves library and exact reviewer access',async()=>{
  const idToken=await token();
  assert.equal((await api.link(request('/api/auth/link',{idToken}))).status,401);
