@@ -1,14 +1,34 @@
-# Project updates — prepared release 11 (November 24, 2026)
+# Activity and profiles — release 12 (November 24, 2026)
 
-The current public production deployment is release 10, source
+This release adds public ecosystem activity and optional member profiles on the
+existing application. Before this upgrade, the public site was release 11,
+source `a55769bf122d2220a484514cbfac3b3b74aba786`, with the same application tree
+as GitHub main merge `8fa6df9c94929a7e4745738f36a918f19da7145e`. The owner confirmed
+Google sign-in before release 11 was published.
+
+Development and browser checks use an isolated checkout and local preview. The
+new migration `0007_remarkable_human_torch.sql` only adds profile tables and their
+indexes. It does not rewrite existing accounts, ownership, libraries, reviews,
+artwork, project updates, or notification records. R11 can continue operating
+with the additional tables. No authentication-provider, runtime-secret, domain,
+audience, or billing change is part of this release.
+
+See [Activity and member profiles](activity-profiles.md) for public/private data
+boundaries, the additive migration, validation, and the application rollback
+boundary. Publish only the exact source and archive that pass the release gates.
+Earlier sections below are dated historical records, not current access policy.
+
+## Historical: project updates — prepared release 11
+
+At that preparation checkpoint, the public production deployment was release 10, source
 `dd1b7155c7a73e743072acf69e3160f2251abc93`. The project-updates feature is prepared
-and saved separately while the owner tests the repaired Google sign-in on their
-phone. This preparation does not deploy to production, apply migration 0006,
+and saved separately while the owner tested the repaired Google sign-in on their
+phone. That preparation did not deploy to production, apply migration 0006,
 change Firebase settings, or alter runtime secrets, domain routing, or audience.
 
 The new forward migration and application rollback boundary are documented in
 [project updates](project-updates.md). Use the saved source version and its exact
-archive when publishing after the remaining acceptance check. Historical release
+archive when publishing after the remaining acceptance check (subsequently completed). Historical release
 sections below are retained as history, not the current access policy.
 
 # Google sign-in recovery (November 24, 2026)

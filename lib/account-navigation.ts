@@ -13,6 +13,9 @@ export function accountContinuation(value: unknown): AccountContinuation | null 
     return {href: value, label: 'Continue to Builder Studio', context: value.includes('studio=projects') ? 'Your project management workspace is ready after sign-in.' : value.includes('studio=claims') ? 'Return to your ownership claims after sign-in.' : 'Continue your project application in Builder Studio after sign-in.'};
   }
   if (value === '/#library') return {href: value, label: 'Continue to your library', context: 'Return to your saved projects after sign-in.'};
+  if (value === '/#profile') return {href: value, label: 'Continue to your profile', context: 'Choose what to share on your RMT profile after sign-in.'};
+  if (value === '/#activity') return {href: value, label: 'Continue to activity', context: 'Return to the latest project activity after sign-in.'};
+  if (/^\/u\/[a-z0-9][a-z0-9_-]{1,22}[a-z0-9]$/.test(value)) return {href: value, label: 'Continue to this profile', context: 'Return to the member profile you were exploring after sign-in.'};
   if (/^\/#(?:discover|games|music|tools)$/.test(value)) return {href: value, label: 'Continue exploring', context: 'Return to the directory you were exploring after sign-in.'};
   return null;
 }
