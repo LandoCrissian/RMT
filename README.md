@@ -38,7 +38,7 @@ npm run dev
 
 The app uses React, TypeScript, the Next-compatible Vinext runtime, and a Cloudflare Worker. Structured data lives in D1 (SQLite). Hosting-specific authentication is isolated in `lib/server/auth.ts` and `lib/server/runtime.ts`. Dependencies are locked.
 
-For this environment, Sites provides the legacy reviewer gateway; Firebase supplies ordinary user accounts. Sites and provisions D1 from `.openai/hosting.json`. Read [deployment notes](docs/deployment.md) before moving to a different host. A raw Worker that trusts visitor-supplied identity headers is **not** a supported deployment.
+For this environment, Sites provides the legacy reviewer gateway; Firebase supplies ordinary user accounts. Sites provisions D1 from `.openai/hosting.json`. Read [deployment notes](docs/deployment.md) before moving to a different host. A raw Worker that trusts visitor-supplied identity headers is **not** a supported deployment.
 
 ### Hosting
 
@@ -77,7 +77,7 @@ One server-controlled owner assignment can be active for each project. Holding a
 
 ## Current scope
 
-The app launches external experiences. Signed-in libraries live in the hosted database; guest libraries stay on the device. Artwork uploads, third-party game hosting, and payments remain outside the current release. Reviewer authentication and digest reads are verified, and hourly review monitoring is enabled using the `America/Denver` schedule timezone. No pending work was available to verify a real alert and acknowledgement; email delivery is not configured. Custom-domain access and the intended public audience still need resolution before inviting builders. No new token or wallet is required.
+The app launches external experiences. Signed-in libraries live in the hosted database; guest libraries stay on the device. Artwork uploads, third-party game hosting, and payments remain outside the current release. Reviewer authentication and digest reads are verified, and hourly review monitoring is enabled using the `America/Denver` schedule timezone. No pending work was available to verify a real alert and acknowledgement; email delivery is not configured. Production owner account linking, email delivery checks, and X composer previews remain owner activation checks. No new token or wallet is required.
 
 See [accounts and saved information](docs/data-storage.md) for the sign-in model, private data boundaries, library limits, and hosting portability. See [notification configuration](docs/notifications.md) for delivery semantics and required server settings.
 
