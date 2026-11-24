@@ -21,7 +21,7 @@ export async function controlAudit(db:D1Database,query:URLSearchParams,max=50):P
  if(cursor){try{before=JSON.parse(cursor);if(!before||!Number.isSafeInteger(before.at)||before.at<0||typeof before.id!=='string'||before.id.length>250)throw new Error();}catch{throw new InputError('This history page is not valid.');}}
  const where:string[]=[],args:(string|number)[]=[];
  if(kind!=='all'){where.push('entity_type=?');args.push(kind);}
- if(q){where.push("lower(action||' '||entity_id||' '||reason) LIKE ? ESCAPE '\\'");args.push('%'+q.toLowerCase().replace(/[\\%_]/g,'\\$&')+'%');}
+ if(q){where.push("instr(lower(action||' '||entity_id||' '||reason),?)>0");args.push(q.toLowerCase());}
  if(before){where.push('(created_at<? OR (created_at=? AND id<?))');args.push(before.at,before.at,before.id);}
  const result=await db.prepare(`SELECT * FROM (${auditUnion}) ${where.length?'WHERE '+where.join(' AND '):''} ORDER BY created_at DESC,id DESC LIMIT ?`).bind(...args,limit+1).all<{id:string;actor_id:string;action:string;entity_type:string;entity_id:string;reason:string;created_at:number}>();
  const hasMore=result.results.length>limit,rows=result.results.slice(0,limit);

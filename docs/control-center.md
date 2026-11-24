@@ -1,4 +1,4 @@
-# RMT Control Center — release 13
+# RMT Control Center
 
 ## Operating the site
 
@@ -130,6 +130,14 @@ immutable. Existing application records, claims, ownership, libraries, profiles,
 image references, notification retry state and acknowledgement receipts retain
 their original values. Public audience, domain and runtime environment stay on
 the existing Site.
+
+The first publication candidate (saved build 13) failed before migration 0008
+was applied because D1 permits at most five SELECT terms in a compound query.
+The live database was inspected after the failure: all 18 earlier application
+tables remained and none of the nine new tables had been created. The backfill
+and account-linking queries were corrected for the hosted limits, with explicit
+compatibility regression coverage. Earlier applied migrations were unchanged.
+See [D1 limits](https://developers.cloudflare.com/d1/platform/limits/).
 
 Release gates are typecheck, the full test suite and a production build. Focused
 tests cover roles, owner protection, suspension, canonical linking, race-safe

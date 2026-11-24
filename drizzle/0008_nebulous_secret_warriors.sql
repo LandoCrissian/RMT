@@ -135,19 +135,74 @@ INSERT INTO control_installation(id, observed_since) VALUES (1, CAST(unixepoch('
 --> statement-breakpoint
 -- Historical activity identifies existing accounts but is not a sign-in log.
 -- Preserve unknown sign-in/verification timestamps instead of inventing them.
-WITH historical AS (
- SELECT user_id,account_email AS email,created_at AS happened FROM submissions
- UNION ALL SELECT user_id,account_email,created_at FROM project_claims
- UNION ALL SELECT user_id,'',created_at FROM profiles
- UNION ALL SELECT user_id,'',created_at FROM saved_projects
- UNION ALL SELECT user_id,'',created_at FROM project_owners
- UNION ALL SELECT user_id,'',created_at FROM project_edits
- UNION ALL SELECT user_id,'',created_at FROM project_updates
- UNION ALL SELECT user_id,'',created_at FROM project_artwork
- UNION ALL SELECT user_id,'',created_at FROM profile_artwork
- UNION ALL SELECT legacy_user_id,'',created_at FROM account_links
-), canonical AS (
- SELECT COALESCE((SELECT legacy_user_id FROM account_links WHERE 'firebase:'||firebase_uid=historical.user_id),user_id) AS user_id,email,happened FROM historical
+-- D1 permits at most five terms in a compound SELECT. Backfill each source
+-- independently, preserving the canonical minimum timestamp and maximum email.
+WITH canonical AS (
+ SELECT COALESCE((SELECT legacy_user_id FROM account_links WHERE 'firebase:'||firebase_uid=h.user_id),h.user_id) AS user_id,h.account_email AS email,h.created_at AS happened FROM submissions h
 )
 INSERT INTO control_members(user_id,email,display_name,providers_json,email_verified,first_seen_at,last_seen_at,historical_since_at,status,status_reason,revision,created_at,updated_at)
-SELECT c.user_id,MAX(c.email),COALESCE((SELECT display_name FROM profiles WHERE user_id=c.user_id),''),'[]',NULL,NULL,NULL,MIN(c.happened),'active','',1,CAST(unixepoch('now') AS INTEGER)*1000,CAST(unixepoch('now') AS INTEGER)*1000 FROM canonical c GROUP BY c.user_id;
+SELECT c.user_id,MAX(c.email),COALESCE((SELECT display_name FROM profiles WHERE user_id=c.user_id),''),'[]',NULL,NULL,NULL,MIN(c.happened),'active','',1,(SELECT observed_since FROM control_installation WHERE id=1),(SELECT observed_since FROM control_installation WHERE id=1) FROM canonical c GROUP BY c.user_id
+ON CONFLICT(user_id) DO UPDATE SET email=MAX(control_members.email,excluded.email),historical_since_at=CASE WHEN control_members.historical_since_at IS NULL THEN excluded.historical_since_at ELSE MIN(control_members.historical_since_at,excluded.historical_since_at) END;
+--> statement-breakpoint
+WITH canonical AS (
+ SELECT COALESCE((SELECT legacy_user_id FROM account_links WHERE 'firebase:'||firebase_uid=h.user_id),h.user_id) AS user_id,h.account_email AS email,h.created_at AS happened FROM project_claims h
+)
+INSERT INTO control_members(user_id,email,display_name,providers_json,email_verified,first_seen_at,last_seen_at,historical_since_at,status,status_reason,revision,created_at,updated_at)
+SELECT c.user_id,MAX(c.email),COALESCE((SELECT display_name FROM profiles WHERE user_id=c.user_id),''),'[]',NULL,NULL,NULL,MIN(c.happened),'active','',1,(SELECT observed_since FROM control_installation WHERE id=1),(SELECT observed_since FROM control_installation WHERE id=1) FROM canonical c GROUP BY c.user_id
+ON CONFLICT(user_id) DO UPDATE SET email=MAX(control_members.email,excluded.email),historical_since_at=CASE WHEN control_members.historical_since_at IS NULL THEN excluded.historical_since_at ELSE MIN(control_members.historical_since_at,excluded.historical_since_at) END;
+--> statement-breakpoint
+WITH canonical AS (
+ SELECT COALESCE((SELECT legacy_user_id FROM account_links WHERE 'firebase:'||firebase_uid=h.user_id),h.user_id) AS user_id,'' AS email,h.created_at AS happened FROM profiles h
+)
+INSERT INTO control_members(user_id,email,display_name,providers_json,email_verified,first_seen_at,last_seen_at,historical_since_at,status,status_reason,revision,created_at,updated_at)
+SELECT c.user_id,MAX(c.email),COALESCE((SELECT display_name FROM profiles WHERE user_id=c.user_id),''),'[]',NULL,NULL,NULL,MIN(c.happened),'active','',1,(SELECT observed_since FROM control_installation WHERE id=1),(SELECT observed_since FROM control_installation WHERE id=1) FROM canonical c GROUP BY c.user_id
+ON CONFLICT(user_id) DO UPDATE SET email=MAX(control_members.email,excluded.email),historical_since_at=CASE WHEN control_members.historical_since_at IS NULL THEN excluded.historical_since_at ELSE MIN(control_members.historical_since_at,excluded.historical_since_at) END;
+--> statement-breakpoint
+WITH canonical AS (
+ SELECT COALESCE((SELECT legacy_user_id FROM account_links WHERE 'firebase:'||firebase_uid=h.user_id),h.user_id) AS user_id,'' AS email,h.created_at AS happened FROM saved_projects h
+)
+INSERT INTO control_members(user_id,email,display_name,providers_json,email_verified,first_seen_at,last_seen_at,historical_since_at,status,status_reason,revision,created_at,updated_at)
+SELECT c.user_id,MAX(c.email),COALESCE((SELECT display_name FROM profiles WHERE user_id=c.user_id),''),'[]',NULL,NULL,NULL,MIN(c.happened),'active','',1,(SELECT observed_since FROM control_installation WHERE id=1),(SELECT observed_since FROM control_installation WHERE id=1) FROM canonical c GROUP BY c.user_id
+ON CONFLICT(user_id) DO UPDATE SET email=MAX(control_members.email,excluded.email),historical_since_at=CASE WHEN control_members.historical_since_at IS NULL THEN excluded.historical_since_at ELSE MIN(control_members.historical_since_at,excluded.historical_since_at) END;
+--> statement-breakpoint
+WITH canonical AS (
+ SELECT COALESCE((SELECT legacy_user_id FROM account_links WHERE 'firebase:'||firebase_uid=h.user_id),h.user_id) AS user_id,'' AS email,h.created_at AS happened FROM project_owners h
+)
+INSERT INTO control_members(user_id,email,display_name,providers_json,email_verified,first_seen_at,last_seen_at,historical_since_at,status,status_reason,revision,created_at,updated_at)
+SELECT c.user_id,MAX(c.email),COALESCE((SELECT display_name FROM profiles WHERE user_id=c.user_id),''),'[]',NULL,NULL,NULL,MIN(c.happened),'active','',1,(SELECT observed_since FROM control_installation WHERE id=1),(SELECT observed_since FROM control_installation WHERE id=1) FROM canonical c GROUP BY c.user_id
+ON CONFLICT(user_id) DO UPDATE SET email=MAX(control_members.email,excluded.email),historical_since_at=CASE WHEN control_members.historical_since_at IS NULL THEN excluded.historical_since_at ELSE MIN(control_members.historical_since_at,excluded.historical_since_at) END;
+--> statement-breakpoint
+WITH canonical AS (
+ SELECT COALESCE((SELECT legacy_user_id FROM account_links WHERE 'firebase:'||firebase_uid=h.user_id),h.user_id) AS user_id,'' AS email,h.created_at AS happened FROM project_edits h
+)
+INSERT INTO control_members(user_id,email,display_name,providers_json,email_verified,first_seen_at,last_seen_at,historical_since_at,status,status_reason,revision,created_at,updated_at)
+SELECT c.user_id,MAX(c.email),COALESCE((SELECT display_name FROM profiles WHERE user_id=c.user_id),''),'[]',NULL,NULL,NULL,MIN(c.happened),'active','',1,(SELECT observed_since FROM control_installation WHERE id=1),(SELECT observed_since FROM control_installation WHERE id=1) FROM canonical c GROUP BY c.user_id
+ON CONFLICT(user_id) DO UPDATE SET email=MAX(control_members.email,excluded.email),historical_since_at=CASE WHEN control_members.historical_since_at IS NULL THEN excluded.historical_since_at ELSE MIN(control_members.historical_since_at,excluded.historical_since_at) END;
+--> statement-breakpoint
+WITH canonical AS (
+ SELECT COALESCE((SELECT legacy_user_id FROM account_links WHERE 'firebase:'||firebase_uid=h.user_id),h.user_id) AS user_id,'' AS email,h.created_at AS happened FROM project_updates h
+)
+INSERT INTO control_members(user_id,email,display_name,providers_json,email_verified,first_seen_at,last_seen_at,historical_since_at,status,status_reason,revision,created_at,updated_at)
+SELECT c.user_id,MAX(c.email),COALESCE((SELECT display_name FROM profiles WHERE user_id=c.user_id),''),'[]',NULL,NULL,NULL,MIN(c.happened),'active','',1,(SELECT observed_since FROM control_installation WHERE id=1),(SELECT observed_since FROM control_installation WHERE id=1) FROM canonical c GROUP BY c.user_id
+ON CONFLICT(user_id) DO UPDATE SET email=MAX(control_members.email,excluded.email),historical_since_at=CASE WHEN control_members.historical_since_at IS NULL THEN excluded.historical_since_at ELSE MIN(control_members.historical_since_at,excluded.historical_since_at) END;
+--> statement-breakpoint
+WITH canonical AS (
+ SELECT COALESCE((SELECT legacy_user_id FROM account_links WHERE 'firebase:'||firebase_uid=h.user_id),h.user_id) AS user_id,'' AS email,h.created_at AS happened FROM project_artwork h
+)
+INSERT INTO control_members(user_id,email,display_name,providers_json,email_verified,first_seen_at,last_seen_at,historical_since_at,status,status_reason,revision,created_at,updated_at)
+SELECT c.user_id,MAX(c.email),COALESCE((SELECT display_name FROM profiles WHERE user_id=c.user_id),''),'[]',NULL,NULL,NULL,MIN(c.happened),'active','',1,(SELECT observed_since FROM control_installation WHERE id=1),(SELECT observed_since FROM control_installation WHERE id=1) FROM canonical c GROUP BY c.user_id
+ON CONFLICT(user_id) DO UPDATE SET email=MAX(control_members.email,excluded.email),historical_since_at=CASE WHEN control_members.historical_since_at IS NULL THEN excluded.historical_since_at ELSE MIN(control_members.historical_since_at,excluded.historical_since_at) END;
+--> statement-breakpoint
+WITH canonical AS (
+ SELECT COALESCE((SELECT legacy_user_id FROM account_links WHERE 'firebase:'||firebase_uid=h.user_id),h.user_id) AS user_id,'' AS email,h.created_at AS happened FROM profile_artwork h
+)
+INSERT INTO control_members(user_id,email,display_name,providers_json,email_verified,first_seen_at,last_seen_at,historical_since_at,status,status_reason,revision,created_at,updated_at)
+SELECT c.user_id,MAX(c.email),COALESCE((SELECT display_name FROM profiles WHERE user_id=c.user_id),''),'[]',NULL,NULL,NULL,MIN(c.happened),'active','',1,(SELECT observed_since FROM control_installation WHERE id=1),(SELECT observed_since FROM control_installation WHERE id=1) FROM canonical c GROUP BY c.user_id
+ON CONFLICT(user_id) DO UPDATE SET email=MAX(control_members.email,excluded.email),historical_since_at=CASE WHEN control_members.historical_since_at IS NULL THEN excluded.historical_since_at ELSE MIN(control_members.historical_since_at,excluded.historical_since_at) END;
+--> statement-breakpoint
+WITH canonical AS (
+ SELECT COALESCE((SELECT legacy_user_id FROM account_links WHERE 'firebase:'||firebase_uid=h.legacy_user_id),h.legacy_user_id) AS user_id,'' AS email,h.created_at AS happened FROM account_links h
+)
+INSERT INTO control_members(user_id,email,display_name,providers_json,email_verified,first_seen_at,last_seen_at,historical_since_at,status,status_reason,revision,created_at,updated_at)
+SELECT c.user_id,MAX(c.email),COALESCE((SELECT display_name FROM profiles WHERE user_id=c.user_id),''),'[]',NULL,NULL,NULL,MIN(c.happened),'active','',1,(SELECT observed_since FROM control_installation WHERE id=1),(SELECT observed_since FROM control_installation WHERE id=1) FROM canonical c GROUP BY c.user_id
+ON CONFLICT(user_id) DO UPDATE SET email=MAX(control_members.email,excluded.email),historical_since_at=CASE WHEN control_members.historical_since_at IS NULL THEN excluded.historical_since_at ELSE MIN(control_members.historical_since_at,excluded.historical_since_at) END;

@@ -1,4 +1,4 @@
-# Control Center — release 13 (November 24, 2026)
+# Control Center (November 24, 2026)
 
 This release adds phone-friendly administration to the existing public RMT Site.
 Development is isolated from the live release 12 application. The sole forward
