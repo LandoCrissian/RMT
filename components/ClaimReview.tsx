@@ -1,0 +1,116 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { ArrowUpRight, Check, Clock3, Inbox, KeyRound, Link2, LoaderCircle, RefreshCw, ShieldCheck, X } from "lucide-react";
+import type { Project } from "@/lib/catalog";
+import type { ProjectEdit } from "./ManageProjects";
+import { claimStatusLabel, formattedDate, readApiResponse, safeHttpsLink, stageLabel, statusLabel, type ProjectClaim, type StudioProps } from "./studio-shared";
+import "./studio.css";
+
+function ReviewLink({ label, url }: { label: string; url: string }) {
+  return <div><dt>{label}</dt><dd>{safeHttpsLink(url) ? <a href={url} target="_blank" rel="noopener noreferrer">{url}<ArrowUpRight size={14} /></a> : <span>{url || "Not supplied"}</span>}</dd></div>;
+}
+function effectiveClaimStatus(claim: ProjectClaim) {
+  return ["draft", "pending"].includes(claim.status) && claim.expiresAt <= Date.now() ? "expired" : claim.status;
+}
+
+export function ClaimReview({ session, onToast }: StudioProps) {
+  const [claims, setClaims] = useState<ProjectClaim[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState("pending");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const [confirmedOwnership, setConfirmedOwnership] = useState(false);
+  const [busy, setBusy] = useState<"approve" | "reject" | "revoke" | null>(null);
+  const [actionError, setActionError] = useState("");
+
+  const load = useCallback(async () => {
+    if (!session.isAdmin) return;
+    setLoading(true); setError("");
+    try { const data = await readApiResponse(await fetch("/api/admin/claims", { cache: "no-store" })); setClaims(Array.isArray(data.claims) ? data.claims as ProjectClaim[] : []); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Ownership claims could not be loaded."); }
+    finally { setLoading(false); }
+  }, [session.isAdmin]);
+  useEffect(() => { void load(); }, [load]);
+  const filtered = claims.filter(claim => filter === "all" || effectiveClaimStatus(claim) === filter);
+  const selected = filtered.find(claim => claim.id === selectedId) ?? filtered[0] ?? null;
+  const selectedStatus = selected ? effectiveClaimStatus(selected) : null;
+  useEffect(() => { setNote(""); setConfirmedOwnership(false); setActionError(""); }, [selected?.id, selected?.revision]);
+
+  async function decide(action: "approve" | "reject" | "revoke") {
+    if (!selected || busy) return;
+    setActionError("");
+    if (note.trim().length < 5) { setActionError("Add a review note of at least 5 characters."); return; }
+    if (action === "approve" && !confirmedOwnership) { setActionError("Check the ownership proof before approving this claim."); return; }
+    setBusy(action);
+    try {
+      await readApiResponse(await fetch(`/api/admin/claims/${encodeURIComponent(selected.id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, note, expectedRevision: selected.revision, confirmedOwnership }) }));
+      onToast(action === "approve" ? "Ownership confirmed. The project manager can now propose changes." : action === "revoke" ? "Project management access removed." : "Ownership claim declined.");
+      setSelectedId(null); await load();
+    } catch (cause) { setActionError(cause instanceof Error ? cause.message : "The ownership decision could not be saved."); }
+    finally { setBusy(null); }
+  }
+
+  if (!session.isAdmin) return null;
+  return <div className="st-queue-section">
+    <div className="st-section-heading"><div><h2>Ownership claims</h2><span className="st-count">{claims.filter(claim => effectiveClaimStatus(claim) === "pending").length} in review</span></div><button type="button" className="st-text-button" disabled={loading} onClick={() => void load()}><RefreshCw size={14} className={loading ? "st-spin" : ""} /> Refresh</button></div>
+    <p className="st-panel-intro">Confirm control of an existing official channel. An NFT in a wallet is not project ownership.</p>
+    <div className="st-review-filters" aria-label="Filter ownership claims">{[{ value: "pending", label: "In review" }, { value: "approved", label: "Confirmed managers" }, { value: "all", label: "All claims" }].map(item => <button type="button" key={item.value} aria-pressed={filter === item.value} className={filter === item.value ? "active" : ""} onClick={() => { setFilter(item.value); setSelectedId(null); }}>{item.label}</button>)}</div>
+    {error ? <div className="st-panel st-form"><p className="st-error" role="alert">{error}</p><button type="button" className="st-button st-secondary" onClick={() => void load()}>Try again</button></div> : loading && !claims.length ? <div className="st-panel st-review-empty"><LoaderCircle className="st-spin" size={24} /><p>Loading ownership claims…</p></div> : !filtered.length ? <div className="st-panel st-review-empty"><div className="st-symbol"><KeyRound size={26} /></div><h2>No claims waiting here.</h2><p>Submitted ownership proofs appear here. Creating a code alone doesn’t submit a claim for approval.</p></div> : <div className="st-review-layout">
+      <aside className="st-panel st-review-list" aria-label="Ownership claims">{filtered.map(claim => <button type="button" key={claim.id} className={`st-review-list-item ${selected?.id === claim.id ? "selected" : ""}`} onClick={() => setSelectedId(claim.id)}><span className="st-project-initial">{claim.projectName.slice(0, 1)}</span><span><strong>{claim.projectName}</strong><small>{claim.method === "x" ? "X account" : claim.method === "opensea" ? "OpenSea collection" : "Website"} · {formattedDate(claim.createdAt)}</small><span className={`st-status st-status-${effectiveClaimStatus(claim)}`}>{claimStatusLabel(effectiveClaimStatus(claim))}</span></span><ArrowUpRight size={15} /></button>)}</aside>
+      {selected && <article className="st-panel st-review-detail"><div className="st-review-detail-title"><div><span className="st-kicker">OWNERSHIP PROOF</span><h2>{selected.projectName}</h2></div><span className={`st-status st-status-${selectedStatus}`}>{claimStatusLabel(selectedStatus!)}</span></div><dl className="st-review-links"><ReviewLink label="Existing official channel" url={selected.officialChannelUrl} /><ReviewLink label="Applicant’s proof" url={selected.proofUrl} />{selected.accountEmail && <div><dt>Applicant account</dt><dd>{selected.accountEmail}</dd></div>}</dl><section className="st-evidence"><h3>The exact code to check</h3><code>{selected.verificationCode}</code><p className="st-expiry">Code expires {formattedDate(selected.expiresAt)}.</p>{selected.note && <><h3>Applicant’s note</h3><p>{selected.note}</p></>}</section>{selected.reviewNote && <div className="st-information"><strong>Recorded decision</strong><p>{selected.reviewNote}</p></div>}
+        {selectedStatus === "draft" && <div className="st-information">The applicant has created a code but hasn’t submitted proof yet.</div>}
+        {selectedStatus === "expired" && <div className="st-information">This code has expired. The applicant must start a new claim with a fresh code.</div>}
+        {["pending", "approved"].includes(selectedStatus ?? "") && <div className="st-review-decision"><h3>{selectedStatus === "approved" ? "Manage access" : "Record the ownership review"}</h3>{selectedStatus === "pending" && <label className="st-check"><input type="checkbox" checked={confirmedOwnership} onChange={event => setConfirmedOwnership(event.target.checked)} disabled={!!busy} /><span>I found this exact code on the listed official channel and confirmed the applicant controls it.</span></label>}<label className="st-field">Review note<textarea value={note} onChange={event => setNote(event.target.value)} minLength={5} maxLength={1000} rows={3} placeholder={selectedStatus === "approved" ? "Explain why project management access is being removed." : "What did you check, or why could ownership not be confirmed?"} /><span className="st-hint">The applicant can see this note.</span></label>{actionError && <p className="st-error" role="alert">{actionError}</p>}<div className="st-review-actions">{selectedStatus === "approved" ? <button type="button" className="st-button st-danger" disabled={!!busy || note.trim().length < 5} onClick={() => void decide("revoke")}>{busy === "revoke" ? <LoaderCircle size={16} className="st-spin" /> : <X size={16} />} Remove management access</button> : <><button type="button" className="st-button st-primary" disabled={!!busy || !confirmedOwnership || note.trim().length < 5} onClick={() => void decide("approve")}>{busy === "approve" ? <LoaderCircle size={16} className="st-spin" /> : <Check size={16} />} Confirm ownership</button><button type="button" className="st-button st-danger" disabled={!!busy || note.trim().length < 5} onClick={() => void decide("reject")}>{busy === "reject" ? <LoaderCircle size={16} className="st-spin" /> : <X size={16} />} Decline claim</button></>}</div><p className="st-review-footnote">Confirming ownership allows the applicant to propose changes. Public edits still require review.</p></div>}
+      </article>}
+    </div>}
+  </div>;
+}
+
+export function EditReview({ session, onToast }: StudioProps) {
+  const [edits, setEdits] = useState<ProjectEdit[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState("pending");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const [checkedLinks, setCheckedLinks] = useState(false);
+  const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
+  const [actionError, setActionError] = useState("");
+  const load = useCallback(async () => {
+    if (!session.isAdmin) return;
+    setLoading(true); setError("");
+    try {
+      const [data, catalog] = await Promise.all([fetch("/api/admin/project-edits", { cache: "no-store" }).then(readApiResponse), fetch("/api/catalog", { cache: "no-store" }).then(readApiResponse)]);
+      setEdits(Array.isArray(data.edits) ? data.edits as ProjectEdit[] : []);
+      setProjects(Array.isArray(catalog.projects) ? catalog.projects as Project[] : []);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Proposed project changes could not be loaded."); }
+    finally { setLoading(false); }
+  }, [session.isAdmin]);
+  useEffect(() => { void load(); }, [load]);
+  const filtered = edits.filter(edit => filter === "all" || edit.status === filter);
+  const selected = filtered.find(edit => edit.id === selectedId) ?? filtered[0] ?? null;
+  const current = projects.find(project => project.id === selected?.projectId);
+  useEffect(() => { setNote(""); setCheckedLinks(false); setActionError(""); }, [selected?.id, selected?.revision]);
+  async function decide(action: "approve" | "reject") {
+    if (!selected || busy) return;
+    setActionError("");
+    if (note.trim().length < 5) { setActionError("Add a review note of at least 5 characters."); return; }
+    if (action === "approve" && !checkedLinks) { setActionError("Check the proposed links before approving this update."); return; }
+    setBusy(action);
+    try {
+      await readApiResponse(await fetch(`/api/admin/project-edits/${encodeURIComponent(selected.id)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, note, checkedLinks, expectedRevision: selected.revision }) }));
+      onToast(action === "approve" ? "Project changes approved and published." : "Proposed changes declined. The current page is unchanged.");
+      setSelectedId(null); await load();
+    } catch (cause) { setActionError(cause instanceof Error ? cause.message : "The project update decision could not be saved."); }
+    finally { setBusy(null); }
+  }
+  if (!session.isAdmin) return null;
+  return <div className="st-queue-section"><div className="st-section-heading"><div><h2>Proposed project updates</h2><span className="st-count">{edits.filter(edit => edit.status === "pending").length} in review</span></div><button type="button" className="st-text-button" disabled={loading} onClick={() => void load()}><RefreshCw size={14} className={loading ? "st-spin" : ""} /> Refresh</button></div><p className="st-panel-intro">Compare the current page with the manager’s proposed changes. New links only become public after approval.</p><div className="st-review-filters" aria-label="Filter project updates">{[{ value: "pending", label: "In review" }, { value: "all", label: "All updates" }].map(item => <button type="button" key={item.value} aria-pressed={filter === item.value} className={filter === item.value ? "active" : ""} onClick={() => { setFilter(item.value); setSelectedId(null); }}>{item.label}</button>)}</div>
+    {error ? <div className="st-panel st-form"><p className="st-error" role="alert">{error}</p><button type="button" className="st-button st-secondary" onClick={() => void load()}>Try again</button></div> : loading && !edits.length ? <div className="st-panel st-review-empty"><LoaderCircle className="st-spin" size={24} /><p>Loading proposed changes…</p></div> : !filtered.length ? <div className="st-panel st-review-empty"><div className="st-symbol"><Link2 size={26} /></div><h2>No updates waiting.</h2><p>When a confirmed manager proposes a new description or link, it will appear here for review.</p></div> : <div className="st-review-layout"><aside className="st-panel st-review-list" aria-label="Project updates">{filtered.map(edit => <button type="button" key={edit.id} className={`st-review-list-item ${selected?.id === edit.id ? "selected" : ""}`} onClick={() => setSelectedId(edit.id)}><span className="st-project-initial">{edit.projectName.slice(0, 1)}</span><span><strong>{edit.projectName}</strong><small>{formattedDate(edit.createdAt)}</small><span className={`st-status st-status-${edit.status}`}>{edit.status === "approved" ? "Changes published" : statusLabel(edit.status)}</span></span><ArrowUpRight size={15} /></button>)}</aside>{selected && <article className="st-panel st-review-detail"><div className="st-review-detail-title"><div><span className="st-kicker">PROJECT UPDATE</span><h2>{selected.projectName}</h2></div><span className={`st-status st-status-${selected.status}`}>{selected.status === "approved" ? "Changes published" : statusLabel(selected.status)}</span></div><div className="st-edit-comparison"><section><span className="st-kicker">CURRENT PAGE</span>{current ? <><p>{current.description}</p><div className="st-stage-line">{current.category} · {stageLabel(current.stage)}</div><dl className="st-review-links"><ReviewLink label="Website" url={current.website} /><ReviewLink label="Main destination" url={current.launchUrl} />{current.links.map((link, index) => <ReviewLink key={`${link.url}-${index}`} label={link.label} url={link.url} />)}</dl></> : <p className="st-muted">This project is not in the current public directory. Check its status before reviewing changes.</p>}</section><section><span className="st-kicker">PROPOSED UPDATE</span><p>{selected.summary}</p><div className="st-stage-line">{selected.category} · {stageLabel(selected.stage)}</div><dl className="st-review-links"><ReviewLink label="Website" url={selected.website} /><ReviewLink label="X profile" url={selected.xProfile} /><ReviewLink label="Main destination" url={selected.launchUrl} />{selected.links.map((link, index) => <ReviewLink key={`${link.url}-${index}`} label={`${link.label}${link.type ? ` · ${link.type}` : ""}`} url={link.url} />)}</dl></section></div>{selected.reviewNote && <div className="st-information"><strong>Recorded decision</strong><p>{selected.reviewNote}</p></div>}{selected.status === "pending" && <div className="st-review-decision"><h3>Review the proposed update</h3><label className="st-check"><input type="checkbox" checked={checkedLinks} onChange={event => setCheckedLinks(event.target.checked)} disabled={!!busy} /><span>I checked the changed details and all proposed official links.</span></label><label className="st-field">Review note<textarea value={note} onChange={event => setNote(event.target.value)} minLength={5} maxLength={1000} rows={3} placeholder="Explain the decision or what needs to be corrected." /><span className="st-hint">The project manager can see this note.</span></label>{actionError && <p className="st-error" role="alert">{actionError}</p>}<div className="st-review-actions"><button type="button" className="st-button st-primary" disabled={!!busy || !checkedLinks || note.trim().length < 5} onClick={() => void decide("approve")}>{busy === "approve" ? <LoaderCircle size={16} className="st-spin" /> : <Check size={16} />} Approve changes</button><button type="button" className="st-button st-danger" disabled={!!busy || note.trim().length < 5} onClick={() => void decide("reject")}>{busy === "reject" ? <LoaderCircle size={16} className="st-spin" /> : <X size={16} />} Decline changes</button></div><p className="st-review-footnote">Approving replaces the public details with this update. Declining keeps the current page as it is.</p></div>}</article>}</div>}
+  </div>;
+}
+
+export default ClaimReview;

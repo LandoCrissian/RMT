@@ -1,6 +1,7 @@
 import { validateSubmission } from "@/lib/submission-validation";
 import { createSubmission, ownSubmissions } from "@/lib/server/repository";
-import { database, requireIdentity } from "@/lib/server/runtime";
+import { database, requireIdentity, runtime } from "@/lib/server/runtime";
+import { dispatchNotifications } from "@/lib/server/notifications";
 import { handle, json, readMutation } from "@/lib/server/http";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
@@ -13,6 +14,9 @@ export async function POST(request: Request) {
   return handle(async () => {
     const user = requireIdentity(request);
     const input = validateSubmission(await readMutation(request));
-    return json({submission: await createSubmission(database(), user, input)}, 201);
+    const db = database();
+    const submission = await createSubmission(db, user, input);
+    await dispatchNotifications(db, runtime());
+    return json({submission}, 201);
   });
 }

@@ -9,6 +9,7 @@ export const submissions = sqliteTable("submissions", {
   normalizedName: text("normalized_name").notNull(),
   summary: text("summary").notNull(),
   category: text("category").notNull(),
+  stage: text("stage").notNull().default("building"),
   website: text("website").notNull(),
   normalizedHost: text("normalized_host").notNull(),
   launchUrl: text("launch_url").notNull(),
@@ -40,3 +41,57 @@ export const reviewEvents = sqliteTable("review_events", {
   revision: integer("revision").notNull(),
   createdAt: integer("created_at").notNull(),
 }, table => [index("review_events_submission").on(table.submissionId, table.createdAt)]);
+
+export const projectClaims = sqliteTable('project_claims', {
+  id: text('id').primaryKey(), projectId: text('project_id').notNull(), projectName: text('project_name').notNull(),
+  userId: text('user_id').notNull(), accountEmail: text('account_email').notNull(), method: text('method').notNull(),
+  officialChannelUrl: text('official_channel_url').notNull(), verificationCode: text('verification_code').notNull(),
+  proofUrl: text('proof_url').notNull().default(''), note: text('note').notNull().default(''),
+  status: text('status').notNull().default('draft'), reviewNote: text('review_note').notNull().default(''),
+  revision: integer('revision').notNull().default(1), expiresAt: integer('expires_at').notNull(),
+  createdAt: integer('created_at').notNull(), updatedAt: integer('updated_at').notNull(),
+}, table => [
+  index('claims_user_created').on(table.userId,table.createdAt), index('claims_project_status').on(table.projectId,table.status),
+  check('claims_valid_status',sql`${table.status} IN ('draft','pending','approved','rejected','revoked')`),
+  check('claims_valid_method',sql`${table.method} IN ('website','x','opensea')`),
+]);
+export const claimReviewEvents = sqliteTable('claim_review_events', {
+  id:text('id').primaryKey(), claimId:text('claim_id').notNull().references(()=>projectClaims.id), reviewerId:text('reviewer_id').notNull(),
+  previousStatus:text('previous_status').notNull(), nextStatus:text('next_status').notNull(), note:text('note').notNull(),
+  revision:integer('revision').notNull(), createdAt:integer('created_at').notNull(),
+},table=>[index('claim_events_claim').on(table.claimId,table.createdAt)]);
+export const projectOwners = sqliteTable('project_owners', {
+  projectId:text('project_id').primaryKey(), userId:text('user_id').notNull(), claimId:text('claim_id'),
+  status:text('status').notNull().default('active'), revision:integer('revision').notNull().default(1),
+  createdAt:integer('created_at').notNull(), updatedAt:integer('updated_at').notNull(),
+},table=>[index('owners_user_status').on(table.userId,table.status),check('owner_valid_status',sql`${table.status} IN ('active','revoked')`)]);
+export const projectEdits = sqliteTable('project_edits', {
+  id:text('id').primaryKey(), projectId:text('project_id').notNull(), projectName:text('project_name').notNull(), userId:text('user_id').notNull(),
+  ownershipRevision:integer('ownership_revision').notNull(), baseRevision:integer('base_revision').notNull(), payloadJson:text('payload_json').notNull(),
+  status:text('status').notNull().default('pending'), reviewNote:text('review_note').notNull().default(''), revision:integer('revision').notNull().default(1),
+  createdAt:integer('created_at').notNull(), updatedAt:integer('updated_at').notNull(),
+},table=>[
+  uniqueIndex('edits_one_pending_project').on(table.projectId).where(sql`${table.status} = 'pending'`),
+  index('edits_user_created').on(table.userId,table.createdAt),index('edits_status_created').on(table.status,table.createdAt),
+  check('edit_valid_status',sql`${table.status} IN ('pending','approved','rejected')`),
+]);
+export const projectOverrides = sqliteTable('project_overrides', {
+  projectId:text('project_id').primaryKey(), payloadJson:text('payload_json').notNull(), revision:integer('revision').notNull(),
+  editId:text('edit_id').notNull().references(()=>projectEdits.id), updatedAt:integer('updated_at').notNull(),
+});
+export const editReviewEvents = sqliteTable('edit_review_events', {
+  id:text('id').primaryKey(),editId:text('edit_id').notNull().references(()=>projectEdits.id),reviewerId:text('reviewer_id').notNull(),
+  previousStatus:text('previous_status').notNull(),nextStatus:text('next_status').notNull(),note:text('note').notNull(),
+  revision:integer('revision').notNull(),createdAt:integer('created_at').notNull(),
+},table=>[index('edit_events_edit').on(table.editId,table.createdAt)]);
+export const notificationOutbox = sqliteTable('notification_outbox', {
+  id:text('id').primaryKey(), eventKey:text('event_key').notNull(), kind:text('kind').notNull(), entityId:text('entity_id').notNull(),
+  projectName:text('project_name').notNull(),channel:text('channel').notNull(),status:text('status').notNull().default('pending'),
+  attemptCount:integer('attempt_count').notNull().default(0),providerId:text('provider_id').notNull().default(''),lastError:text('last_error').notNull().default(''),
+  payloadJson:text('payload_json').notNull().default(''),firstAttemptAt:integer('first_attempt_at'),sentAt:integer('sent_at'),
+  createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),
+},table=>[
+  uniqueIndex('outbox_event_channel').on(table.eventKey,table.channel),index('outbox_status_created').on(table.status,table.createdAt),
+  check('outbox_valid_kind',sql`${table.kind} IN ('submission','claim','edit')`),check('outbox_valid_channel',sql`${table.channel} IN ('email','sms')`),
+  check('outbox_valid_status',sql`${table.status} IN ('pending','sending','sent','failed','unconfigured','uncertain')`),
+]);

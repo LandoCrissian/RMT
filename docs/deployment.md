@@ -9,7 +9,7 @@ The app is packaged as a Cloudflare Worker through Vinext. `.openai/hosting.json
 ## Administrator setup
 
 1. Visit the private preview while signed in as its owner.
-2. Read `/api/session` for the site's actual `userId`.
+2. Open `/#review` and copy **Your account reference** (also available as `userId` from `/api/session`).
 3. Configure that exact value as `RMT_ADMIN_USER_IDS` in the server runtime, then deploy the saved source version.
 4. Verify the review queue is available to that identity and blocked to anonymous and non-reviewer identities.
 
@@ -28,3 +28,7 @@ D1's underlying data is SQLite. The query/review logic is separated from the UI 
 ## Service worker
 
 Only an offline reconnect page is cached. APIs, authentication responses, and private application records are not cached by the service worker. A personal library uses localStorage and is intentionally device-local in this first release.
+
+## Review alerts
+
+`RMT_PUBLIC_URL` points to the current private preview. Configure reviewer access and the owner email/phone plus provider credentials before expecting live alerts. See [notification setup](notifications.md) for exact server variables, provider acceptance semantics, and retry limitations. Secrets and private recipient values belong in the hosting runtime, not GitHub or browser code.

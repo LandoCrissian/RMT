@@ -1,12 +1,13 @@
 import type { Project } from "@/lib/catalog";
 import { getSeedProjects } from "@/lib/catalog";
-import { InputError, normalizeHost, normalizeName, type SubmissionInput, type DecisionInput } from "@/lib/submission-validation";
+import { InputError, projectIdentityKey, normalizeName, type SubmissionInput, type DecisionInput, type ProjectEditInput, type ProjectStage } from "@/lib/submission-validation";
 import type { PlatformIdentity } from "./auth";
+import { pendingNotifications } from "./outbox-events";
 
 export type SubmissionStatus = "pending" | "needs_changes" | "approved" | "rejected" | "suspended";
 export type SubmissionRow = {
   id: string; user_id: string; account_email: string; name: string; normalized_name: string;
-  summary: string; category: Project["category"]; website: string; normalized_host: string;
+  summary: string; category: Project["category"]; stage: ProjectStage; website: string; normalized_host: string;
   launch_url: string; x_profile: string; contact_email: string; ownership_evidence: string;
   verification_code: string; status: SubmissionStatus; review_note: string; revision: number;
   created_at: number; updated_at: number;
@@ -14,7 +15,7 @@ export type SubmissionRow = {
 
 export function privateSubmission(row: SubmissionRow, includeAccount = false) {
   return {
-    id: row.id, name: row.name, summary: row.summary, category: row.category,
+    id: row.id, name: row.name, summary: row.summary, category: row.category, stage: row.stage,
     website: row.website, launchUrl: row.launch_url, xProfile: row.x_profile,
     contactEmail: row.contact_email, ownershipEvidence: row.ownership_evidence,
     verificationCode: row.verification_code, status: row.status, reviewNote: row.review_note,
@@ -28,20 +29,24 @@ export function publicProject(row: SubmissionRow): Project {
   const initials = row.name.split(/\s+/).map(part => part[0]).join("").slice(0, 2).toUpperCase();
   return {
     id: `community-${row.id}`, slug: `project-${row.id}`, name: row.name,
-    tagline: row.summary, description: row.summary, category: row.category,
+    tagline: row.summary, description: row.summary, category: row.category, stage: row.stage,
     website: row.website, launchUrl: row.launch_url, launchLabel: "Open project",
     links: [
-      {label: "Website", url: row.website},
+      ...(row.website ? [{label: "Website", url: row.website}] : []),
       {label: "Launch", url: row.launch_url},
-      {label: "X", url: row.x_profile},
+      ...(row.x_profile ? [{label: "X", url: row.x_profile}] : []),
     ],
     initials, accent: "#c6ff42", cover: "community", claimed: true, source: "community",
   };
 }
 
 function assertNotSeed(input: SubmissionInput) {
-  const found = getSeedProjects().some(project => normalizeHost(project.website) === input.normalizedHost || normalizeName(project.name) === input.normalizedName);
-  if (found) throw new InputError("This project already has a curated listing. Builder claiming is not open in this preview.", 409);
+  const found = getSeedProjects().some(project => {
+    const official = [project.website || project.launchUrl,...(project.collections ?? []).map(value => value.url),
+      ...project.links.filter(link => {try {const host=new URL(link.url).hostname.replace(/^www\./,'');return ['opensea.io','x.com','twitter.com'].includes(host);}catch{return false;}}).map(link=>link.url)];
+    return normalizeName(project.name) === input.normalizedName || (input.normalizedHost !== '' && official.some(url => url && projectIdentityKey(url) === input.normalizedHost));
+  });
+  if (found) throw new InputError("This project already has a curated listing. Open its project page and use Claim this project instead.", 409);
 }
 
 function translateUnique(error: unknown): never {
@@ -59,20 +64,22 @@ export async function createSubmission(db: D1Database, user: PlatformIdentity, i
   const verificationCode = `rmt-${crypto.randomUUID()}`;
   // The quota check and insert run as ONE SQLite statement. Concurrent requests
   // cannot both pass a separate read check then overrun this account's quota.
-  let result: D1Result;
+  let results: D1Result[];
   try {
-    result = await db.prepare(`
+    results = await db.batch([db.prepare(`
       INSERT INTO submissions (
-        id,user_id,account_email,name,normalized_name,summary,category,website,
+        id,user_id,account_email,name,normalized_name,summary,category,stage,website,
         normalized_host,launch_url,x_profile,contact_email,ownership_evidence,
         verification_code,status,review_note,revision,created_at,updated_at
-      ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending','',1,?,?
+      ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending','',1,?,?
         WHERE (SELECT COUNT(*) FROM submissions WHERE user_id = ? AND created_at >= ?) < 3
     `).bind(id, user.userId, user.email, input.name, input.normalizedName, input.summary,
-      input.category, input.website, input.normalizedHost, input.launchUrl, input.xProfile,
-      input.contactEmail, input.ownershipEvidence, verificationCode, now, now, user.userId, now - 86_400_000).run();
+      input.category, input.stage, input.website, input.normalizedHost, input.launchUrl, input.xProfile,
+      input.contactEmail, input.ownershipEvidence, verificationCode, now, now, user.userId, now - 86_400_000),
+      ...pendingNotifications(db,{kind:"submission",id,projectName:input.name,revision:1,now}),
+    ]);
   } catch (error) { return translateUnique(error); }
-  if (result.meta.changes !== 1) throw new InputError("You can submit up to 3 projects in 24 hours. Please try again later.", 429);
+  if (results[0]?.meta.changes !== 1) throw new InputError("You can submit up to 3 projects in 24 hours. Please try again later.", 429);
   const row = await db.prepare("SELECT * FROM submissions WHERE id = ? AND user_id = ?").bind(id, user.userId).first<SubmissionRow>();
   if (!row) throw new Error("Created application was not readable");
   return privateSubmission(row);
@@ -88,11 +95,39 @@ export async function reviewQueue(db: D1Database) {
   return rows.results.map(row => privateSubmission(row, true));
 }
 
+function approvedDestinationLinks(edit:ProjectEditInput):Project['links'] {
+  const destinations:Project['links']=[
+    ...(edit.website?[{label:'Official website',url:edit.website,type:'Community'}]:[]),
+    ...(edit.xProfile?[{label:'Official X',url:edit.xProfile,type:'Social'}]:[]),
+    ...edit.links,
+  ];
+  return destinations.filter((link,index,all)=>all.findIndex(value=>value.url===link.url)===index);
+}
+
 export async function catalog(db: D1Database) {
-  const rows = await db.prepare("SELECT * FROM submissions WHERE status = 'approved' ORDER BY name COLLATE NOCASE LIMIT 500").all<SubmissionRow>();
+  const [rows,owners,overrides] = await Promise.all([
+    db.prepare("SELECT * FROM submissions WHERE status = 'approved' ORDER BY name COLLATE NOCASE LIMIT 500").all<SubmissionRow>(),
+    db.prepare("SELECT project_id,status FROM project_owners").all<{project_id:string;status:string}>(),
+    db.prepare("SELECT project_id,payload_json,revision FROM project_overrides").all<{project_id:string;payload_json:string;revision:number}>(),
+  ]);
+  const ownership = new Map(owners.results.map(row => [row.project_id,row.status]));
+  const approvedEdits = new Map(overrides.results.map(row => [row.project_id,JSON.parse(row.payload_json) as ProjectEditInput]));
   const curated = getSeedProjects();
   const community = rows.results.map(publicProject);
-  return {projects: [...curated, ...community], counts: {curated: curated.length, community: community.length}};
+  const projects = [...curated,...community].map(project => {
+    const edit = approvedEdits.get(project.id);
+    const ownerStatus = ownership.get(project.id);
+    return {...project,claimed:ownerStatus ? ownerStatus === 'active' : project.claimed,
+      ...(edit ? {tagline:edit.summary,description:edit.summary,category:edit.category,stage:edit.stage,
+        website:edit.website,launchUrl:edit.launchUrl,links:approvedDestinationLinks(edit)} : {})};
+  });
+  return {projects,counts:{curated:curated.length,community:community.length}};
+}
+
+export async function findPublicProject(db:D1Database, projectId:string):Promise<Project> {
+  const project = (await catalog(db)).projects.find(value=>value.id===projectId);
+  if (!project) throw new InputError('This project was not found.',404);
+  return project;
 }
 
 const transitions: Record<DecisionInput["action"], {from: SubmissionStatus[]; to: SubmissionStatus}> = {
@@ -118,6 +153,12 @@ export async function reviewSubmission(db: D1Database, reviewerId: string, id: s
       .bind(crypto.randomUUID(), reviewerId, transition.to, decision.note, now, id, row.revision, row.status),
     db.prepare("UPDATE submissions SET status = ?, review_note = ?, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ? AND status = ?")
       .bind(transition.to, decision.note, now, id, row.revision, row.status),
+    ...(decision.action === 'approve' ? [db.prepare(`
+      INSERT INTO project_owners (project_id,user_id,claim_id,status,revision,created_at,updated_at)
+      SELECT ?,user_id,NULL,'active',1,?,? FROM submissions WHERE id=? AND revision=? AND status='approved'
+      ON CONFLICT(project_id) DO UPDATE SET user_id=excluded.user_id,claim_id=NULL,status='active',revision=project_owners.revision+1,updated_at=excluded.updated_at
+      WHERE project_owners.status='revoked'
+    `).bind(`community-${id}`,now,now,id,row.revision+1)] : []),
   ]);
   if (results[1]?.meta.changes !== 1 || results[0]?.meta.changes !== 1) throw new InputError("Another reviewer changed this application. Refresh the queue.", 409);
   const updated = await db.prepare("SELECT * FROM submissions WHERE id = ?").bind(id).first<SubmissionRow>();
@@ -137,11 +178,12 @@ export async function resubmit(db: D1Database, user: PlatformIdentity, id: strin
       db.prepare(`INSERT INTO review_events (id,submission_id,reviewer_id,previous_status,next_status,note,revision,created_at)
         SELECT ?,id,?,status,'pending','Applicant resubmitted requested changes.',revision+1,? FROM submissions WHERE id = ? AND user_id = ? AND revision = ? AND status = 'needs_changes'`)
         .bind(crypto.randomUUID(), user.userId, now, id, user.userId, row.revision),
-      db.prepare(`UPDATE submissions SET name=?,normalized_name=?,summary=?,category=?,website=?,normalized_host=?,launch_url=?,x_profile=?,contact_email=?,ownership_evidence=?,
+      db.prepare(`UPDATE submissions SET name=?,normalized_name=?,summary=?,category=?,stage=?,website=?,normalized_host=?,launch_url=?,x_profile=?,contact_email=?,ownership_evidence=?,
         status='pending',review_note='',revision=revision+1,updated_at=?
         WHERE id=? AND user_id=? AND revision=? AND status='needs_changes'`)
-        .bind(input.name, input.normalizedName, input.summary, input.category, input.website, input.normalizedHost, input.launchUrl, input.xProfile,
+        .bind(input.name, input.normalizedName, input.summary, input.category, input.stage, input.website, input.normalizedHost, input.launchUrl, input.xProfile,
           input.contactEmail, input.ownershipEvidence, now, id, user.userId, row.revision),
+      ...pendingNotifications(db,{kind:'submission',id,projectName:input.name,revision:row.revision+1,now}),
     ]);
   } catch (error) { return translateUnique(error); }
   if (results[1]?.meta.changes !== 1 || results[0]?.meta.changes !== 1) throw new InputError("This application changed. Refresh it before resubmitting.", 409);
