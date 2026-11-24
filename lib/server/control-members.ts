@@ -49,7 +49,7 @@ export async function controlMembers(db:D1Database,query:URLSearchParams,configu
  const status=query.get('status')??'all',role=query.get('role')??'all';
  if(!['all','active','suspended'].includes(status)||!['all','owner','admin','moderator','member'].includes(role))throw new InputError('Choose a valid member filter.');
  const limit=controlLimit(query.get('limit'),max,Math.min(20,max)),scope=JSON.stringify({q,status,role}),after=controlCursor(query.get('cursor'),scope),where:string[]=[],args:(string|number)[]=[JSON.stringify(owners(configured))];
- if(q){where.push("lower(user_id||' '||email||' '||display_name||' '||COALESCE(handle,'')) LIKE ? ESCAPE '\\'");args.push('%'+q.toLowerCase().replace(/[\\%_]/g,'\\$&')+'%');}
+ if(q){where.push("instr(lower(user_id||' '||email||' '||display_name||' '||COALESCE(handle,'')),?)>0");args.push(q.toLowerCase());}
  if(status!=='all'){where.push("CASE WHEN role='owner' THEN 'active' ELSE status END=?");args.push(status);}
  if(role!=='all'){where.push('role=?');args.push(role);}
  if(after){where.push('user_id>?');args.push(after);}
