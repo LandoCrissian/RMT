@@ -18,7 +18,7 @@ function Artwork({project, banner = false}: {project: ActivityItem['project']; b
   const [failed, setFailed] = useState(false);
   const source = banner ? project.cover : project.artwork?.logo?.url || project.logo || project.cover;
   useEffect(() => setFailed(false), [source]);
-  const custom = source.startsWith('/media/project-artwork/');
+  const custom = source.startsWith('/media/project-artwork/') || source.startsWith('/media/control-project-artwork/');
   const contained = !custom && (project.coverFit === 'contain' || (project.coverAspectRatio ?? 0) > 2.2);
   return <span className={'activity-art' + (banner ? ' activity-art-banner' : '') + (contained ? ' activity-art-contained' : '')} style={{'--activity-accent': project.accent, backgroundColor: custom ? undefined : project.coverBackground} as React.CSSProperties}>
     {!failed && source.startsWith('/') ? <img src={source} alt={banner ? project.name + ' artwork' : ''} loading="lazy" decoding="async" onError={() => setFailed(true)} /> : <span>{project.initials}</span>}

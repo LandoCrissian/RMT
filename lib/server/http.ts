@@ -32,7 +32,7 @@ export async function readMutation(request: Request): Promise<unknown> {
 export async function handle(operation: () => Promise<Response>): Promise<Response> {
   try { return await operation(); }
   catch (error) {
-    if (error instanceof InputError) return json({error: error.message}, error.status);
+    if (error instanceof InputError) return json({error: error.message, ...(error.code ? {code: error.code} : {})}, error.status);
     console.error("RMT API operation failed", error instanceof Error ? error.name : "UnknownError");
     return json({error: "RMT could not save or load this request. Please try again later."}, 503);
   }

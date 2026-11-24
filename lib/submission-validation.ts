@@ -18,10 +18,12 @@ export type SubmissionInput = {
 
 export class InputError extends Error {
   status: number;
-  constructor(message: string, status = 400) {
+  code?: string;
+  constructor(message: string, status = 400, code?: string) {
     super(message);
     this.name = "InputError";
     this.status = status;
+    this.code = code;
   }
 }
 

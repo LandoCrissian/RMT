@@ -4,6 +4,8 @@ import { InputError, projectIdentityKey, normalizeName, type SubmissionInput, ty
 import type { PlatformIdentity } from "./auth";
 import { pendingNotifications } from "./outbox-events";
 import { publicArtwork, type ArtworkRow } from './project-artwork';
+import {publicProjectSql,type ProjectControlRow} from './control-visibility';
+import {publicControlArtwork,type ControlArtworkRow} from './control-artwork-model';
 
 export type SubmissionStatus = "pending" | "needs_changes" | "approved" | "rejected" | "suspended";
 export type SubmissionRow = {
@@ -56,6 +58,11 @@ function assertNotSeed(input: SubmissionInput) {
   if (found) throw new InputError("This project already has a curated listing. Open its project page and use Claim this project instead.", 409);
 }
 
+async function assertNotAdminProject(db:D1Database,input:SubmissionInput) {
+  const duplicate=await db.prepare("SELECT project_id FROM project_controls WHERE source='admin' AND (normalized_name=? OR normalized_host=?)").bind(input.normalizedName,input.normalizedHost).first();
+  if(duplicate)throw new InputError('This project already has an RMT listing. Open that project and claim it instead.',409);
+}
+
 function translateUnique(error: unknown): never {
   const message = error instanceof Error ? error.message : "";
   if (/UNIQUE constraint failed.*submissions/i.test(message)) {
@@ -66,6 +73,7 @@ function translateUnique(error: unknown): never {
 
 export async function createSubmission(db: D1Database, user: PlatformIdentity, input: SubmissionInput) {
   assertNotSeed(input);
+  await assertNotAdminProject(db,input);
   const now = Date.now();
   const id = crypto.randomUUID();
   const verificationCode = `rmt-${crypto.randomUUID()}`;
@@ -80,13 +88,14 @@ export async function createSubmission(db: D1Database, user: PlatformIdentity, i
         verification_code,status,review_note,revision,created_at,updated_at
       ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending','',1,?,?
         WHERE (SELECT COUNT(*) FROM submissions WHERE user_id = ? AND created_at >= ?) < 3
+        AND NOT EXISTS(SELECT 1 FROM project_controls WHERE source='admin' AND (normalized_name=? OR normalized_host=?))
     `).bind(id, user.userId, user.email, input.name, input.normalizedName, input.summary,
       input.category, input.stage, input.website, input.normalizedHost, input.launchUrl, input.xProfile,
-      input.contactEmail, input.ownershipEvidence, verificationCode, now, now, user.userId, now - 86_400_000),
+      input.contactEmail, input.ownershipEvidence, verificationCode, now, now, user.userId, now - 86_400_000,input.normalizedName,input.normalizedHost),
       ...pendingNotifications(db,{kind:"submission",id,projectName:input.name,revision:1,now}),
     ]);
   } catch (error) { return translateUnique(error); }
-  if (results[0]?.meta.changes !== 1) throw new InputError("You can submit up to 3 projects in 24 hours. Please try again later.", 429);
+  if (results[0]?.meta.changes !== 1){await assertNotAdminProject(db,input);throw new InputError("You can submit up to 3 projects in 24 hours. Please try again later.", 429);}
   const row = await db.prepare("SELECT * FROM submissions WHERE id = ? AND user_id = ?").bind(id, user.userId).first<SubmissionRow>();
   if (!row) throw new Error("Created application was not readable");
   return privateSubmission(row);
@@ -111,41 +120,67 @@ function approvedDestinationLinks(edit:ProjectEditInput):Project['links'] {
   return destinations.filter((link,index,all)=>all.findIndex(value=>value.url===link.url)===index);
 }
 
-export async function catalog(db: D1Database) {
-  const [rows,owners,overrides,artworkRows] = await Promise.all([
-    // The first publication date survives suspension/reapproval and owner edits.
-    // Application creation and last update dates do not describe joining RMT.
+async function buildCatalog(db:D1Database,includeHidden=false) {
+  const [rows,owners,overrides,artworkRows,controls,controlArtworkRows] = await Promise.all([
     db.prepare(`SELECT s.*,
       (SELECT MIN(r.created_at) FROM review_events r WHERE r.submission_id=s.id AND r.next_status='approved') AS first_approved_at
-      FROM submissions s WHERE s.status='approved' ORDER BY s.name COLLATE NOCASE LIMIT 500`).all<PublicSubmissionRow>(),
+      FROM submissions s WHERE s.status IN (${includeHidden?"'approved','suspended'":"'approved'"}) ORDER BY s.name COLLATE NOCASE LIMIT 500`).all<PublicSubmissionRow>(),
     db.prepare("SELECT project_id,status FROM project_owners").all<{project_id:string;status:string}>(),
     db.prepare("SELECT p.project_id,p.payload_json,p.revision FROM project_overrides p JOIN project_edits e ON e.id=p.edit_id AND e.status='approved'").all<{project_id:string;payload_json:string;revision:number}>(),
     db.prepare(`SELECT a.* FROM project_artwork a JOIN project_overrides p ON p.project_id=a.project_id
       JOIN project_edits e ON e.id=p.edit_id AND e.status='approved' WHERE a.status='ready'
       AND ((a.kind='logo' AND json_extract(p.payload_json,'$.logoAssetId')=a.id)
         OR (a.kind='banner' AND json_extract(p.payload_json,'$.bannerAssetId')=a.id))`).all<ArtworkRow>(),
+    db.prepare('SELECT * FROM project_controls').all<ProjectControlRow>(),
+    db.prepare(`SELECT a.* FROM control_project_artwork a JOIN project_controls c ON c.project_id=a.project_id AND c.artwork_override=1
+      WHERE a.status='ready' AND ((a.kind='logo' AND c.logo_asset_id=a.id) OR (a.kind='banner' AND c.banner_asset_id=a.id))`).all<ControlArtworkRow>(),
   ]);
-  const ownership = new Map(owners.results.map(row => [row.project_id,row.status]));
-  const approvedEdits = new Map(overrides.results.map(row => [row.project_id,JSON.parse(row.payload_json) as ProjectEditInput]));
-  const approvedArtwork = new Map(artworkRows.results.map(row => [row.id,row]));
-  const curated = getSeedProjects();
-  const community = rows.results.map(publicProject);
-  const projects = [...curated,...community].map(project => {
-    const edit = approvedEdits.get(project.id);
-    const ownerStatus = ownership.get(project.id);
-    const logoRow = edit?.logoAssetId ? approvedArtwork.get(edit.logoAssetId) : undefined;
-    const bannerRow = edit?.bannerAssetId ? approvedArtwork.get(edit.bannerAssetId) : undefined;
-    const logo = logoRow?.project_id === project.id && logoRow.kind === 'logo' ? publicArtwork(logoRow) : undefined;
-    const banner = bannerRow?.project_id === project.id && bannerRow.kind === 'banner' ? publicArtwork(bannerRow) : undefined;
-    const artwork = logo || banner ? {logo,banner} : undefined;
-    return {...project,claimed:ownerStatus ? ownerStatus === 'active' : project.claimed,
-      ...(edit ? {tagline:edit.summary,description:edit.summary,category:edit.category,stage:edit.stage,
-        website:edit.website,launchUrl:edit.launchUrl,links:approvedDestinationLinks(edit)} : {}),
-      ...(artwork ? {artwork,cover:banner?.url || logo!.url,coverFit:banner ? 'cover' as const : 'contain' as const,
-        coverAspectRatio:banner ? banner.width / banner.height : logo!.width / logo!.height} : {})};
+  const ownership=new Map(owners.results.map(row=>[row.project_id,row.status]));
+  const approvedEdits=new Map(overrides.results.map(row=>[row.project_id,{edit:JSON.parse(row.payload_json) as ProjectEditInput,revision:row.revision}]));
+  const approvedArtwork=new Map(artworkRows.results.map(row=>[row.id,row]));
+  const selectedControlArtwork=new Map(controlArtworkRows.results.map(row=>[row.id,row]));
+  const controlMap=new Map(controls.results.map(row=>[row.project_id,row]));
+  const curated=getSeedProjects(),community=rows.results.map(publicProject);
+  const added=controls.results.filter(row=>row.source==='admin'&&row.definition_json).map(row=>JSON.parse(row.definition_json!) as Project);
+  let projects=[...curated,...community,...added].filter(project=>includeHidden||!controlMap.has(project.id)||controlMap.get(project.id)!.visibility==='public').map(project=>{
+    const approved=approvedEdits.get(project.id),control=controlMap.get(project.id);
+    const edit=control?.payload_json&&control.base_override_revision>=(approved?.revision??0)?JSON.parse(control.payload_json) as ProjectEditInput:approved?.edit;
+    const ownerStatus=ownership.get(project.id);
+    // Administrator image selections have an explicit reset operation. Builder
+    // text revisions never replace them; reset reveals current builder artwork.
+    const imageEdit=approved?.edit;
+    const logoRow=imageEdit?.logoAssetId?approvedArtwork.get(imageEdit.logoAssetId):undefined;
+    const bannerRow=imageEdit?.bannerAssetId?approvedArtwork.get(imageEdit.bannerAssetId):undefined;
+    const adminLogo=control?.logo_asset_id?selectedControlArtwork.get(control.logo_asset_id):undefined;
+    const adminBanner=control?.banner_asset_id?selectedControlArtwork.get(control.banner_asset_id):undefined;
+    const logo=control?.artwork_override===1?(adminLogo?.project_id===project.id&&adminLogo.kind==='logo'?publicControlArtwork(adminLogo):undefined):logoRow?.project_id===project.id&&logoRow.kind==='logo'?publicArtwork(logoRow):undefined;
+    const banner=control?.artwork_override===1?(adminBanner?.project_id===project.id&&adminBanner.kind==='banner'?publicControlArtwork(adminBanner):undefined):bannerRow?.project_id===project.id&&bannerRow.kind==='banner'?publicArtwork(bannerRow):undefined;
+    const artwork=logo||banner?{logo,banner}:undefined;
+    const name=control?.name_override||project.name;
+    return {...project,name,initials:control?.name_override?name.split(/\s+/).map(v=>v[0]).join('').slice(0,2).toUpperCase():project.initials,
+      claimed:ownerStatus?ownerStatus==='active':project.claimed,
+      ...(control?.featured!==null&&control?.featured!==undefined?{featured:control.featured===1}:{}),
+      ...(edit?{tagline:edit.summary,description:edit.summary,category:edit.category,stage:edit.stage,
+        website:edit.website,launchUrl:edit.launchUrl,links:approvedDestinationLinks(edit)}:{}),
+      ...(artwork?{artwork,cover:banner?.url||logo!.url,coverFit:banner?'cover' as const:'contain' as const,
+        coverAspectRatio:banner?banner.width/banner.height:logo!.width/logo!.height}:{})};
   });
-  return {projects,counts:{curated:curated.length,community:community.length}};
+  if(!includeHidden){
+    // Fresh visibility recheck prevents a concurrent admin hide/suspension from
+    // leaking a stale listing fetched earlier in this request.
+    const candidates=projects.map(project=>project.id);
+    if(candidates.length){
+      const visible=await db.prepare(`WITH candidate(project_id) AS (SELECT value FROM json_each(?)) SELECT project_id FROM candidate WHERE ${publicProjectSql('candidate.project_id')}`)
+        .bind(JSON.stringify(candidates)).all<{project_id:string}>();
+      const ids=new Set(visible.results.map(row=>row.project_id));projects=projects.filter(project=>ids.has(project.id));
+    }
+  }
+  return{projects,counts:{curated:projects.filter(p=>p.source==='curated').length,community:projects.filter(p=>p.source==='community').length},
+    controls:controls.results,submissions:rows.results,overrides:overrides.results};
 }
+export async function catalog(db:D1Database){const {projects,counts}=await buildCatalog(db);return{projects,counts};}
+/** Private administrative projection; never return its supporting records publicly. */
+export async function administrativeCatalog(db:D1Database){return buildCatalog(db,true);}
 
 export async function findPublicProject(db:D1Database, projectId:string):Promise<Project> {
   const project = (await catalog(db)).projects.find(value=>value.id===projectId);
@@ -191,6 +226,7 @@ export async function reviewSubmission(db: D1Database, reviewerId: string, id: s
 
 export async function resubmit(db: D1Database, user: PlatformIdentity, id: string, input: SubmissionInput, expectedRevision: number) {
   assertNotSeed(input);
+  await assertNotAdminProject(db,input);
   const row = await db.prepare("SELECT * FROM submissions WHERE id = ? AND user_id = ?").bind(id, user.userId).first<SubmissionRow>();
   if (!row) throw new InputError("This application was not found.", 404);
   if (row.status !== "needs_changes" || row.revision !== expectedRevision) throw new InputError("Only applications marked 'Changes requested' can be updated. Refresh your applications.", 409);
@@ -199,13 +235,13 @@ export async function resubmit(db: D1Database, user: PlatformIdentity, id: strin
   try {
     results = await db.batch([
       db.prepare(`INSERT INTO review_events (id,submission_id,reviewer_id,previous_status,next_status,note,revision,created_at)
-        SELECT ?,id,?,status,'pending','Applicant resubmitted requested changes.',revision+1,? FROM submissions WHERE id = ? AND user_id = ? AND revision = ? AND status = 'needs_changes'`)
-        .bind(crypto.randomUUID(), user.userId, now, id, user.userId, row.revision),
+        SELECT ?,id,?,status,'pending','Applicant resubmitted requested changes.',revision+1,? FROM submissions WHERE id = ? AND user_id = ? AND revision = ? AND status = 'needs_changes' AND NOT EXISTS(SELECT 1 FROM project_controls WHERE source='admin' AND (normalized_name=? OR normalized_host=?))`)
+        .bind(crypto.randomUUID(), user.userId, now, id, user.userId, row.revision,input.normalizedName,input.normalizedHost),
       db.prepare(`UPDATE submissions SET name=?,normalized_name=?,summary=?,category=?,stage=?,website=?,normalized_host=?,launch_url=?,x_profile=?,contact_email=?,ownership_evidence=?,
         status='pending',review_note='',revision=revision+1,updated_at=?
-        WHERE id=? AND user_id=? AND revision=? AND status='needs_changes'`)
+        WHERE id=? AND user_id=? AND revision=? AND status='needs_changes' AND NOT EXISTS(SELECT 1 FROM project_controls WHERE source='admin' AND (normalized_name=? OR normalized_host=?))`)
         .bind(input.name, input.normalizedName, input.summary, input.category, input.stage, input.website, input.normalizedHost, input.launchUrl, input.xProfile,
-          input.contactEmail, input.ownershipEvidence, now, id, user.userId, row.revision),
+          input.contactEmail, input.ownershipEvidence, now, id, user.userId, row.revision,input.normalizedName,input.normalizedHost),
       ...pendingNotifications(db,{kind:'submission',id,projectName:input.name,revision:row.revision+1,now}),
     ]);
   } catch (error) { return translateUnique(error); }

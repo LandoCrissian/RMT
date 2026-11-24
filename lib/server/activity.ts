@@ -1,7 +1,7 @@
 import type { Project } from '@/lib/catalog';
 import { encodeActivityCursor, type ActivityItem, type ActivityPage, type ActivityPageInput, type ActivityProject } from '@/lib/activity';
 import { catalog } from './repository';
-import { publicUpdateOwnershipGuard, publicUpdateProjectGuard } from './project-updates';
+import { publicUpdateOwnershipGuard, publicUpdateProjectGuard, publicUpdateContentGuard } from './project-updates';
 
 type ActivityRow = {
   id: string; project_id: string; kind: ActivityItem['kind']; happened_at: number;
@@ -49,7 +49,7 @@ export async function publicActivity(db: D1Database, page: ActivityPageInput): P
         u.title,u.body,u.link_label,u.link_url,u.id AS update_id
       FROM project_updates u JOIN available_projects p ON p.project_id=u.project_id
       WHERE u.status='approved' AND u.published_at IS NOT NULL
-        AND ${publicUpdateOwnershipGuard('u')} AND ${publicUpdateProjectGuard('u')}
+        AND ${publicUpdateOwnershipGuard('u')} AND ${publicUpdateProjectGuard('u')} AND ${publicUpdateContentGuard('u')}
       UNION ALL
       SELECT 'listing-'||p.project_id,p.project_id,'listing',p.listed_at,'','','','',NULL
       FROM available_projects p WHERE p.listed_at IS NOT NULL AND ${publicUpdateProjectGuard('p')}

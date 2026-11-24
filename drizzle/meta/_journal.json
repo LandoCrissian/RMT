@@ -57,6 +57,13 @@
       "when": 1795549077984,
       "tag": "0007_remarkable_human_torch",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795553093866,
+      "tag": "0008_nebulous_secret_warriors",
+      "breakpoints": true
     }
   ]
 }

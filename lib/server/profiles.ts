@@ -6,6 +6,8 @@ import {catalog,findPublicProject} from './repository';
 import {profileArtworkDto,type ProfileArtworkRow} from './profile-artwork';
 import {json} from './http';
 import {publicUpdateProjectGuard} from './project-updates';
+import {publicProfileSql} from './control-visibility';
+import {activeControlMemberSql,contentVisibleSql} from './control-sql';
 
 export class ProfileConflict extends InputError {
   constructor(message:string,public code:'handle_taken'|'revision_conflict'|'handle_locked'){super(message,409);}
@@ -24,7 +26,7 @@ async function managedProjects(db:D1Database,userId:string):Promise<ProfileProje
   const directory=await catalog(db);
   // Recheck relationships after catalog reads; a suspended project or revoked
   // manager must not become a builder badge through a stale catalog snapshot.
-  const owners=await db.prepare(`SELECT o.project_id FROM project_owners o WHERE o.user_id=? AND o.status='active' AND ${publicUpdateProjectGuard('o')}`).bind(userId).all<{project_id:string}>();
+  const owners=await db.prepare(`SELECT o.project_id FROM project_owners o WHERE o.user_id=? AND o.status='active' AND ${activeControlMemberSql('o.user_id')} AND ${publicUpdateProjectGuard('o')}`).bind(userId).all<{project_id:string}>();
   const ids=new Set(owners.results.map(row=>row.project_id));
   return directory.projects.filter(project=>ids.has(project.id)).map(projectDto);
 }
@@ -46,15 +48,15 @@ export async function ownProfile(db:D1Database,userId:string):Promise<PrivatePro
 export async function publicProfile(db:D1Database,handle:string):Promise<PublicProfile> {
   let canonical:string;
   try{canonical=normalizeProfileHandle(handle);}catch{throw new InputError('This profile was not found.',404);}
-  const row=await db.prepare("SELECT * FROM profiles WHERE handle=? AND visibility='public'").bind(canonical).first<ProfileRow>();
+  const row=await db.prepare(`SELECT * FROM profiles WHERE handle=? AND ${publicProfileSql('profiles')}`).bind(canonical).first<ProfileRow>();
   if(!row)throw new InputError('This profile was not found.',404);
   const [artwork,projects]=await Promise.all([images(db,row,false),row.show_managed_projects===1?managedProjects(db,row.user_id):Promise.resolve([])]);
   // Recheck profile visibility and builder relationships together after all
   // dependent reads. A concurrent hide, suspension or ownership change must not
   // leave stale public details or a builder badge in a fresh response.
   const current=await db.prepare(`SELECT p.user_id,o.project_id FROM profiles p LEFT JOIN project_owners o
-    ON o.user_id=p.user_id AND p.show_managed_projects=1 AND o.status='active' AND ${publicUpdateProjectGuard('o')}
-    WHERE p.user_id=? AND p.visibility='public' AND p.revision=?`).bind(row.user_id,row.revision).all<{user_id:string;project_id:string|null}>();
+    ON o.user_id=p.user_id AND p.show_managed_projects=1 AND o.status='active' AND ${activeControlMemberSql('o.user_id')} AND ${publicUpdateProjectGuard('o')}
+    WHERE p.user_id=? AND ${publicProfileSql('p')} AND p.revision=?`).bind(row.user_id,row.revision).all<{user_id:string;project_id:string|null}>();
   if(!current.results.length)throw new InputError('This profile changed. Open it again to see its current details.',404);
   const currentIds=new Set(current.results.map(owner=>owner.project_id));
   const publicProjects=projects.filter(project=>currentIds.has(project.id));
@@ -63,12 +65,12 @@ export async function publicProfile(db:D1Database,handle:string):Promise<PublicP
 export async function publicBuildersForProject(db:D1Database,projectId:string):Promise<{builders:PublicProjectBuilder[]}> {
   await findPublicProject(db,projectId);
   const rows=await db.prepare(`SELECT p.* FROM profiles p JOIN project_owners o ON o.user_id=p.user_id AND o.status='active'
-    WHERE o.project_id=? AND p.visibility='public' AND p.show_managed_projects=1 AND ${publicUpdateProjectGuard('o')} ORDER BY p.handle LIMIT 8`).bind(projectId).all<ProfileRow>();
+    WHERE o.project_id=? AND ${publicProfileSql('p')} AND p.show_managed_projects=1 AND ${publicUpdateProjectGuard('o')} ORDER BY p.handle LIMIT 8`).bind(projectId).all<ProfileRow>();
   const builders:PublicProjectBuilder[]=[];
   for(const row of rows.results){
     const artwork=await images(db,row,false);
     const current=await db.prepare(`SELECT p.user_id FROM profiles p JOIN project_owners o ON o.user_id=p.user_id AND o.status='active'
-      WHERE p.user_id=? AND p.revision=? AND p.visibility='public' AND p.show_managed_projects=1 AND o.project_id=? AND ${publicUpdateProjectGuard('o')}`)
+      WHERE p.user_id=? AND p.revision=? AND ${publicProfileSql('p')} AND p.show_managed_projects=1 AND o.project_id=? AND ${publicUpdateProjectGuard('o')}`)
       .bind(row.user_id,row.revision,projectId).first();
     if(current)builders.push({handle:row.handle!,displayName:row.display_name,avatar:artwork.avatar,href:profileHref(row.handle!)});
   }
@@ -84,6 +86,8 @@ function translateUnique(error:unknown):never {
 }
 export async function saveProfile(db:D1Database,user:PlatformIdentity,input:ProfileInput):Promise<PrivateProfile> {
   if(!user.emailVerified)throw new InputError('Verify your email before saving a profile.',403);
+  const eligible=await db.prepare(`SELECT 1 AS ok WHERE ${activeControlMemberSql('?')} AND (?<>'public' OR ${contentVisibleSql('profile','?')})`).bind(user.userId,input.visibility,user.userId).first();
+  if(!eligible)throw new InputError('This profile is restricted by RMT moderation. You can keep it private or contact the site administrator.',403);
   const previous=await db.prepare('SELECT * FROM profiles WHERE user_id=?').bind(user.userId).first<ProfileRow>();
   if((previous?.revision??0)!==input.expectedRevision)throw new ProfileConflict('Your profile changed. Refresh before saving again.','revision_conflict');
   if(previous?.first_published_at!==null&&previous?.first_published_at!==undefined&&previous.handle!==input.handle)throw new ProfileConflict('Your handle is permanent after your profile is first published. Keep your existing handle.','handle_locked');
@@ -99,7 +103,7 @@ export async function saveProfile(db:D1Database,user:PlatformIdentity,input:Prof
   if(!previous){
     statements.push(db.prepare(`WITH ${candidate}
       INSERT INTO profiles(user_id,handle,display_name,bio,visibility,show_managed_projects,avatar_asset_id,banner_asset_id,links_json,revision,first_published_at,created_at,updated_at,last_mutation_id)
-      SELECT user_id,handle,display_name,bio,visibility,show_managed_projects,avatar_asset_id,banner_asset_id,links_json,1,first_published_at,updated_at,updated_at,last_mutation_id FROM candidate WHERE ${assetGuard('candidate')}`)
+      SELECT user_id,handle,display_name,bio,visibility,show_managed_projects,avatar_asset_id,banner_asset_id,links_json,1,first_published_at,updated_at,updated_at,last_mutation_id FROM candidate WHERE ${assetGuard('candidate')} AND ${activeControlMemberSql('candidate.user_id')} AND (candidate.visibility<>'public' OR ${contentVisibleSql('profile','candidate.user_id')})`)
       .bind(...args));
   }else{
     statements.push(db.prepare(`WITH ${candidate}
@@ -108,7 +112,7 @@ export async function saveProfile(db:D1Database,user:PlatformIdentity,input:Prof
         links_json=candidate.links_json,first_published_at=COALESCE(profiles.first_published_at,candidate.first_published_at),revision=profiles.revision+1,
         updated_at=candidate.updated_at,last_mutation_id=candidate.last_mutation_id FROM candidate
       WHERE profiles.user_id=candidate.user_id AND profiles.revision=? AND (profiles.first_published_at IS NULL OR profiles.handle=candidate.handle)
-      AND ${assetGuard('candidate')} AND ((profiles.visibility='public' AND candidate.visibility='private') OR
+      AND ${assetGuard('candidate')} AND ${activeControlMemberSql('candidate.user_id')} AND (candidate.visibility<>'public' OR ${contentVisibleSql('profile','candidate.user_id')}) AND ((profiles.visibility='public' AND candidate.visibility='private') OR
         (SELECT COUNT(*) FROM profile_events e WHERE e.user_id=profiles.user_id AND e.created_at>=?)<${PROFILE_EDIT_LIMIT})`)
       .bind(...args,input.expectedRevision,now-86_400_000));
   }

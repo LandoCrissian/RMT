@@ -10,7 +10,7 @@ type ShareArtworkProject = Pick<Project, 'id' | 'slug'> & Partial<Pick<Project, 
 
 function approvedImage(image?: PublicArtwork) {
   return image && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(image.id)
-    && image.url === '/media/project-artwork/' + image.id
+    && ['/media/project-artwork/' + image.id,'/media/control-project-artwork/' + image.id].includes(image.url)
     && Number.isSafeInteger(image.width) && Number.isSafeInteger(image.height) && image.width > 0 && image.height > 0
     && ['image/png','image/jpeg','image/webp'].includes(image.mime) ? image : undefined;
 }

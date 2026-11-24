@@ -32,7 +32,8 @@ function request(path, body, {legacy, cookie, origin='https://rmt.example',metho
 // Keep a small D1-compatible adapter around actual SQLite for all migration/link checks.
 const sqlite=new DatabaseSync(':memory:');
 for(const file of (await readdir(new URL('../drizzle/',import.meta.url))).filter(x=>/^\d.*\.sql$/.test(x)).sort()) sqlite.exec(await readFile(new URL('../drizzle/'+file,import.meta.url),'utf8'));
-function prepare(sql,params=[]){return {bind(...values){return prepare(sql,values);},async first(){return sqlite.prepare(sql).get(...params)??null;},async all(){return {results:sqlite.prepare(sql).all(...params)};},async run(){return sqlite.prepare(sql).run(...params);}};}
+let beforeLinkInsert=null;
+function prepare(sql,params=[]){return {bind(...values){return prepare(sql,values);},async first(){return sqlite.prepare(sql).get(...params)??null;},async all(){return {results:sqlite.prepare(sql).all(...params)};},async run(){if(sql.startsWith('INSERT INTO account_links')&&beforeLinkInsert){const hook=beforeLinkInsert;beforeLinkInsert=null;hook();}return sqlite.prepare(sql).run(...params);}};}
 Object.assign(environment,{DB:{prepare},RMT_ADMIN_USER_IDS:'old-owner'});
 test.after(()=>sqlite.close());
 test('Firebase verifier rejects forged, expired, wrong-project and unverified privilege claims',async()=>{
@@ -59,9 +60,10 @@ test('session creation requires same-origin proof and uses a secure HttpOnly exp
  disabled=false;
  assert.match((await api.logout(request('/api/auth/session',{}, {method:'DELETE'}))).headers.get('set-cookie'),/Max-Age=0/);
 });
-test('linking cannot orphan a Firebase profile, profile upload, project upload, or update draft',async()=>{
+test('linking cannot orphan a Firebase profile, artwork, update draft, or directly assigned project ownership',async()=>{
  const idToken=await token(),userId='firebase:new-owner';
  const fixtures={
+  project_owners:{project_id:'vamps',user_id:userId,status:'active',revision:1,created_at:1,updated_at:1},
   profiles:{user_id:userId,created_at:1,updated_at:1},
   profile_artwork:{id:'profile-link-fixture',user_id:userId,kind:'avatar',object_key:'private-profile-object',mime:'image/png',width:128,height:128,byte_size:123,digest:'fixture',status:'ready',created_at:1},
   project_artwork:{id:'project-link-fixture',project_id:'vamps',user_id:userId,ownership_revision:1,kind:'logo',object_key:'private-project-object',mime:'image/png',width:128,height:128,byte_size:123,digest:'fixture',status:'ready',created_at:1},
@@ -79,6 +81,24 @@ test('linking cannot orphan a Firebase profile, profile upload, project upload, 
   assert.equal((await api.requireIdentity(request('/',null,{cookie:idToken,method:'GET'}))).userId,userId);
   sqlite.prepare(`DELETE FROM ${table} WHERE user_id=?`).run(userId);
  }
+});
+test('linking cannot bypass suspension, delegated-role grants, or activity created during the request',async()=>{
+ const idToken=await token(),userId='firebase:new-owner';
+ sqlite.prepare("UPDATE control_members SET status='suspended' WHERE user_id=?").run(userId);
+ assert.equal((await api.link(request('/api/auth/link',{idToken},{legacy:'old-owner'}))).status,403);
+ sqlite.prepare("UPDATE control_members SET status='active' WHERE user_id=?").run(userId);
+ sqlite.prepare('INSERT INTO control_roles VALUES(?,?,?,?,?)').run(userId,'admin',1,1,'old-owner');
+ assert.equal((await api.link(request('/api/auth/link',{idToken},{legacy:'old-owner'}))).status,409);
+ sqlite.prepare('DELETE FROM control_roles WHERE user_id=?').run(userId);
+ beforeLinkInsert=()=>sqlite.prepare("UPDATE control_members SET status='suspended' WHERE user_id=?").run(userId);
+ assert.equal((await api.link(request('/api/auth/link',{idToken},{legacy:'old-owner'}))).status,409);
+ assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM account_links').get().n,0);
+ sqlite.prepare("UPDATE control_members SET status='active' WHERE user_id=?").run(userId);
+ beforeLinkInsert=()=>sqlite.prepare("INSERT INTO project_owners(project_id,user_id,status,revision,created_at,updated_at) VALUES('vamps',?,'active',1,1,1)").run(userId);
+ assert.equal((await api.link(request('/api/auth/link',{idToken},{legacy:'old-owner'}))).status,409);
+ assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM account_links').get().n,0);
+ assert.equal(sqlite.prepare('SELECT user_id FROM project_owners WHERE project_id=?').get('vamps').user_id,userId);
+ sqlite.prepare('DELETE FROM project_owners WHERE user_id=?').run(userId);
 });
 test('linking requires both identities, fresh verified sign-in and preserves library and exact reviewer access',async()=>{
  const idToken=await token();

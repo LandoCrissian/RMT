@@ -95,10 +95,11 @@ test('identity tool returns only the caller reference and never grants reviewer 
   database(t);
   assert.equal((await call('rmt_identity', {}, null)).result.isError, true);
   const account = await call('rmt_identity', {}, 'visitor', {'oai-authenticated-user-full-name': 'Builder%20Name', 'oai-authenticated-user-full-name-encoding': 'percent-encoded-utf-8'});
-  assert.deepEqual(account.data, {userId: 'visitor', displayName: 'Builder Name', isReviewer: false});
+  assert.deepEqual(account.data, {userId: 'visitor', displayName: 'Builder Name', isReviewer: false,controlRole:'member',controlCapabilities:[],hasLinkedSignIn:false});
   assert.equal(JSON.stringify(account.body).includes('private-reviewer@example.com'), false);
   assert.equal((await call('rmt_identity', {userId: 'reviewer'}, 'visitor')).result.isError, true);
   assert.equal((await call('rmt_identity')).data.isReviewer, true);
+  assert.equal((await call('rmt_identity')).data.controlRole,'owner');
 });
 
 test('review tools require exact server allowlist and ignore client admin claims', async t => {

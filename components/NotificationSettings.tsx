@@ -25,22 +25,23 @@ const statusLabels: Record<AlertStatus, string> = {
 };
 
 export default function NotificationSettings({session, onToast}: StudioProps) {
+  const canAccess=session.isAdmin&&session.controlCapabilities?.includes('health')===true;
   const [report, setReport] = useState<NotificationReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async (signal?: AbortSignal) => {
-    if (!session.isAdmin) return;
+    if (!canAccess) return;
     setLoading(true);
     setError("");
     try {
-      const data = await readApiResponse(await fetch("/api/admin/notifications", {cache: "no-store", signal}));
+      const data = await readApiResponse(await fetch("/api/admin/notifications", {cache: "no-store", signal,headers:{"X-RMT-Account":session.userId||""}}));
       if (!signal?.aborted) setReport(data.notifications as NotificationReport);
     } catch (cause) {
       if (!signal?.aborted) setError(cause instanceof Error ? cause.message : "Notification status could not be loaded.");
     } finally { if (!signal?.aborted) setLoading(false); }
-  }, [session.isAdmin]);
+  }, [canAccess,session.userId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -49,12 +50,12 @@ export default function NotificationSettings({session, onToast}: StudioProps) {
   }, [load]);
 
   async function retry() {
-    if (retrying || !session.isAdmin) return;
+    if (retrying || !canAccess) return;
     setRetrying(true);
     setError("");
     try {
       const data = await readApiResponse(await fetch("/api/admin/notifications", {
-        method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({action: "retry"}),
+        method: "POST", headers: {"Content-Type": "application/json","X-RMT-Account":session.userId||""}, body: JSON.stringify({action: "retry"}),
       }));
       setReport(data.notifications as NotificationReport);
       const result = data.result as {attempted: number; accepted: number; failed: number; uncertain: number};
@@ -65,7 +66,7 @@ export default function NotificationSettings({session, onToast}: StudioProps) {
     finally { setRetrying(false); }
   }
 
-  if (!session.isAdmin) return <section className="nt-locked"><LockKeyhole size={24} /><h2>Reviewer access required.</h2><p>Notification settings are available to the RMT owner and authorized reviewers.</p></section>;
+  if (!canAccess) return <section className="nt-locked"><LockKeyhole size={24} /><h2>Administrator access required.</h2><p>Notification settings are available to the RMT owner and administrators.</p></section>;
 
   return <section className="nt-workspace" aria-labelledby="notification-title" aria-busy={loading || retrying}>
     <header className="nt-heading">

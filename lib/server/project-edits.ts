@@ -5,6 +5,8 @@ import type { OwnerRow } from './claims';
 import { catalog, findPublicProject } from './repository';
 import { pendingNotifications } from './outbox-events';
 import { artworkEditGuard, normalizeEditArtwork } from './project-artwork';
+import {publicProjectSql} from './control-visibility';
+import {activeControlMemberSql} from './control-sql';
 
 export type EditRow={id:string;project_id:string;project_name:string;user_id:string;ownership_revision:number;base_revision:number;payload_json:string;
   status:'pending'|'approved'|'rejected';review_note:string;revision:number;created_at:number;updated_at:number};
@@ -21,16 +23,19 @@ export async function ownProjectEdits(db:D1Database,userId:string){
   return rows.results.map(row=>privateEdit(row));
 }
 export async function ownedProjects(db:D1Database,userId:string){
-  const [directory,owners,overrides,edits]=await Promise.all([
+  const [directory,owners,overrides,edits,controls]=await Promise.all([
     catalog(db),db.prepare("SELECT * FROM project_owners WHERE user_id=? AND status='active'").bind(userId).all<OwnerRow>(),
     db.prepare("SELECT p.project_id,p.revision,p.payload_json FROM project_overrides p JOIN project_edits e ON e.id=p.edit_id AND e.status='approved'").all<{project_id:string;revision:number;payload_json:string}>(),ownProjectEdits(db,userId),
+    db.prepare('SELECT project_id,artwork_override FROM project_controls').all<{project_id:string;artwork_override:number}>(),
   ]);
   const owned=new Set(owners.results.map(row=>row.project_id));
   const published=new Map(overrides.results.map(row=>[row.project_id,row]));
+  const adminArtwork=new Set(controls.results.filter(row=>row.artwork_override===1).map(row=>row.project_id));
   return {projects:directory.projects.filter(project=>owned.has(project.id)).map(project=>{
     const override=published.get(project.id);
     const editableLinks=override?(JSON.parse(override.payload_json) as ProjectEditInput).links:project.links;
-    return {project,revision:override?.revision??0,editableLinks};
+    const images=override?JSON.parse(override.payload_json) as ProjectEditInput:null;
+    return {project,revision:override?.revision??0,editableLinks,artworkOverride:adminArtwork.has(project.id),logoAssetId:images?.logoAssetId??null,bannerAssetId:images?.bannerAssetId??null};
   }),edits};
 }
 export async function editsQueue(db:D1Database){
@@ -55,9 +60,9 @@ export async function createProjectEdit(db:D1Database,user:PlatformIdentity,inpu
       db.prepare(`WITH candidate(id,project_id,project_name,user_id,ownership_revision,base_revision,payload_json,created_at) AS (SELECT ?,?,?,?,?,?,?,?)
         INSERT INTO project_edits (id,project_id,project_name,user_id,ownership_revision,base_revision,payload_json,status,review_note,revision,created_at,updated_at)
         SELECT id,project_id,project_name,user_id,ownership_revision,base_revision,payload_json,'pending','',1,created_at,created_at FROM candidate
-        WHERE EXISTS(SELECT 1 FROM project_owners o WHERE o.project_id=candidate.project_id AND o.user_id=candidate.user_id AND o.status='active' AND o.revision=candidate.ownership_revision)
+        WHERE EXISTS(SELECT 1 FROM project_owners o WHERE o.project_id=candidate.project_id AND o.user_id=candidate.user_id AND o.status='active' AND o.revision=candidate.ownership_revision AND ${activeControlMemberSql('o.user_id')})
         AND COALESCE((SELECT revision FROM project_overrides p WHERE p.project_id=candidate.project_id),0)=candidate.base_revision
-        AND (candidate.project_id NOT LIKE 'community-%' OR EXISTS(SELECT 1 FROM submissions s WHERE 'community-'||s.id=candidate.project_id AND s.status='approved'))
+        AND ${publicProjectSql('candidate.project_id')}
         AND (SELECT COUNT(*) FROM project_edits e WHERE e.user_id=candidate.user_id AND e.created_at>=?)<5
         AND ${artworkEditGuard('candidate')}`)
         .bind(id,input.projectId,project.name,user.userId,owner.revision,input.baseRevision,payload,now,now-86_400_000),
@@ -83,9 +88,9 @@ export async function reviewProjectEdit(db:D1Database,reviewerId:string,id:strin
   const now=Date.now(),nextStatus=decision.action==='approve'?'approved':'rejected';
   // Fresh ownership and content checks remain in SQL, so a concurrent revocation
   // or approval cannot publish stale content after this read.
-  const ownership="EXISTS(SELECT 1 FROM project_owners o WHERE o.project_id=project_edits.project_id AND o.user_id=project_edits.user_id AND o.status='active' AND o.revision=project_edits.ownership_revision)";
+  const ownership=`EXISTS(SELECT 1 FROM project_owners o WHERE o.project_id=project_edits.project_id AND o.user_id=project_edits.user_id AND o.status='active' AND o.revision=project_edits.ownership_revision AND ${activeControlMemberSql('o.user_id')})`;
   const freshContent="COALESCE((SELECT revision FROM project_overrides p WHERE p.project_id=project_edits.project_id),0)=project_edits.base_revision";
-  const publicProject="(project_edits.project_id NOT LIKE 'community-%' OR EXISTS(SELECT 1 FROM submissions s WHERE 'community-'||s.id=project_edits.project_id AND s.status='approved'))";
+  const publicProject=publicProjectSql('project_edits.project_id');
   const guard=decision.action==='approve'?` AND ${ownership} AND ${freshContent} AND ${publicProject} AND ${artworkEditGuard()}`:'';
   const statements:D1PreparedStatement[]=[
     db.prepare(`INSERT INTO edit_review_events (id,edit_id,reviewer_id,previous_status,next_status,note,revision,created_at)

@@ -17,7 +17,8 @@ export async function verifyFirebaseToken(token: string, keySet: JWTVerifyGetKey
       typeof payload.iat !== 'number' || payload.iat > now.getTime() / 1000) throw new Error('Invalid identity');
     return { userId: 'firebase:' + payload.sub, firebaseUid: payload.sub, email: payload.email,
       displayName: typeof payload.name === 'string' ? payload.name.slice(0, 100) : 'RMT member',
-      emailVerified: payload.email_verified === true, authTime: payload.auth_time, expiresAt: payload.exp! };
+      emailVerified: payload.email_verified === true, authTime: payload.auth_time, expiresAt: payload.exp!,
+      signInProvider: payload.firebase && typeof payload.firebase === 'object' && 'sign_in_provider' in payload.firebase && typeof payload.firebase.sign_in_provider === 'string' ? payload.firebase.sign_in_provider.slice(0,80) : 'unknown' };
   } catch { throw new InputError('Your sign-in expired. Please sign in again.', 401); }
 }
 
