@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowUpRight, Check, CheckCircle2, Clock3, Copy, Inbox, LoaderCircle, LockKeyhole, MessageSquare, Pause, RefreshCw, X, ClipboardList, KeyRound, FilePenLine, Bell } from "lucide-react";
+import { ArrowUpRight, Check, CheckCircle2, Clock3, Copy, Inbox, LoaderCircle, LockKeyhole, MessageSquare, Pause, RefreshCw, X, ClipboardList, KeyRound, FilePenLine, Bell, Megaphone } from "lucide-react";
 import { formattedDate, readApiResponse, statusLabel, stageLabel, type StudioProps, type Submission } from "./studio-shared";
 import { ClaimReview, EditReview } from "./ClaimReview";
 import NotificationSettings from "./NotificationSettings";
+import ProjectUpdatesReview from "./ProjectUpdatesReview";
 import "./studio.css";
 
 type ReviewAction = "approve" | "reject" | "request_changes" | "suspend";
@@ -14,7 +15,7 @@ function safeLink(value: string) {
 }
 
 export default function ReviewQueue({ session, onToast }: StudioProps) {
-  const [workspaceTab, setWorkspaceTab] = useState<"applications" | "claims" | "edits" | "notifications">("applications");
+  const [workspaceTab, setWorkspaceTab] = useState<"applications" | "claims" | "edits" | "updates" | "notifications">("applications");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -84,9 +85,10 @@ export default function ReviewQueue({ session, onToast }: StudioProps) {
 
   return <section className="st-page" aria-labelledby="review-title">
     <header className="st-heading st-review-heading"><div><p className="st-eyebrow"><span /> OWNER WORKSPACE</p><h1 id="review-title">Good projects.<br /><span>Your call.</span></h1><p>Check the people, the links, and the experience before it goes live.</p></div>{workspaceTab === "applications" && <button type="button" className="st-button st-secondary" disabled={loading} onClick={() => void loadQueue()}><RefreshCw size={15} className={loading ? "st-spin" : ""} /> Refresh queue</button>}</header>
-    <nav className="st-workspace-tabs" aria-label="Review workspace"><button type="button" className={workspaceTab === "applications" ? "active" : ""} aria-pressed={workspaceTab === "applications"} onClick={() => setWorkspaceTab("applications")}><ClipboardList size={15} /> Applications</button><button type="button" className={workspaceTab === "claims" ? "active" : ""} aria-pressed={workspaceTab === "claims"} onClick={() => setWorkspaceTab("claims")}><KeyRound size={15} /> Ownership claims</button><button type="button" className={workspaceTab === "edits" ? "active" : ""} aria-pressed={workspaceTab === "edits"} onClick={() => setWorkspaceTab("edits")}><FilePenLine size={15} /> Project updates</button><button type="button" className={workspaceTab === "notifications" ? "active" : ""} aria-pressed={workspaceTab === "notifications"} onClick={() => setWorkspaceTab("notifications")}><Bell size={15} /> Notifications</button></nav>
+    <nav className="st-workspace-tabs" aria-label="Review workspace"><button type="button" className={workspaceTab === "applications" ? "active" : ""} aria-pressed={workspaceTab === "applications"} onClick={() => setWorkspaceTab("applications")}><ClipboardList size={15} /> Applications</button><button type="button" className={workspaceTab === "claims" ? "active" : ""} aria-pressed={workspaceTab === "claims"} onClick={() => setWorkspaceTab("claims")}><KeyRound size={15} /> Ownership claims</button><button type="button" className={workspaceTab === "edits" ? "active" : ""} aria-pressed={workspaceTab === "edits"} onClick={() => setWorkspaceTab("edits")}><FilePenLine size={15} /> Listing edits</button><button type="button" className={workspaceTab === "updates" ? "active" : ""} aria-pressed={workspaceTab === "updates"} onClick={() => setWorkspaceTab("updates")}><Megaphone size={15} /> Project updates</button><button type="button" className={workspaceTab === "notifications" ? "active" : ""} aria-pressed={workspaceTab === "notifications"} onClick={() => setWorkspaceTab("notifications")}><Bell size={15} /> Notifications</button></nav>
     {workspaceTab === "claims" && <ClaimReview session={session} onToast={onToast} />}
     {workspaceTab === "edits" && <EditReview session={session} onToast={onToast} />}
+    {workspaceTab === "updates" && <ProjectUpdatesReview session={session} onToast={onToast} />}
     {workspaceTab === "notifications" && <NotificationSettings session={session} onToast={onToast} />}
     {workspaceTab === "applications" && <>
     <div className="st-review-metrics"><div><Clock3 size={18} /><strong>{submissions.filter(item => item.status === "pending").length}</strong><span>Waiting for review</span></div><div><MessageSquare size={18} /><strong>{submissions.filter(item => ["needs_changes", "changes_requested"].includes(item.status)).length}</strong><span>Changes requested</span></div><div><CheckCircle2 size={18} /><strong>{submissions.filter(item => item.status === "approved").length}</strong><span>Published applications</span></div></div>

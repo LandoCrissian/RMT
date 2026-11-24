@@ -6,7 +6,7 @@ export function accountContinuation(value: unknown): AccountContinuation | null 
   if (/^\/#claim\/[a-zA-Z0-9][a-zA-Z0-9-]{0,119}$/.test(value)) {
     return {href: value, label: 'Continue to your project', context: 'Your project’s ownership claim is ready to continue after sign-in.'};
   }
-  if (/^(?:\/projects\/|\/#project\/)[a-zA-Z0-9][a-zA-Z0-9-]{0,119}$/.test(value)) {
+  if (/^\/projects\/[a-zA-Z0-9][a-zA-Z0-9-]{0,119}(?:#updates)?$/.test(value) || /^\/#project\/[a-zA-Z0-9][a-zA-Z0-9-]{0,119}$/.test(value)) {
     return {href: value, label: 'Continue to your project', context: 'Return to the project you were exploring after sign-in.'};
   }
   if (/^\/(?:\?studio=(?:projects|claims))?#studio$/.test(value)) {

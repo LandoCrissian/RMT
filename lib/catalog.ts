@@ -16,7 +16,7 @@ export type Project = {
   launchLabel: string;
   links: { label: string; url: string; type?: string }[];
   collections?: { name: string; url: string; chain?: string; relationship?: string }[];
-  stage?: 'starting' | 'building' | 'live';
+  stage?: 'starting' | 'building' | 'beta' | 'live';
   sourceStatus?: 'confirmed' | 'details-pending';
   initials: string;
   accent: string;

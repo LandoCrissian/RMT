@@ -8,7 +8,7 @@ const compiled = await build({stdin: {contents: `export * from './lib/account-na
 const {accountContinuation, continuationFromSearch, signInHref, studioSectionFromSearch} = await import('data:text/javascript;base64,' + Buffer.from(compiled.outputFiles[0].text).toString('base64'));
 
 test('claim and project sign-in links retain the exact intended RMT destination', () => {
-  for (const destination of ['/#claim/vamps', '/#claim/community-9ea7c0c4-063c-4927-9f59-f051dc450015', '/projects/suited-apes', '/#project/lammbs']) {
+  for (const destination of ['/#claim/vamps', '/#claim/community-9ea7c0c4-063c-4927-9f59-f051dc450015', '/projects/suited-apes', '/projects/suited-apes#updates', '/#project/lammbs']) {
     const account = new URL(signInHref(destination), 'https://rmtlaunch.fun');
     assert.equal(account.origin, 'https://rmtlaunch.fun');
     assert.equal(account.pathname, '/');
@@ -39,7 +39,7 @@ test('ordinary project discovery and library destinations remain available', () 
 });
 
 test('external, encoded, malformed, and unapproved continuations fail closed', () => {
-  for (const destination of ['https://attacker.example/', '//attacker.example/', 'https://rmtlaunch.fun/#studio', 'javascript:alert(1)', '/\\attacker.example', '/api/auth/link', '/signin-with-chatgpt', '/#review', '/#claim/../account', '/projects/vamps?next=//attacker.example', '/#claim/vamps%2Fextra', '/#studio\n', '/#studio\r', ' /#studio', '/?studio=projects&next=evil#studio', '/?studio=unknown#studio', '/#claim/' + 'x'.repeat(121), null, 3]) {
+  for (const destination of ['https://attacker.example/', '//attacker.example/', 'https://rmtlaunch.fun/#studio', 'javascript:alert(1)', '/\\attacker.example', '/api/auth/link', '/signin-with-chatgpt', '/#review', '/#claim/../account', '/projects/vamps?next=//attacker.example', '/projects/vamps#updates?next=//attacker.example', '/projects/vamps#unapproved', '/#claim/vamps%2Fextra', '/#studio\n', '/#studio\r', ' /#studio', '/?studio=projects&next=evil#studio', '/?studio=unknown#studio', '/#claim/' + 'x'.repeat(121), null, 3]) {
     assert.equal(accountContinuation(destination), null, String(destination));
     if (typeof destination === 'string') assert.equal(signInHref(destination), '/#account');
   }

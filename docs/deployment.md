@@ -1,3 +1,16 @@
+# Project updates — prepared release 11 (November 24, 2026)
+
+The current public production deployment is release 10, source
+`dd1b7155c7a73e743072acf69e3160f2251abc93`. The project-updates feature is prepared
+and saved separately while the owner tests the repaired Google sign-in on their
+phone. This preparation does not deploy to production, apply migration 0006,
+change Firebase settings, or alter runtime secrets, domain routing, or audience.
+
+The new forward migration and application rollback boundary are documented in
+[project updates](project-updates.md). Use the saved source version and its exact
+archive when publishing after the remaining acceptance check. Historical release
+sections below are retained as history, not the current access policy.
+
 # Google sign-in recovery (November 24, 2026)
 
 The current auth repair keeps public browsing and all existing identities and

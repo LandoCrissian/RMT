@@ -1,3 +1,41 @@
+# Project updates — prepared release 11, November 24, 2026
+
+Production remains the public release 10 while the owner completes the physical
+phone sign-in check. This feature is prepared for a saved version and a source
+pull request; its saved-version metadata records whether preparation succeeded.
+
+- Added private owner drafts, announcements/build updates/releases, preview,
+  review submission, feedback and resubmission, withdrawal, and archiving.
+- Added a distinct announcement review queue while retaining listing edits,
+  claims, applications, artwork review, and notification settings.
+- Added project Overview/Updates tabs, direct update-tab links, six-item public
+  pagination, honest loading/empty/error states, and a Beta development stage.
+- Extended the existing Dot digest and durable outbox for update submissions.
+  The schedule is unchanged, and no test message or real announcement was sent.
+- Added forward migration 0006. The upgrade test preserves all previous records,
+  including notification replay payloads and receipts. No production migration
+  has been applied during preparation.
+- The implementation has 178 automated checks, including normalized Unicode URL
+  limits and preservation of the existing database. The source helper runs the
+  final suite, typecheck, and production build before saving; its result records
+  the exact source commit and build outcome.
+- Managed-browser verification passed draft save, submission, feedback,
+  revision/resubmission, approval, public appearance, and archival using the real
+  UI components with isolated sample responses. Account-conflict, sign-out, and
+  revoked-review-access responses hid private content; an interrupted save required reloading saved history before
+  retrying. No real account or announcement was created by those checks.
+- At 390px, owner, reviewer, and public layouts had no horizontal document
+  overflow; owner and reviewer text inputs measured 16px. The actual local public
+  API returned the empty state correctly, and a direct VAMPS `#updates` URL
+  restored the selected tab. Keyboard tab navigation was also checked.
+- The sample fixture is removed before packaging. Production Google consent and
+  the owner's physical iPhone result remain separate checks.
+
+See [project updates](project-updates.md) for behavior, limits, APIs, migration,
+and the retained release 10 application rollback boundary.
+
+---
+
 # Google sign-in state recovery — November 24, 2026
 
 - Replaced the cross-origin helper dependency on the three production addresses
