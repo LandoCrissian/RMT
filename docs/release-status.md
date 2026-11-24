@@ -1,35 +1,42 @@
-# RMT v0.3 — accounts, personal libraries, and review monitoring
+# RMT v0.4 — navigation, mobile search, and hosting entrypoints
 
-## This release
+## Source changes
 
-- A dedicated account page, visible sign-in controls, sign-out, an account reference, and explanations of what RMT saves.
-- Signed-in libraries stored in the hosted database and guest favorites stored in the current browser. Device favorites enter an account only through an explicit import.
-- A personal launchpad with direct launch links, loading and retry states, and clear account/device storage labels.
-- A 200-project account-library limit enforced atomically. Server identity scopes every library operation. An expected-account check prevents a stale tab from writing to a different signed-in account.
-- A stateless Site MCP connection for the owner's dot: read authenticated identity, read new review work, and acknowledge specific notices without changing review decisions.
-- Per-reviewer, per-revision monitor receipts, so repeated checks need not repeat the same notice and resubmissions can produce a new notice.
-- Email-only alert intents. Phone setup and SMS delivery are disabled; historical SMS records are preserved but never retried.
-- Additive migration `0003_nosy_tag.sql` for saved projects and monitor receipts. Existing migrations are unchanged.
+- Whole project cards open their project home, with separate bookmark and direct-launch controls. Keyboard users retain native button behavior and visible focus.
+- Primary destination links open in the top-level tab. Explicit **New tab** and **Copy** controls are available for project destinations, collections, and library launches.
+- A manual-copy dialog shows a selectable URL when clipboard access is blocked. Embedded previews offer a direct **Open RMT** link.
+- Search matches normalized words across project names, identifiers, initials, collections, experiences, and URLs. Result counts show the active scope, and **Search all projects** retains the query while leaving a category or saved-library filter.
+- Search and form controls use 16px text to address phone focus zoom without disabling pinch zoom. Clear-search and link controls have larger tap targets.
+- A dedicated Netlify build generates a two-file redirect entrypoint to the working Sites app. It avoids treating the Vinext Worker output as a standalone Next.js deployment.
+- Deployment notes separate DNS/TLS setup from authenticated application readiness. No database migration or payment feature is introduced by this release.
 
 ## Preserved
 
 The directory retains all seventeen sourced project homes, original project artwork, grouped collections, official destinations, search, category filters, shareable project/claim pages, and responsive navigation. Listings and ownership claims remain free. New projects can use an official website or X profile without a minted collection or finished app.
 
+The account page, ChatGPT sign-in, database-backed libraries, explicit guest-favorite import, account-isolation guards, and 200-project library limit remain in place. The existing monitor receipts and email alert queue are preserved. Phone and SMS remain disabled, and previously applied migrations are unchanged.
+
 Applications, ownership challenges, and listing edits stay private until an authorized reviewer acts. Claim approval still requires checking the proof on an existing official channel. Notification acknowledgement never substitutes for review.
 
 ## Runtime activation
 
-The preview remains owner-private. The owner-selected email recipient is stored as a runtime secret, separate from source and browser code. Sending email also needs a verified sender, Resend credential, and configured reviewer identity; recipient configuration alone does not prove delivery.
+The app remains owner-private. The complete app, D1 database, and ChatGPT authentication run on Sites. The Netlify release contains only a redirect entrypoint and still needs live deployment verification. The working platform URL remains the canonical `RMT_PUBLIC_URL`.
 
-The published MCP capability provisions the Site's private connection. Installation, authenticated connection, reviewer authorization, and a monitoring schedule are separate states. Verify the actual site-specific account reference through the identity tool or account page before configuring `RMT_ADMIN_USER_IDS`. Hosting sharing IDs and recipient addresses are not substitutes. Exercise the digest and acknowledgement through the connected tools before creating unattended monitoring. See [owner alerts](notifications.md).
+The custom-domain DNS records now point `rmtlaunch.fun` and `www.rmtlaunch.fun` to Sites. TLS is active, but the current application response is HTTP 403 **Site Unavailable**, so custom-domain access is not yet verified. Vercel nameservers and domain registration are unchanged. The previous Netlify app is untouched; retaining its old DNS target under `previous-launchpad` is not a verified website backup. See [deployment status](deployment.md).
 
-Public access and `rmtlaunch.fun` routing require a deliberate launch decision. This release does not publish an X announcement or contact project teams.
+The authenticated connection established the owner's exact site-specific identity, and the reviewer secret has been configured. The next Sites deployment must apply it before live reviewer authorization can be confirmed. No private identity or notification recipient belongs in source.
+
+The owner-selected email recipient is stored as a runtime secret. Sending still requires a verified sender and provider credential, and live delivery has not been established. Monitoring is not enabled: verify reviewer authorization, digest reads, and acknowledgements after deployment before configuring unattended checks. See [owner alerts](notifications.md).
+
+Public access requires a deliberate audience change after activation checks. This release does not publish an X announcement or contact project teams.
 
 ## Verification and practical limits
 
 The integrated test suite uses actual SQL operations with every tracked migration. Coverage includes library persistence after reopening, account isolation, stale account guards, concurrent quota enforcement, approved-only saving, ownership-review races, revision checks, notification deduplication, monitor authorization, receipt persistence, and disabled SMS delivery. Provider HTTP responses are simulated; tests do not establish live inbox delivery.
 
-The release workflow checks TypeScript, all tests, a production build, and desktop/phone interaction. Live owner authentication and notification delivery are verified separately when their connections are available.
+The Netlify configuration passed validation against its official JSON schema. Local entrypoint checks confirmed an isolated two-file output, removal of stale output, a forced temporary redirect, and fallback preservation of path, query, and fragment with a fixed destination host. Live Netlify redirect checks remain part of deployment verification.
+
+Before marking this release active, complete TypeScript checks, all tests, a production build, and desktop/phone interaction checks for search, card taps, links, and copy fallback. Also verify the deployed reviewer configuration, custom-domain application access, and the chosen notification connection. These checks are separate from DNS propagation and certificate issuance.
 
 - The directory launches external experiences. RMT does not host their game files, music, accounts, progress, or wallet operations.
 - Library updates are server-confirmed; an ambiguous interrupted save requires a refresh. This release does not promise offline cloud writes or instant synchronization between already-open tabs on different devices.

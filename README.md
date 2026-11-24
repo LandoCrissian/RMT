@@ -6,7 +6,9 @@ RMT is an independent discovery and launch hub for community projects, games, mu
 
 ## Community directory and builder ownership
 
-- Responsive discovery interface, search, category filters, and project destination pages.
+- Responsive discovery interface, category filters, and project destination pages. Whole project cards open their project home while bookmark and launch actions remain independent.
+- Search across project names, initials, collections, experiences, and website addresses, with normalized spacing and punctuation, visible result counts, and an option to search beyond the current category or library.
+- Readable phone form controls, direct destination links, explicit new-tab/copy options, and a selectable-link fallback when the browser blocks clipboard access.
 - Account library stored in the hosted database and available after sign-in on another device. Guests can save on their current device and explicitly import those favorites when signed in.
 - Visible account controls, ChatGPT sign-in, sign-out, and plain-language explanations of where information is saved. No RMT password or wallet connection is required.
 - Home-screen web app manifest, icons, and a reconnect page. External games still need their own network connection.
@@ -37,6 +39,12 @@ npm run dev
 The app uses React, TypeScript, the Next-compatible Vinext runtime, and a Cloudflare Worker. Structured data lives in D1 (SQLite). Hosting-specific authentication is isolated in `lib/server/auth.ts` and `lib/server/runtime.ts`. Dependencies are locked.
 
 For this environment, Sites provides the authenticated gateway and provisions D1 from `.openai/hosting.json`. Read [deployment notes](docs/deployment.md) before moving to a different host. A raw Worker that trusts visitor-supplied identity headers is **not** a supported deployment.
+
+### Hosting
+
+The complete app runs at `https://rmt-hub.wise-elf-8473.chatgpt.site`, with its database and ChatGPT sign-in. The v0.4 configuration makes the GitHub-connected Netlify project build a small redirect entrypoint to that app; it does not run a second backend. Its live redirect still needs verification after deployment. See [Netlify entrypoint](docs/netlify-entry.md) for the build command and publish directory.
+
+`rmtlaunch.fun` and `www.rmtlaunch.fun` now have DNS records pointing to the Sites custom-domain service. TLS is active, but the latest domain check returned HTTP 403 **Site Unavailable**. Custom-domain activation is still being investigated; the working platform URL remains canonical. The app remains owner-private.
 
 ### Local database
 
@@ -69,7 +77,7 @@ One server-controlled owner assignment can be active for each project. Holding a
 
 ## Current scope
 
-The app launches external experiences. Signed-in libraries live in the hosted database; guest libraries stay on the device. Artwork uploads, third-party game hosting, payments, public launch, and custom-domain migration are separate work. The current preview remains owner-private. Before inviting builders, verify the actual site-specific reviewer identity, the chosen notification connection, and the intended public audience. No new token or wallet is required.
+The app launches external experiences. Signed-in libraries live in the hosted database; guest libraries stay on the device. Artwork uploads, third-party game hosting, payments, and public launch remain outside the current release. Domain routing is configured, with application access still under verification. Before inviting builders, verify the deployed reviewer authorization, the chosen notification connection, custom-domain access, and the intended public audience. No new token or wallet is required.
 
 See [accounts and saved information](docs/data-storage.md) for the sign-in model, private data boundaries, library limits, and hosting portability. See [notification configuration](docs/notifications.md) for delivery semantics and required server settings.
 

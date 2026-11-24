@@ -1,0 +1,11 @@
+"$schema" = "https://open-api.netlify.com/netlify.schema.json"
+
+# Netlify serves a small redirect entrypoint. The complete app runs on Sites.
+# Do not publish dist/client or dist/server as a standalone Netlify app.
+[build]
+  command = "node scripts/build-netlify-entry.mjs"
+  publish = "dist/netlify-entry"
+
+[build.environment]
+  NODE_VERSION = "24"
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
