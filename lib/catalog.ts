@@ -28,6 +28,8 @@ export type Project = {
   /** Date first added to the RMT directory, not the collection launch date. */
   listedAt?: string;
   artwork?: {logo?: PublicArtwork; banner?: PublicArtwork};
+  /** Explicit administrator selection; omitted retains the existing discovery default. */
+  featured?: boolean;
   claimed: boolean;
   source: 'curated' | 'community';
 };

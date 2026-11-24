@@ -1,3 +1,4 @@
+import {requireCommunityIntake} from '@/lib/server/control-settings';
 import { validateSubmission } from "@/lib/submission-validation";
 import { createSubmission, ownSubmissions } from "@/lib/server/repository";
 import { database, requireIdentity, runtime } from "@/lib/server/runtime";
@@ -15,6 +16,7 @@ export async function POST(request: Request) {
     const user = await requireIdentity(request);
     const input = validateSubmission(await readMutation(request));
     const db = database();
+    await requireCommunityIntake(db,'submissions');
     const submission = await createSubmission(db, user, input);
     await dispatchNotifications(db, runtime());
     return json({submission}, 201);

@@ -6,6 +6,8 @@ import type { PlatformIdentity } from './auth';
 import { findPublicProject } from './repository';
 import { pendingNotifications } from './outbox-events';
 import { json } from './http';
+import {publicProjectSql,publicUpdateControlSql} from './control-visibility';
+import {activeControlMemberSql} from './control-sql';
 
 export const UPDATE_DRAFTS_PER_DAY = 10;
 export const UPDATE_OPEN_DRAFTS = 20;
@@ -17,14 +19,11 @@ export type UpdateRow = {
   status: UpdateStatus; review_note: string; revision: number; published_at: number | null;
   created_at: number; updated_at: number; can_manage?: number;
 };
-// These IDs are trusted immutable source data, never interpolated request values.
-const curatedIds = getSeedProjects().map(project => `'${project.id.replace(/'/g, "''")}'`).join(',') || "''";
-function publicGuard(alias: string) {
-  return `(${alias}.project_id IN (${curatedIds}) OR EXISTS(SELECT 1 FROM submissions s WHERE 'community-'||s.id=${alias}.project_id AND s.status='approved'))`;
+function publicGuard(alias:string){return publicProjectSql(`${alias}.project_id`);}
+function ownershipGuard(alias:string){
+  return `EXISTS(SELECT 1 FROM project_owners o WHERE o.project_id=${alias}.project_id AND o.user_id=${alias}.user_id AND o.status='active' AND o.revision=${alias}.ownership_revision) AND ${activeControlMemberSql(`${alias}.user_id`)}`;
 }
-function ownershipGuard(alias: string) {
-  return `EXISTS(SELECT 1 FROM project_owners o WHERE o.project_id=${alias}.project_id AND o.user_id=${alias}.user_id AND o.status='active' AND o.revision=${alias}.ownership_revision)`;
-}
+export {publicUpdateControlSql as publicUpdateContentGuard};
 // Reused by the ecosystem feed so archiving, revoked ownership, and hidden
 // projects have identical public visibility rules across both surfaces.
 export { publicGuard as publicUpdateProjectGuard, ownershipGuard as publicUpdateOwnershipGuard };
@@ -105,7 +104,7 @@ export async function publicProjectUpdates(db:D1Database,projectId:string,page:U
   if(page.cursor){cursor=' AND (published_at<? OR (published_at=? AND id<?))';binds.push(page.cursor.at,page.cursor.at,page.cursor.id);}
   binds.push(page.limit+1);
   const rows=await db.prepare(`SELECT * FROM project_updates WHERE project_id=? AND status='approved' AND published_at IS NOT NULL
-    AND ${rowEligibility}${cursor} ORDER BY published_at DESC,id DESC LIMIT ?`).bind(...binds).all<UpdateRow>();
+    AND ${rowEligibility} AND ${publicUpdateControlSql('project_updates')}${cursor} ORDER BY published_at DESC,id DESC LIMIT ?`).bind(...binds).all<UpdateRow>();
   const shown=rows.results.slice(0,page.limit),last=shown.at(-1);
   return {updates:shown.map(publicProjectUpdate),nextCursor:rows.results.length>page.limit&&last?encodeUpdateCursor({at:last.published_at!,id:last.id}):null};
 }

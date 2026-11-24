@@ -3,7 +3,7 @@ import type {PrivateProfile, ProfileArtwork, ProfileArtworkKind, ProfileInput, P
 const assetId = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const handlePattern = /^[a-z0-9][a-z0-9_-]{1,22}[a-z0-9]$/;
 const projectImagePattern = /^\/projects\/[a-z0-9][a-z0-9._-]{0,180}\.(?:png|jpe?g|webp|svg)$/i;
-const publicProjectImagePattern = /^\/media\/project-artwork\/[a-z0-9][a-z0-9_-]{0,127}$/i;
+const publicProjectImagePattern = /^\/media\/(?:project-artwork|control-project-artwork)\/[a-z0-9][a-z0-9_-]{0,127}$/i;
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 const time = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) > 0 && Number(value) <= 8_640_000_000_000_000;
 const text = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max;

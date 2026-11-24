@@ -1,3 +1,4 @@
+import {requireCommunityIntake} from '@/lib/server/control-settings';
 import {validateChangeUpdate, validateUpdateId} from '@/lib/project-updates';
 import {changeProjectUpdate, updateAccountConflict} from '@/lib/server/project-updates';
 import {database, requireIdentity, runtime} from '@/lib/server/runtime';
@@ -8,6 +9,7 @@ export async function PATCH(request:Request,context:{params:Promise<{id:string}>
   const user=await requireIdentity(request),conflict=updateAccountConflict(request,user.userId);
   if(conflict)return conflict;
   const input=validateChangeUpdate(await readMutation(request)),{id}=await context.params,db=database();
+  if(input.action==='submit')await requireCommunityIntake(db,'updates');
   const update=await changeProjectUpdate(db,user,validateUpdateId(id),input);
   if(input.action==='submit')await dispatchNotifications(db,runtime());
   return json({update});

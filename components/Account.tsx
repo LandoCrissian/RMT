@@ -20,10 +20,10 @@ export function LibrarySyncStatus({ library }: { library: ProjectLibrary }) {
 type Props = {
   session: StudioSession; sessionStatus: SessionStatus; library: ProjectLibrary;
   onRetrySession: () => void; onToast: (message: string) => void;
-  onLibrary: () => void; onStudio: () => void; onReview: () => void; onProfile: () => void;
+  onLibrary: () => void; onStudio: () => void; onReview: () => void; onProfile: () => void; onControl:()=>void;
 };
 
-export default function Account({ session, sessionStatus, library, onRetrySession, onToast, onLibrary, onStudio, onReview, onProfile }: Props) {
+export default function Account({ session, sessionStatus, library, onRetrySession, onToast, onLibrary, onStudio, onReview, onProfile, onControl }: Props) {
   const [continuation, setContinuation] = useState<AccountContinuation | null>(null);
   useEffect(() => {
     const update = () => setContinuation(continuationFromSearch(window.location.search));
@@ -41,7 +41,7 @@ export default function Account({ session, sessionStatus, library, onRetrySessio
     <div className="page-heading"><div><div className="eyebrow">YOUR RMT ACCOUNT</div><h1>A little more you.</h1><p>Your projects, your library, and a clear view of what’s saved.</p></div></div>
     <section className="account-identity" aria-labelledby="account-heading">
       <div className="account-identity-main"><span className="account-avatar" aria-hidden="true">{session.authenticated ? initials : <UserRound size={30} />}</span><div><span className="account-kicker">{session.authenticated ? 'SIGNED IN TO RMT' : 'ONE ACCOUNT. YOUR RMT.'}</span><h2 id="account-heading">{sessionStatus === 'loading' ? 'Checking your account…' : session.authenticated ? session.displayName || 'Welcome back.' : 'Take your favorites with you.'}</h2><p>{session.authenticated ? 'Your RMT account connects your saved projects and Builder Studio.' : 'Sign in with Google or email to save projects across devices and build your home on RMT.'}</p></div></div>
-      <div className="account-identity-actions">{sessionStatus === 'loading' ? <span className="account-pending"><LoaderCircle className="rmt-spin" size={16} /> Connecting</span> : sessionStatus === 'error' ? <button className="button button-outline" onClick={onRetrySession}><RefreshCw size={16} /> Check again</button> : session.authenticated ? <><span className="account-role"><Check size={13} /> {session.isAdmin ? 'RMT reviewer' : 'RMT member'}</span></> : <a className="button button-lime" href={signInHref(continuation?.href)} target="_top">Sign in to RMT <ArrowRight size={16} /></a>}</div>
+      <div className="account-identity-actions">{sessionStatus === 'loading' ? <span className="account-pending"><LoaderCircle className="rmt-spin" size={16} /> Connecting</span> : sessionStatus === 'error' ? <button className="button button-outline" onClick={onRetrySession}><RefreshCw size={16} /> Check again</button> : session.authenticated ? <><span className="account-role"><Check size={13} /> {session.controlRole==='owner'?'RMT owner':session.controlRole==='admin'?'RMT administrator':session.isAdmin?'RMT moderator':'RMT member'}</span></> : <a className="button button-lime" href={signInHref(continuation?.href)} target="_top">Sign in to RMT <ArrowRight size={16} /></a>}</div>
     </section>
     {continuation && <section className="library-import" aria-label="Continue where you left off">
       <div><h3>Pick up where you left off.</h3><p>{sessionStatus === 'ready' && session.authenticated ? session.emailVerified ? 'Your account is ready. Continue when you’re ready.' : 'Verify your email below to continue with this account.' : continuation.context}</p></div>
@@ -63,6 +63,7 @@ export default function Account({ session, sessionStatus, library, onRetrySessio
     </div></section>
     <div className="account-access-note"><KeyRound size={18} /><p><strong>Your choice of sign-in.</strong> Use Google or an email and password. You don’t need a wallet or an NFT to save projects or submit your work.</p></div>
     {session.authenticated && session.userId && <section className="account-reference"><div><h3>Your account reference</h3><p>This identifies your account within RMT. Share it with RMT if you need help with account access.</p><code>{session.userId}</code></div><button className="button button-outline" onClick={copyReference}><Copy size={14} /> Copy reference</button></section>}
+    {session.isAdmin&&<button className="account-review-link" onClick={onControl}><ShieldCheck size={19}/><span><strong>Your Control Center</strong><small>Manage people, projects, reviews, and site settings.</small></span><ArrowRight size={18}/></button>}
     {session.isAdmin && <button className="account-review-link" onClick={onReview}><ShieldCheck size={19} /><span><strong>Your reviewer workspace</strong><small>Review new projects, ownership claims, and listing updates.</small></span><ArrowRight size={18} /></button>}
   </div>;
 }

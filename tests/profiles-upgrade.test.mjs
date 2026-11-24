@@ -6,7 +6,8 @@ import {readFile, readdir} from 'node:fs/promises';
 const directory = new URL('../drizzle/', import.meta.url);
 const files = (await readdir(directory)).filter(file => /^\d.*\.sql$/.test(file)).sort();
 const before = files.filter(file => Number(file.slice(0, 4)) <= 6);
-const after = files.filter(file => Number(file.slice(0, 4)) > 6);
+// Keep this historical R11 → R12 boundary fixed as later releases add migrations.
+const after = files.filter(file => Number(file.slice(0, 4)) === 7);
 const read = names => Promise.all(names.map(name => readFile(new URL(name, directory), 'utf8')));
 const beforeSql = (await read(before)).join('\n');
 const afterSql = (await read(after)).join('\n');

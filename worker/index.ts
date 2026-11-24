@@ -2,6 +2,7 @@ import handler from "vinext/server/fetch-handler";
 import { runWithConnectorBinding } from "../lib/connector-context";
 import type { ConnectorBinding } from "../lib/connector-contract.mjs";
 import { proxyFirebaseAuth } from "../lib/server/firebase-auth-proxy";
+import { maintenanceResponse, normalizedRoutePath } from "../lib/server/site-availability";
 
 const worker = {
   fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext<{ CONNECTORS?: ConnectorBinding }>) {
@@ -29,15 +30,18 @@ const worker = {
       };
     }
     return runWithConnectorBinding(binding, async () => {
+      const siteDb=(env as Cloudflare.Env & {DB?:D1Database}).DB;
+      if(siteDb){const unavailable=await maintenanceResponse(request,siteDb);if(unavailable)return unavailable;}
       const response = await handler.fetch(request, env, ctx);
       // A member can hide a profile at any time. Never retain profile HTML/RSC
       // or a missing-profile result in a browser or edge cache.
-      if (!new URL(request.url).pathname.startsWith('/u/')) return response;
+      const path=normalizedRoutePath(new URL(request.url).pathname);
+      if (path!=='/'&&!path.startsWith('/u/')&&!/^\/projects\/[A-Za-z0-9_-]+\/?$/.test(path)) return response;
       const headers = new Headers(response.headers);
       headers.set('Cache-Control', 'no-store');
       headers.set('CDN-Cache-Control', 'no-store');
       headers.set('Cloudflare-CDN-Cache-Control', 'no-store');
-      headers.set('X-Robots-Tag', 'noindex, noarchive');
+      if(path.startsWith('/u/'))headers.set('X-Robots-Tag', 'noindex, noarchive');
       return new Response(response.body, {status: response.status, statusText: response.statusText, headers});
     });
   },

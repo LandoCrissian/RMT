@@ -1,3 +1,5 @@
+import {controlDatabase} from './control-database';
+import {controlRole,capabilitiesForRole} from './control-access';
 import { InputError } from "@/lib/submission-validation";
 import { hasSameOrigin } from "./auth";
 import { json } from "./http";
@@ -78,12 +80,17 @@ async function callTool(request: Request, input: unknown) {
       throw new InputError("This tool takes no arguments.");
     }
     let result: unknown;
-    if (params.name === "rmt_identity") result = {userId: user.userId, displayName: user.displayName, isReviewer: await isAdmin(request)};
+    if (params.name === "rmt_identity") {
+      const access=await controlRole(database(),user.userId,runtime().RMT_ADMIN_USER_IDS);
+      const linked=await database().prepare('SELECT 1 AS found FROM account_links WHERE legacy_user_id=?').bind(user.userId).first();
+      result = {userId: user.userId, displayName: user.displayName, isReviewer: await isAdmin(request),
+        controlRole:access.role,controlCapabilities:capabilitiesForRole(access.role),hasLinkedSignIn:Boolean(linked)};
+    }
     else {
-      await requireAdmin(request);
+      const actor=await requireAdmin(request),db=controlDatabase(database(),actor);
       result = params.name === "rmt_review_digest"
-        ? await reviewDigest(database(), user.userId, runtime())
-        : await acknowledgeReviewAlerts(database(), user.userId, args);
+        ? await reviewDigest(db, user.userId, runtime())
+        : await acknowledgeReviewAlerts(db, user.userId, args);
     }
     return {content: [{type: "text", text: JSON.stringify(result)}], isError: false};
   } catch (error) {

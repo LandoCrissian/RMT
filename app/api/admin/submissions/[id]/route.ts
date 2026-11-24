@@ -1,3 +1,5 @@
+import {controlDatabase} from '@/lib/server/control-database';
+import {reviewAccountScope} from '@/lib/server/review-scope';
 import { validateDecision } from "@/lib/submission-validation";
 import { reviewSubmission } from "@/lib/server/repository";
 import { database, requireAdmin } from "@/lib/server/runtime";
@@ -8,6 +10,7 @@ export async function POST(request: Request, context: {params: Promise<{id: stri
     const user = await requireAdmin(request);
     const decision = validateDecision(await readMutation(request));
     const {id} = await context.params;
-    return json({submission: await reviewSubmission(database(), user.userId, id, decision)});
+    reviewAccountScope(request,user.userId);
+    return json({submission: await reviewSubmission(controlDatabase(database(),user), user.userId, id, decision)});
   });
 }

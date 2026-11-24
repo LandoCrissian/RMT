@@ -7,7 +7,7 @@ import {
   Music2, Plus, Search, ShieldCheck, Sparkles, Terminal, Wrench, X, Copy, Share2, Layers3,
   UserRound, Cloud, LoaderCircle, RefreshCw, AlertCircle, List, ChevronLeft, ChevronDown, Megaphone, Radio,
 } from 'lucide-react';
-import { seedProjects, type Project } from '@/lib/catalog';
+import { type Project } from '@/lib/catalog';
 import { normalizeProjectQuery, searchProjects } from '@/lib/project-search';
 import { discoverProjects, recentProjects, type DirectorySort } from '@/lib/project-discovery';
 import { projectPath, projectShareUrl, projectSocialImagePath, projectXIntentUrl } from '@/lib/project-sharing';
@@ -24,19 +24,24 @@ import ProfileEditor from './ProfileEditor';
 import PublicProfilePage from './PublicProfilePage';
 import ProjectBuilders from './ProjectBuilders';
 import {PROFILE_HANDLE_PATTERN, type PublicProfile} from '@/lib/profiles';
-import { stageLabel } from './studio-shared';
+import { stageLabel, type StudioSession } from './studio-shared';
+import ControlCenter from './ControlCenter';
+import {useSiteSettings} from './use-site-settings';
+import {recordSiteMetric} from '@/lib/client/site-metrics';
+import type {PublicSiteSettings} from '@/lib/control-settings';
+import './site-status.css';
 import './discovery.css';
 import './navigation.css';
 
-type Section = 'discover' | 'activity' | 'library' | 'games' | 'music' | 'tools' | 'studio' | 'review' | 'claim' | 'account' | 'profile' | 'member';
-type Session = { authenticated: boolean; emailVerified?: boolean; provider?: string | null; userId: string | null; displayName: string | null; isAdmin: boolean };
+type Section = 'discover' | 'activity' | 'library' | 'games' | 'music' | 'tools' | 'studio' | 'review' | 'claim' | 'account' | 'profile' | 'member' | 'control';
+type Session = StudioSession;
 const emptySession: Session = { authenticated: false, userId: null, displayName: null, isAdmin: false };
 const categories = ['All projects', 'Games', 'Music', 'Tools', 'Community'];
 const sectionTitles: Record<Section, string> = {
   discover: 'RMT — Your ecosystem. All together.',
   library: 'My library | RMT', games: 'Games | RMT', music: 'Music | RMT', tools: 'Tools | RMT',
   studio: 'Builder Studio | RMT', review: 'Review queue | RMT', claim: 'Claim a project | RMT', account: 'My account | RMT',
-  activity: 'Activity | RMT', profile: 'My profile | RMT', member: 'Member profile | RMT',
+  activity: 'Activity | RMT', profile: 'My profile | RMT', member: 'Member profile | RMT', control:'Control Center | RMT',
 };
 const navItems = [
   { id: 'discover' as Section, label: 'Discover', icon: Compass },
@@ -55,7 +60,7 @@ function Cover({ project, className = '', thumbnail = false }: { project: Projec
   const source = logo || project.cover;
   useEffect(() => { setFailed(false); }, [source]);
   // Uploaded artwork has its own composition; curated styling belongs only to the original asset.
-  const approvedCover = source.startsWith('/media/project-artwork/');
+  const approvedCover = source.startsWith('/media/project-artwork/') || source.startsWith('/media/control-project-artwork/');
   const coverBackground = approvedCover ? undefined : project.coverBackground;
   const panoramic = !logo && (project.coverAspectRatio ?? 0) > 2.2;
   const complete = !!logo || project.coverFit === 'contain' || panoramic;
@@ -74,7 +79,7 @@ function ProjectLogo({project}: {project: Project}) {
   return <img className="approved-project-logo" src={source} alt="" width="58" height="58" loading="lazy" decoding="async" onError={() => setFailed(true)} />;
 }
 
-export default function Hub({ initialProjectId, initialProjects = seedProjects, initialProfileHandle, initialPublicProfile }: { initialProjectId?: string; initialProjects?: Project[]; initialProfileHandle?: string; initialPublicProfile?: PublicProfile } = {}) {
+export default function Hub({ initialProjectId, initialProjects = [], initialProfileHandle, initialPublicProfile, initialSiteSettings, initialCatalogError=false }: { initialProjectId?: string; initialProjects?: Project[]; initialProfileHandle?: string; initialPublicProfile?: PublicProfile; initialSiteSettings?:PublicSiteSettings; initialCatalogError?:boolean } = {}) {
   const [section, setSection] = useState<Section>(initialProfileHandle ? 'member' : 'discover');
   const [memberHandle, setMemberHandle] = useState(initialProfileHandle ?? '');
   const [profileSeed, setProfileSeed] = useState(initialPublicProfile);
@@ -93,7 +98,12 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects, 
   const [toast, setToast] = useState('');
   const [mobileMenu, setMobileMenu] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
-  const [catalogError, setCatalogError] = useState(false);
+  const [catalogError, setCatalogError] = useState(initialCatalogError);
+  const site=useSiteSettings(initialSiteSettings);
+  const maintenance=site.settings.maintenance.enabled&&!session.isAdmin;
+  const [controlOpened,setControlOpened]=useState(false);
+  const [featureChoice,setFeatureChoice]=useState('');
+  const catalogRequest=useRef<AbortController|null>(null);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [copyFallback, setCopyFallback] = useState<string | null>(null);
   const [framedOrigin, setFramedOrigin] = useState('');
@@ -166,7 +176,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects, 
       const response = await fetch('/api/session', { cache: 'no-store', credentials: 'same-origin', signal: controller.signal });
       if (!response.ok) throw new Error('Account unavailable');
       const value = await response.json() as Session;
-      if (typeof value.authenticated !== 'boolean' || typeof value.isAdmin !== 'boolean' || (value.authenticated && (typeof value.userId !== 'string' || !value.userId.trim())) || (value.displayName !== null && typeof value.displayName !== 'string')) throw new Error('Invalid account response');
+      if ((value.controlRole!==undefined && value.controlRole!==null && !['owner','admin','moderator','member'].includes(value.controlRole)) || (value.controlCapabilities!==undefined && (!Array.isArray(value.controlCapabilities)||value.controlCapabilities.some(item=>typeof item!=='string'))) || typeof value.authenticated !== 'boolean' || typeof value.isAdmin !== 'boolean' || (value.authenticated && (typeof value.userId !== 'string' || !value.userId.trim())) || (value.displayName !== null && typeof value.displayName !== 'string')) throw new Error('Invalid account response');
       if (controller.signal.aborted) return;
       setSession(value); setSessionStatus('ready');
     } catch {
@@ -174,24 +184,24 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects, 
     }
   }
 
+  async function refreshCatalog(){
+    catalogRequest.current?.abort();const controller=new AbortController();catalogRequest.current=controller;
+    try{const response=await fetch('/api/catalog',{cache:'no-store',credentials:'same-origin',signal:controller.signal});if(!response.ok)throw new Error();const data=await response.json() as {projects?:Project[]};if(!Array.isArray(data.projects))throw new Error();if(!controller.signal.aborted){setProjects(data.projects);setCatalogError(false);}}catch{if(!controller.signal.aborted){setProjects([]);setCatalogError(true);}}finally{if(!controller.signal.aborted)setCatalogLoaded(true);}
+  }
+
   useEffect(() => {
     if (window.self !== window.top) setFramedOrigin(window.location.origin);
     void refreshSession();
-    fetch('/api/catalog', { cache: 'no-store' }).then(res => {
-      if (!res.ok) throw new Error('Unavailable');
-      return res.json();
-    }).then(data => {
-      const value = data as { projects?: Project[] };
-      if (Array.isArray(value.projects)) setProjects(value.projects);
-      else throw new Error('Invalid catalog response');
-    }).catch(() => setCatalogError(true)).finally(() => setCatalogLoaded(true));
+    void refreshCatalog();
+    const changed=()=>{void refreshCatalog();void refreshSession();};
+    window.addEventListener('rmt-control-changed',changed);
     const onShortcut = (event: KeyboardEvent) => {
       if (event.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes((event.target as HTMLElement).tagName)) {
         event.preventDefault(); searchRef.current?.focus();
       }
     };
     const onInstall = (event: Event) => { event.preventDefault(); setInstallPrompt(event); };
-    const recheckAccount = () => { if (document.visibilityState === 'visible') void refreshSession(); };
+    const recheckAccount = () => { if (document.visibilityState === 'visible') {void refreshSession();void refreshCatalog();} };
     const restoreAccount = (event: PageTransitionEvent) => { if (event.persisted) void refreshSession(); };
     const hideAccount = () => { sessionRequest.current?.abort(); setSessionStatus('loading'); };
     window.addEventListener('keydown', onShortcut);
@@ -210,6 +220,8 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects, 
       document.removeEventListener('visibilitychange', recheckAccount);
       if (toastTimer.current) clearTimeout(toastTimer.current);
       sessionRequest.current?.abort();
+      catalogRequest.current?.abort();
+      window.removeEventListener('rmt-control-changed',changed);
       copyRequest.current += 1;
     };
   }, []);
@@ -254,7 +266,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects, 
         }
         return;
       }
-      if (['discover', 'activity', 'library', 'games', 'music', 'tools', 'studio', 'review', 'account', 'profile'].includes(hash)) {
+      if (['discover', 'activity', 'library', 'games', 'music', 'tools', 'studio', 'review', 'account', 'profile', 'control'].includes(hash)) {
         setSection(hash as Section); setSelected(null); setClaimProject(null);
       } else if (!hash) {
         setSection('discover'); setSelected(null); setClaimProject(null);
@@ -269,7 +281,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects, 
     // tab title in step with in-app history navigation as well.
     document.title = selected ? `${selected.name} | RMT`
       : claimProject ? `Claim ${claimProject.name} | RMT`
-      : normalizeProjectQuery(query) && !['studio', 'review', 'claim', 'account', 'activity', 'profile', 'member'].includes(section) ? 'Search results | RMT'
+      : normalizeProjectQuery(query) && !['studio', 'review', 'claim', 'account', 'activity', 'profile', 'member', 'control'].includes(section) ? 'Search results | RMT'
       : sectionTitles[section];
   }, [selected, claimProject, section, query]);
 
@@ -346,7 +358,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects, 
   }
 
   useEffect(() => {
-    if (selected) {
+    if (selected&&!maintenance) {
       if (!dialogRef.current?.open) dialogRef.current?.showModal();
       dialogRef.current?.scrollTo({ top: 0 });
       dialogRef.current?.querySelector<HTMLElement>('#project-title')?.focus({ preventScroll: true });
@@ -356,7 +368,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects, 
       document.body.classList.remove('project-is-open');
     }
     return () => document.body.classList.remove('project-is-open');
-  }, [selected]);
+  }, [selected,maintenance]);
   useEffect(() => {
     if (installOpen) installRef.current?.showModal();
     else installRef.current?.close();
@@ -404,8 +416,14 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects, 
   const isSearchScoped = section === 'library' || activeCategory !== 'All projects';
   const searchScope = section === 'library' ? (activeCategory === 'All projects' ? 'your library' : activeCategory.toLowerCase() + ' in your library') : activeCategory.toLowerCase();
   const matchesOutsideScope = hasSearch && isSearchScoped ? searchProjects(projects, { query }).length - page.total : 0;
-  const isDirectory = !['studio', 'review', 'claim', 'account', 'activity', 'profile', 'member'].includes(section);
-  const feature = projects.find(project => project.id === 'vamps') || projects[0];
+  const isDirectory = !['studio', 'review', 'claim', 'account', 'activity', 'profile', 'member', 'control'].includes(section);
+  const featuredProjects=projects.filter(project=>project.featured===true);
+  const feature=featuredProjects.find(project=>project.id===featureChoice)||featuredProjects[0]||projects.find(project=>project.id==='vamps'&&project.featured!==false);
+  const publicPaused=maintenance&&!['account','control'].includes(section);
+  useEffect(()=>{if(section==='control')setControlOpened(true);},[section]);
+  useEffect(()=>{if(sessionStatus==='ready'&&!session.isAdmin&&!maintenance)recordSiteMetric('visit');},[sessionStatus,session.isAdmin,maintenance]);
+  useEffect(()=>{if(selected&&sessionStatus==='ready'&&!session.isAdmin&&!maintenance)recordSiteMetric('project_view',selected.id);},[selected?.id,sessionStatus,session.isAdmin,maintenance]);
+  useEffect(()=>{if(maintenance){setSelected(null);setClaimProject(null);}},[maintenance,selected,claimProject]);
   const savedProjects = saved.map(id => projects.find(project => project.id === id)).filter(Boolean) as Project[];
   const unavailableSaved = saved.filter(id => !projects.some(project => project.id === id));
   const returnTo = selected ? projectPath(selected) + (showcaseTab === 'updates' ? '#updates' : '') : section === 'member' && memberHandle ? '/u/' + encodeURIComponent(memberHandle) : '/#' + (claimProject ? 'claim/' + encodeURIComponent(claimProject.id) : section);
@@ -447,6 +465,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects, 
       <div className="nav-caption">FOR BUILDERS</div>
       <button className={'nav-item ' + (section === 'studio' ? 'nav-active' : '')} onClick={() => go('studio')}><Terminal size={19} /><span>Builder Studio</span><ArrowUpRight size={14} /></button>
       {sessionStatus === 'ready' && session.isAdmin && <button className={'nav-item ' + (section === 'review' ? 'nav-active' : '')} onClick={() => go('review')}><ShieldCheck size={19} /><span>Review queue</span></button>}
+      {sessionStatus==='ready'&&session.isAdmin&&<button className={'nav-item '+(section==='control'?'nav-active':'')} onClick={()=>go('control')}><LayoutGrid size={19}/><span>Control Center</span></button>}
       <div className="sidebar-bottom">
         <div className="ecosystem-card"><span className="ecosystem-orbit">r</span><div><span>EXPLORING</span><strong>Robinhood ecosystem</strong></div><span className="status-dot" /></div>
         <button className="install-nav" onClick={install}><ArrowDownToLine size={17} /> Add RMT to your phone</button>
@@ -466,14 +485,19 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects, 
           <div><strong>{hasSearch ? 'Preview' : 'A little more room to explore.'}</strong>{!hasSearch && <><p>Some previews block links. Open RMT directly, or copy a destination into your browser.</p><small>{domain(framedOrigin)}</small></>}</div>
           <div className="embedded-view-actions"><a href={framedOrigin + returnTo} target="_top" className="button button-outline">Open RMT <ArrowUpRight size={14} /></a><button type="button" onClick={() => void copyLink(framedOrigin + returnTo, 'RMT link copied.')} aria-label="Copy direct RMT link"><Copy size={13} /> {hasSearch ? 'Copy' : 'Copy link'}</button></div>
         </aside>}
-        {isDirectory ? <>
+        {site.settings.notice.enabled&&<aside className='site-announcement' aria-label='RMT announcement'><Megaphone size={20}/><p>{site.settings.notice.text}</p>{site.settings.notice.linkUrl&&<a href={site.settings.notice.linkUrl} target='_top' rel='noopener noreferrer'>{site.settings.notice.linkLabel}<ArrowUpRight size={15}/></a>}</aside>}
+        {session.suspended&&<div className='site-intake-notice' role='alert'><strong>Your account access is paused.</strong> You can browse the public directory. Contact RMT if you believe this is a mistake.</div>}
+        {section==='studio'&&!site.settings.submissionsOpen&&<p className='site-intake-notice'>New project applications are temporarily paused. Your existing projects and saved work are still available.</p>}
+        {section==='claim'&&!site.settings.claimsOpen&&<p className='site-intake-notice'>New ownership claims are temporarily paused. Your existing claim remains saved.</p>}
+        {publicPaused?<section className='site-pause'><Wrench size={34}/><h1>A little work behind the scenes.</h1><p>{site.settings.maintenance.message}</p><div className='site-pause-actions'><button className='button button-lime' onClick={()=>{void site.refresh();void refreshCatalog();}}>Check again <RefreshCw size={16}/></button><button className='button button-outline' onClick={()=>go('account')}>My account <UserRound size={16}/></button></div></section>:isDirectory ? <>
           {!hasSearch && <div className="page-heading"><div><div className="eyebrow">{heading.eyebrow}</div><h1>{heading.title}</h1><p>{heading.description}</p></div><button className="directory-jump" onClick={focusDirectory}>Browse projects <span>{page.total}</span><ArrowRight size={15} /></button></div>}
+          {section==='discover'&&!hasSearch&&category==='All projects'&&featuredProjects.length>1&&<div className='featured-switches' aria-label='Featured projects'>{featuredProjects.map(project=><button key={project.id} aria-pressed={feature?.id===project.id} onClick={()=>setFeatureChoice(project.id)}>{project.name}</button>)}</div>}
           {section === 'discover' && !hasSearch && category === 'All projects' && feature && <section className="feature-layout discovery-feature" aria-label="Featured project and recent additions">
             <div className="hero-card">
               <Cover project={feature} className="hero-art" />
               <div className="hero-shade" />
-              <div className="hero-content"><span className="feature-tag"><Sparkles size={13} /> FROM THE DIRECTORY</span><div className="hero-brand">VAMPS<span>AFTER HOURS</span></div><h2>Enter the<br />after hours.</h2><p>Games. Creative tools. A whole community to discover.</p><div className="hero-buttons"><button type="button" className="button button-lime hero-project-trigger" onClick={() => openProject(feature)} aria-haspopup="dialog">Explore VAMPS <ArrowUpRight size={17} /></button><button className={'button hero-save ' + (saved.includes(feature.id) ? 'is-saved' : '')} disabled={!library.canSave} onClick={() => void toggleSave(feature)} aria-label={saved.includes(feature.id) ? 'Remove VAMPS from library' : 'Save VAMPS to library'}>{saved.includes(feature.id) ? <Check size={19} /> : <Plus size={19} />}</button></div></div>
-              <div className="hero-bottom"><span><span className="tiny-square" /> Games & creative tools</span><span>CURATED PICK · NOT SPONSORED</span></div>
+              <div className="hero-content"><span className="feature-tag"><Sparkles size={13} /> FROM THE DIRECTORY</span><div className="hero-brand">{feature.name}<span>{feature.id==='vamps'?'AFTER HOURS':feature.category.toUpperCase()}</span></div><h2>{feature.id==='vamps'?<>Enter the<br/>after hours.</>:<>Meet your next<br/>favorite.</>}</h2><p>{feature.id==='vamps'?'Games. Creative tools. A whole community to discover.':feature.tagline}</p><div className="hero-buttons"><button type="button" className="button button-lime hero-project-trigger" onClick={() => openProject(feature)} aria-haspopup="dialog">Explore {feature.name} <ArrowUpRight size={17} /></button><button className={'button hero-save ' + (saved.includes(feature.id) ? 'is-saved' : '')} disabled={!library.canSave} onClick={() => void toggleSave(feature)} aria-label={saved.includes(feature.id) ? 'Remove '+feature.name+' from library' : 'Save '+feature.name+' to library'}>{saved.includes(feature.id) ? <Check size={19} /> : <Plus size={19} />}</button></div></div>
+              <div className="hero-bottom"><span><span className="tiny-square" /> {feature.category}</span><span>CURATED PICK · NOT SPONSORED</span></div>
             </div>
             <aside className="feature-side discovery-arrivals" aria-label="Recently added projects">
               <div className="arrivals-heading"><div><span className="card-overline">FRESH FINDS</span><h3>New to RMT<span className="new-dot" /></h3></div><Compass size={20} /></div>
@@ -500,7 +524,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects, 
               <div className="browse-controls"><span className="browse-result-range" aria-live="polite" aria-atomic="true">{page.total ? `${page.start}–${page.end} of ${page.total} projects` : 'No projects in this view'}</span><div className="browse-options"><label className="browse-sort"><ListFilter size={14} /><span className="sr-only">Sort projects</span><select aria-label="Sort projects" value={directorySort} onChange={event => setDirectorySort(event.target.value as DirectorySort)}><option value="name">Name A–Z</option><option value="recent">Newest on RMT</option></select><ChevronDown size={13} /></label><div className="view-switch" role="group" aria-label="Project layout"><button type="button" className={directoryView === 'grid' ? 'view-active' : ''} aria-label="Grid view" aria-pressed={directoryView === 'grid'} onClick={() => changeDirectoryView('grid')}><Grid2X2 size={17} /></button><button type="button" className={directoryView === 'list' ? 'view-active' : ''} aria-label="List view" aria-pressed={directoryView === 'list'} onClick={() => changeDirectoryView('list')}><List size={18} /></button></div></div></div>
             </div>
             {hasSearch && (section !== 'library' || library.status === 'ready') && <div className="search-feedback"><div role="status" aria-live="polite" aria-atomic="true"><p><strong>{page.total} {page.total === 1 ? 'result' : 'results'}</strong> for “{query.trim()}” in <strong>{searchScope}</strong>.</p>{matchesOutsideScope > 0 && <span>{matchesOutsideScope} more {matchesOutsideScope === 1 ? 'match is' : 'matches are'} outside this view.</span>}</div>{isSearchScoped && page.total > 0 && <button type="button" onClick={searchAllProjects}>Search all projects <ArrowRight size={14} /></button>}</div>}
-            {catalogError && <p className="inline-notice" role="status">Community submissions are temporarily unavailable. You can still explore the curated directory.</p>}
+            {catalogError && <p className="inline-notice" role="status">The directory could not be loaded. Your saved projects are unchanged. <button className='text-link' onClick={()=>void refreshCatalog()}>Try again</button></p>}
             {section === 'library' && library.status !== 'ready' ? null : page.total ? <><div className={'project-grid browse-grid' + (directoryView === 'list' ? ' browse-list' : '')} data-view={directoryView}>{page.items.map(project => <article className="project-card browse-card" key={project.id}>
               <div className="project-image-button"><Cover project={project} className="directory-art" thumbnail={directoryView === 'list'} /></div>
               <div className="project-card-body"><div className="browse-card-kicker"><span>{project.category}</span>{project.stage && project.stage !== 'live' && <span>{stageLabel(project.stage)}</span>}</div><div className="project-card-heading"><div className="project-name-button"><h3><button type="button" className="project-card-trigger" onClick={() => openProject(project)} aria-label={'Explore ' + project.name} aria-haspopup="dialog">{project.name}</button></h3></div></div><p>{project.tagline}</p><div className="project-card-footer"><span className="project-card-explore" aria-hidden="true">Explore <ArrowUpRight size={13} /></span><span className="browse-destinations">{destinationCount(project)} links</span><button type="button" className={'save-button ' + (saved.includes(project.id) ? 'saved' : '')} aria-label={(saved.includes(project.id) ? 'Remove ' : 'Save ') + project.name + (saved.includes(project.id) ? ' from library' : ' to library')} aria-pressed={saved.includes(project.id)} disabled={!library.canSave} onClick={() => void toggleSave(project)}><Bookmark size={17} fill={saved.includes(project.id) ? 'currentColor' : 'none'} /></button></div></div>
@@ -510,18 +534,20 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects, 
           <footer className="content-footer"><span>RMT is an independent directory. Listings don’t imply a partnership.</span><button onClick={() => go('studio')}>Built something? Let’s see it. <ArrowUpRight size={12} /></button></footer>
         </> : section === 'activity' ? <ActivityFeed onProject={openActivityProject} onBuilder={openProjectManagement} onProfile={() => go('profile')} />
         : section === 'member' && memberHandle ? <PublicProfilePage key={memberHandle} handle={memberHandle} initialProfile={profileSeed} onHome={() => go('discover')} onCopy={copyLink} />
-        : section === 'account' ? <Account session={sessionStatus === 'ready' ? session : emptySession} sessionStatus={sessionStatus} library={library} onRetrySession={() => void refreshSession()} onToast={notify} onLibrary={() => go('library')} onStudio={() => go('studio')} onReview={() => go('review')} onProfile={() => go('profile')} /> : <>
+        : section === 'account' ? <Account session={sessionStatus === 'ready' ? session : emptySession} sessionStatus={sessionStatus} library={library} onRetrySession={() => void refreshSession()} onToast={notify} onLibrary={() => go('library')} onStudio={() => go('studio')} onReview={() => go('review')} onProfile={() => go('profile')} onControl={()=>go('control')} /> : section==='control'?null:<>
           {sessionStatus !== 'ready' && <div className={'library-load-state ' + (sessionStatus === 'error' ? 'library-load-error' : '')} role="status">{sessionStatus === 'loading' ? <LoaderCircle className="rmt-spin" size={18} /> : <AlertCircle size={18} />}<div><strong>{sessionStatus === 'loading' ? 'Checking your account…' : 'Your account needs a reconnect.'}</strong><p>Your private workspace opens after your account is checked.</p></div>{sessionStatus === 'error' && <button className="button button-outline" onClick={() => void refreshSession()}><RefreshCw size={14} /> Try again</button>}</div>}
           <div className="private-workspace" key={session.userId || 'guest'} hidden={sessionStatus !== 'ready'} inert={sessionStatus !== 'ready'}>{section === 'profile' ? <ProfileEditor session={session} onToast={notify} onRetrySession={() => void refreshSession()} /> : section === 'studio' ? <Studio session={session} onToast={notify} /> : section === 'claim' && claimProject ? <ClaimProject key={claimProject.id} project={claimProject} session={session} onToast={notify} onClose={() => { go('discover'); openProject(claimProject); }} /> : <ReviewQueue session={session} onToast={notify} />}</div>
         </>}
 
+        {(controlOpened||section==='control')&&<div className='admin-workspace' key={'control-'+(session.userId||'guest')} hidden={section!=='control'||sessionStatus!=='ready'} inert={section!=='control'||sessionStatus!=='ready'}><ControlCenter session={session} onToast={notify} onRetrySession={()=>void refreshSession()} onReview={()=>go('review')} onProject={(id:string)=>{const project=projects.find(p=>p.id===id);if(project)openProject(project);else notify('This project is hidden from the public directory. Manage it in Projects.');}}/></div>}
+        {section==='control'&&sessionStatus!=='ready'&&<p className='inline-notice' role='status'>{sessionStatus==='loading'?'Checking your administrator access…':'Your account connection needs a refresh.'}<button className='button button-outline' onClick={()=>void refreshSession()}>Check again</button></p>}
       </main>
     </div>
     <nav className="mobile-bottom" aria-label="Mobile navigation">
-      {[navItems[0], navItems[1], navItems[2], { id: 'studio' as Section, label: 'Build', icon: Terminal }, {id: 'account' as Section, label: 'Account', icon: UserRound}].map(({ id, label, icon: Icon }) => <button key={id} className={section === id || (id === 'account' && section === 'profile') ? 'active' : ''} onClick={() => go(id)}><Icon size={20} /><span>{label}</span></button>)}
+      {[navItems[0], navItems[1], navItems[2], { id: 'studio' as Section, label: 'Build', icon: Terminal }, {id: 'account' as Section, label: 'Account', icon: UserRound}].map(({ id, label, icon: Icon }) => <button key={id} className={section === id || (id === 'account' && (section === 'profile'||section==='control')) ? 'active' : ''} onClick={() => go(id)}><Icon size={20} /><span>{label}</span></button>)}
     </nav>
     <dialog ref={dialogRef} className="project-dialog showcase-dialog" aria-labelledby="project-title" onCancel={closeProject} onClick={event => { if (event.target === event.currentTarget) closeProject(); }}>
-      {selected && <div className="detail-inner" style={{ '--project-accent': selected.accent } as React.CSSProperties}>
+      {selected && !maintenance && <div className="detail-inner" onClickCapture={event=>{const anchor=(event.target as Element).closest('a[href]');if(anchor&&selected&&!session.isAdmin&&!maintenance){try{if(new URL(anchor.getAttribute('href')!,window.location.href).origin!==window.location.origin)recordSiteMetric('outbound',selected.id);}catch{}}}} style={{ '--project-accent': selected.accent } as React.CSSProperties}>
         <div className="detail-cover showcase-cover">
           <Cover project={selected} />
           <div className="detail-cover-shade" />
