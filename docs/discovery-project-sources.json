@@ -1,0 +1,269 @@
+{
+  "checkedDate": "2026-11-24",
+  "listingDateMeaning": "listedAt records inclusion in the RMT directory, not an NFT collection launch or mint date.",
+  "newProjects": [
+    {
+      "id": "claystonkz",
+      "collectionUrl": "https://opensea.io/collection/claystonkz",
+      "checkedDate": "2026-11-24",
+      "description": "Hand-sculpted clay characters by Brrrbon, photographed and layered into digital collectibles inspired by markets and meme culture.",
+      "sources": [
+        {
+          "url": "https://opensea.io/collection/claystonkz",
+          "finding": "OpenSea collection HTML and overview confirm Clay StonKz, creator Brrrbon, Robinhood Chain, clay sculpture/photography process, and creator-linked site/X."
+        },
+        {
+          "url": "https://opensea.io/collection/claystonkz/overview",
+          "finding": "Creator-linked first-party destination, inspected November 24, 2026."
+        },
+        {
+          "url": "https://claystonkz.com/",
+          "finding": "Creator-linked first-party destination, inspected November 24, 2026."
+        }
+      ],
+      "originalArtwork": {
+        "logoUrl": "https://i2c.seadn.io/collection/claystonkz/image_type_logo/7e97e22f20eeb16be86de7bac4d9b7/bd7e97e22f20eeb16be86de7bac4d9b7.png",
+        "coverUrl": "https://i2c.seadn.io/collection/claystonkz/image_type_hero_desktop/5d424237d693ffb62cbb5888a6bce9/ca5d424237d693ffb62cbb5888a6bce9.png?w=2000",
+        "origin": "https://opensea.io/collection/claystonkz"
+      },
+      "collections": [
+        {
+          "name": "Clay StonKz",
+          "url": "https://opensea.io/collection/claystonkz",
+          "chain": "Robinhood Chain",
+          "relationship": "Primary collection"
+        }
+      ],
+      "assets": [
+        {
+          "kind": "cover",
+          "filename": "claystonkz-cover.webp",
+          "bytes": 258946,
+          "sha256": "95908c1ea836b68e351e69fba130d6f85b831bd7aa1734f809c26c90a22864b4",
+          "url": "https://i2c.seadn.io/collection/claystonkz/image_type_hero_desktop/5d424237d693ffb62cbb5888a6bce9/ca5d424237d693ffb62cbb5888a6bce9.png?w=2000",
+          "width": 1600,
+          "height": 640,
+          "format": "webp",
+          "publicPath": "/projects/claystonkz-cover.webp"
+        },
+        {
+          "kind": "logo",
+          "filename": "claystonkz-logo.webp",
+          "bytes": 42608,
+          "sha256": "d8b536dec324b9705f852fde9daa7777b5b8b178ae2f91f16ff480d85e247c9f",
+          "url": "https://i2c.seadn.io/collection/claystonkz/image_type_logo/7e97e22f20eeb16be86de7bac4d9b7/bd7e97e22f20eeb16be86de7bac4d9b7.png",
+          "width": 500,
+          "height": 500,
+          "format": "webp",
+          "publicPath": "/projects/claystonkz-logo.webp"
+        }
+      ],
+      "notes": [
+        "OpenSea collection HTML and overview confirm Clay StonKz, creator Brrrbon, Robinhood Chain, clay sculpture/photography process, and creator-linked site/X.",
+        "Official homepage links the exact OpenSea collection, Brrrbon X account, and Discord invite.",
+        "Official wide cover depicts four clay characters on a green textured background."
+      ],
+      "collectionHtmlSha256": "2f114986414d946f9be50398c596e0cda4bb5fbada73412f0f4c963ac8e4501e",
+      "listedAt": "2026-11-24T16:00:00.000Z"
+    },
+    {
+      "id": "stray-cucks",
+      "collectionUrl": "https://opensea.io/collection/stray-cucks",
+      "checkedDate": "2026-11-24",
+      "description": "Hand-drawn pixel chairs on Robinhood Chain, with a connected arcade and tools for exploring collections and mint allowlists.",
+      "sources": [
+        {
+          "url": "https://opensea.io/collection/stray-cucks",
+          "finding": "OpenSea collection HTML confirms Stray Cucks, Robinhood Chain, pixel chairs, creator TheArsonDragon, and official website. The web-search page opener failed, but direct public HTTPS HTML returned 200."
+        },
+        {
+          "url": "https://straycucks.com/",
+          "finding": "Creator-linked first-party destination, inspected November 24, 2026."
+        },
+        {
+          "url": "https://allowlist.straycucks.com/",
+          "finding": "Creator-linked first-party destination, inspected November 24, 2026."
+        },
+        {
+          "url": "https://straycucks.com/arcade/",
+          "finding": "Official homepage links this arcade. Direct page request returned HTTP 403 to the research client; arcade availability and gameplay were not verified."
+        }
+      ],
+      "originalArtwork": {
+        "logoUrl": "https://i2c.seadn.io/collection/stray-cucks/image_type_logo/9029352e87f840105b32eb61fec190/4a9029352e87f840105b32eb61fec190.gif",
+        "coverUrl": "https://i2c.seadn.io/collection/stray-cucks/image_type_hero_desktop/4540961c1e826b09c6c0a7f1ccb3de/564540961c1e826b09c6c0a7f1ccb3de.mp4?frame-time=1&w=2000",
+        "origin": "https://opensea.io/collection/stray-cucks"
+      },
+      "collections": [
+        {
+          "name": "Stray Cucks",
+          "url": "https://opensea.io/collection/stray-cucks",
+          "chain": "Robinhood Chain",
+          "relationship": "Primary collection"
+        }
+      ],
+      "assets": [
+        {
+          "kind": "cover",
+          "filename": "stray-cucks-cover.webp",
+          "bytes": 105458,
+          "sha256": "41c587355b024c2db1dff2284f9e4291d5a8e1ddacd6421f668a82ad0306c34b",
+          "url": "https://i2c.seadn.io/collection/stray-cucks/image_type_hero_desktop/4540961c1e826b09c6c0a7f1ccb3de/564540961c1e826b09c6c0a7f1ccb3de.mp4?frame-time=1&w=2000",
+          "width": 1600,
+          "height": 457,
+          "format": "webp",
+          "publicPath": "/projects/stray-cucks-cover.webp"
+        },
+        {
+          "kind": "logo",
+          "filename": "stray-cucks-logo.webp",
+          "bytes": 7810,
+          "sha256": "ec8891ca189ae7c209fb1d996cc0a5c64eeb60b680b3a6745d2d747aed2c2908",
+          "url": "https://i2c.seadn.io/collection/stray-cucks/image_type_logo/9029352e87f840105b32eb61fec190/4a9029352e87f840105b32eb61fec190.gif",
+          "width": 480,
+          "height": 480,
+          "format": "webp",
+          "publicPath": "/projects/stray-cucks-logo.webp"
+        }
+      ],
+      "notes": [
+        "OpenSea collection HTML confirms Stray Cucks, Robinhood Chain, pixel chairs, creator TheArsonDragon, and official website. The web-search page opener failed, but direct public HTTPS HTML returned 200.",
+        "Official homepage links the exact OpenSea collection, /arcade/, the scanner at allowlist.straycucks.com, and creator X account.",
+        "Scanner public page is readable; some features explicitly require eligible NFT holdings. No wallet connected or gameplay/transactions tested.",
+        "The CDN cover URL ends .mp4 and advertised video/mp4, but bytes decode as a static PNG (2000x571), taken from the official poster URL; normalized to static WebP. Logo CDN image is animated WebP; selected first frame for a calm static icon."
+      ],
+      "collectionHtmlSha256": "9bc784db1e005187fd8951e200682ab0c05e56c081104871337d2d11d0d133ef",
+      "listedAt": "2026-11-24T16:00:00.000Z"
+    },
+    {
+      "id": "hoodfi",
+      "collectionUrl": "https://opensea.io/collection/hoodfi",
+      "checkedDate": "2026-11-24",
+      "description": "An ENS name service for Robinhood Chain, with tools to search names, manage identity records, and build a website.",
+      "sources": [
+        {
+          "url": "https://opensea.io/collection/hoodfi",
+          "finding": "OpenSea collection HTML confirms HoodFi Names, Robinhood Chain, the official www.hoodfi.name website, @hoodfieth, and official logo/cover."
+        },
+        {
+          "url": "https://www.hoodfi.name/",
+          "finding": "Creator-linked first-party destination, inspected November 24, 2026."
+        },
+        {
+          "url": "https://www.hoodfi.name/search/",
+          "finding": "Creator-linked first-party destination, inspected November 24, 2026."
+        },
+        {
+          "url": "https://build.hoodfi.name/",
+          "finding": "Creator-linked first-party destination, inspected November 24, 2026."
+        }
+      ],
+      "originalArtwork": {
+        "logoUrl": "https://i2c.seadn.io/collection/hoodfi/image_type_logo/91c644b73484d1333186bb3a441262/b891c644b73484d1333186bb3a441262.jpeg",
+        "coverUrl": "https://i2c.seadn.io/collection/hoodfi/image_type_hero_desktop/b2a00998dc7adb515d70d3ce354852/30b2a00998dc7adb515d70d3ce354852.png?w=2000",
+        "origin": "https://opensea.io/collection/hoodfi"
+      },
+      "collections": [
+        {
+          "name": "HoodFi Names",
+          "url": "https://opensea.io/collection/hoodfi",
+          "chain": "Robinhood Chain",
+          "relationship": "Primary collection"
+        }
+      ],
+      "assets": [
+        {
+          "kind": "cover",
+          "filename": "hoodfi-cover.webp",
+          "bytes": 38696,
+          "sha256": "f01478cc8d6a6cfd4768db4754cf346aae18d0fe7ec836997e18669b0a0b86ae",
+          "url": "https://i2c.seadn.io/collection/hoodfi/image_type_hero_desktop/b2a00998dc7adb515d70d3ce354852/30b2a00998dc7adb515d70d3ce354852.png?w=2000",
+          "width": 1600,
+          "height": 534,
+          "format": "webp",
+          "publicPath": "/projects/hoodfi-cover.webp"
+        },
+        {
+          "kind": "logo",
+          "filename": "hoodfi-logo.webp",
+          "bytes": 11968,
+          "sha256": "bb7effe14052c48c12e2deab07f8eb503027db4db174e99fd877f4a97d149bce",
+          "url": "https://i2c.seadn.io/collection/hoodfi/image_type_logo/91c644b73484d1333186bb3a441262/b891c644b73484d1333186bb3a441262.jpeg",
+          "width": 500,
+          "height": 500,
+          "format": "webp",
+          "publicPath": "/projects/hoodfi-logo.webp"
+        }
+      ],
+      "notes": [
+        "OpenSea collection HTML confirms HoodFi Names, Robinhood Chain, the official www.hoodfi.name website, @hoodfieth, and official logo/cover.",
+        "Official website links its name lookup, website builder, and source repository. Name-lookup page and builder page retrieved successfully.",
+        "OpenSea description includes older yearly pricing. Current official site describes lifetime names; the directory description deliberately omits changing pricing and permanent availability claims. No wallet connections, minting, or publishing tested."
+      ],
+      "collectionHtmlSha256": "7207d09ffa6af6239cf73e7d2f284095d2887e184132ead5f7801bf4b7b83cf7",
+      "listedAt": "2026-11-24T16:00:00.000Z"
+    }
+  ],
+  "coverUpgrades": [
+    {
+      "projectId": "1kiss",
+      "recommendedRole": "cover",
+      "sourceUrl": "https://i2c.seadn.io/collection/1kissrh/image_type_hero_desktop/ef9faf66ace46151327eab453081e1/a5ef9faf66ace46151327eab453081e1.png?w=2000",
+      "originPage": "https://opensea.io/collection/1kiss",
+      "width": 2000,
+      "height": 667,
+      "format": "png",
+      "evidence": "Reconfirmed from the live primary collection page image link (hero desktop).",
+      "presentation": "Use complete wordmark at full available width, contain with matching #5A021B background. Avoid square-avatar treatment or cover cropping; the whole text spans nearly full banner width.",
+      "notes": [
+        "This is the official lavender wordmark on burgundy, not an invented replacement graphic.",
+        "Existing high-resolution square lip-print artwork should remain available as the project logo, not the primary wide cover."
+      ],
+      "bytes": 236029,
+      "sha256": "81a8a0da5b80654d0d17c21041afa9c2bbe9d6bfb885d32aaddd19319df72f82",
+      "retrievedOn": "2026-11-24",
+      "selectedForRelease": true,
+      "publicPath": "/projects/1kiss-banner-v3.png"
+    },
+    {
+      "projectId": "1kiss",
+      "recommendedRole": "optional transparent wordmark",
+      "sourceUrl": "https://images.squarespace-cdn.com/content/v1/62828af051c86c2eeb5a3adb/dd5ac367-ee8d-4751-bd61-b41526596bd7/BrowserPreview_tmp.png",
+      "originPage": "https://www.jessicayatrofsky.com/1kiss",
+      "width": 2500,
+      "height": 958,
+      "format": "png",
+      "evidence": "Linked from the live creator website HTML, retrieved HTTP 200.",
+      "presentation": "Transparent lavender wordmark can be placed over the existing official burgundy palette through page CSS.",
+      "notes": [
+        "Top-left pixel alpha=0; white shown by some image viewers is transparency.",
+        "The other creator-site for-website.png contains coming-soon text and should not be used."
+      ],
+      "bytes": 99323,
+      "sha256": "5274f5b97f8a60290f6d1c20b336c26b4c1e2a3a37a81a562cc898573cea21e4",
+      "retrievedOn": "2026-11-24",
+      "selectedForRelease": false
+    },
+    {
+      "projectId": "animal-pharm-71884901",
+      "recommendedRole": "cover",
+      "sourceUrl": "https://animalpharm.xyz/assets/header.png",
+      "originPage": "https://animalpharm.xyz/",
+      "width": 2400,
+      "height": 900,
+      "format": "png",
+      "evidence": "Official creator website HTML uses this exact file as video banner poster plus og:image and twitter:image; retrieved HTTP 200.",
+      "presentation": "Use the complete 8:3 composition, retaining ANIMAL PHARM across the top and the five animals. Prevent center-cover cropping of outer letters/characters. A static header avoids animated frame variation.",
+      "notes": [
+        "Pixel blocks are the intentional original art style; the high-resolution file should retain them, without AI smoothing.",
+        "Current repo cover is only 500x125 animated WebP with 24 frames despite the upstream .gif URL.",
+        "Official static header has more vertical composition and complete wordmark."
+      ],
+      "bytes": 43005,
+      "sha256": "20f37735b634621c048edef8e955ba34c927e4b862d9b13558b602987b64df96",
+      "retrievedOn": "2026-11-24",
+      "selectedForRelease": true,
+      "publicPath": "/projects/animal-pharm-banner-v3.png"
+    }
+  ]
+}

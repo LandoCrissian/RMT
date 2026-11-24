@@ -6,13 +6,13 @@ RMT is an independent discovery and launch hub for community projects, games, mu
 
 ## Community directory and builder ownership
 
-- Responsive discovery interface, category filters, and project destination pages. Whole project cards open their project home while bookmark and launch actions remain independent.
+- Responsive discovery interface with two-column phone cards, compact list view, eight-project pages, category filters, newest/name sorting, and project destination pages. Whole project cards open their project home while bookmark and launch actions remain independent.
 - Search across project names, initials, collections, experiences, and website addresses, with normalized spacing and punctuation, visible result counts, and an option to search beyond the current category or library.
 - Readable phone form controls, direct destination links, explicit new-tab/copy options, and a selectable-link fallback when the browser blocks clipboard access.
 - Account library stored in the hosted database and available after sign-in on another device. Guests can save on their current device and explicitly import those favorites when signed in.
 - Google and email/password sign-in, email verification, password recovery, and sign-out. Any valid email provider is supported. No ChatGPT account or wallet is required for ordinary users.
 - Home-screen web app manifest, icons, and a reconnect page. External games still need their own network connection.
-- Seventeen curated, unclaimed project homes, with creator-linked experiences, official artwork, collection groups, and shareable links.
+- Twenty curated project homes, with creator-linked experiences, official artwork, collection groups, and shareable links.
 - Builder applications saved to a real database, with pending, changes requested, approved, rejected, and suspended states.
 - Owner review queue with required ownership/link checks, revision guards, and recorded decisions.
 - Three new applications per account per 24 hours, HTTPS URL validation, duplicate checks, and a form honeypot. Manual review is the publication boundary; these measures do not eliminate every spam account.
@@ -24,6 +24,8 @@ RMT is an independent discovery and launch hub for community projects, games, mu
 - Authenticated tools for an owner's dot to read new review work and record which notices were acknowledged. Monitoring does not approve projects or change their publication state.
 
 The current Site audience is public. The GitHub repository is public. Curated listings are not partnerships, endorsements, ownership claims, or smart-contract audits.
+
+See [compact discovery](docs/discovery.md) for browsing behavior, new project sources, and artwork updates.
 
 ## Development
 

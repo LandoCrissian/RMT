@@ -25,9 +25,14 @@ export function privateSubmission(row: SubmissionRow, includeAccount = false) {
   };
 }
 
+type PublicSubmissionRow = SubmissionRow & { first_approved_at?: number | null };
+
 /** Explicit field projection: private application fields never reach the catalog. */
-export function publicProject(row: SubmissionRow): Project {
+export function publicProject(row: PublicSubmissionRow): Project {
   const initials = row.name.split(/\s+/).map(part => part[0]).join("").slice(0, 2).toUpperCase();
+  const approvedAt = typeof row.first_approved_at === 'number' && Number.isFinite(row.first_approved_at)
+    ? new Date(row.first_approved_at) : null;
+  const listedAt = approvedAt && Number.isFinite(approvedAt.getTime()) ? approvedAt.toISOString() : undefined;
   return {
     id: `community-${row.id}`, slug: `project-${row.id}`, name: row.name,
     tagline: row.summary, description: row.summary, category: row.category, stage: row.stage,
@@ -38,6 +43,7 @@ export function publicProject(row: SubmissionRow): Project {
       ...(row.x_profile ? [{label: "X", url: row.x_profile}] : []),
     ],
     initials, accent: "#c6ff42", cover: "community", claimed: true, source: "community",
+    ...(listedAt ? {listedAt} : {}),
   };
 }
 
@@ -107,7 +113,11 @@ function approvedDestinationLinks(edit:ProjectEditInput):Project['links'] {
 
 export async function catalog(db: D1Database) {
   const [rows,owners,overrides,artworkRows] = await Promise.all([
-    db.prepare("SELECT * FROM submissions WHERE status = 'approved' ORDER BY name COLLATE NOCASE LIMIT 500").all<SubmissionRow>(),
+    // The first publication date survives suspension/reapproval and owner edits.
+    // Application creation and last update dates do not describe joining RMT.
+    db.prepare(`SELECT s.*,
+      (SELECT MIN(r.created_at) FROM review_events r WHERE r.submission_id=s.id AND r.next_status='approved') AS first_approved_at
+      FROM submissions s WHERE s.status='approved' ORDER BY s.name COLLATE NOCASE LIMIT 500`).all<PublicSubmissionRow>(),
     db.prepare("SELECT project_id,status FROM project_owners").all<{project_id:string;status:string}>(),
     db.prepare("SELECT p.project_id,p.payload_json,p.revision FROM project_overrides p JOIN project_edits e ON e.id=p.edit_id AND e.status='approved'").all<{project_id:string;payload_json:string;revision:number}>(),
     db.prepare(`SELECT a.* FROM project_artwork a JOIN project_overrides p ON p.project_id=a.project_id

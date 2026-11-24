@@ -272,8 +272,10 @@ export const additionalProjects: Project[] = [
     ],
     "initials": "1",
     "accent": "#ff7fab",
-    "cover": "/projects/1kiss-v2.webp", "coverAspectRatio": 1,
+    "cover": "/projects/1kiss-banner-v3.png", "coverAspectRatio": 2.998500749625187,
     "coverFit": "contain",
+    "coverBackground": "#5a021b",
+    "logo": "/projects/1kiss-v2.webp",
     "claimed": false,
     "source": "curated",
     "sourceStatus": "confirmed"
@@ -447,8 +449,9 @@ export const additionalProjects: Project[] = [
     ],
     "initials": "AP",
     "accent": "#e4a3f8",
-    "cover": "/projects/animal-pharm-71884901.webp", "coverAspectRatio": 4,
-    "coverFit": "cover",
+    "cover": "/projects/animal-pharm-banner-v3.png", "coverAspectRatio": 2.6666666666666665,
+    "coverFit": "contain",
+    "coverBackground": "#08070d",
     "claimed": false,
     "source": "curated",
     "sourceStatus": "confirmed"
@@ -694,5 +697,161 @@ export const additionalProjects: Project[] = [
     "claimed": false,
     "source": "curated",
     "sourceStatus": "confirmed"
+  },
+  {
+    "id": "claystonkz",
+    "slug": "claystonkz",
+    "name": "Clay StonKz",
+    "tagline": "Made by hand. Collected onchain.",
+    "description": "Hand-sculpted clay characters by Brrrbon, photographed and layered into digital collectibles inspired by markets and meme culture.",
+    "category": "Community",
+    "website": "https://claystonkz.com/",
+    "launchUrl": "https://claystonkz.com/",
+    "launchLabel": "Explore Clay StonKz",
+    "links": [
+      {
+        "label": "Official website",
+        "url": "https://claystonkz.com/",
+        "type": "Website"
+      },
+      {
+        "label": "Brrrbon on X",
+        "url": "https://x.com/Brrrbon_",
+        "type": "Creator"
+      },
+      {
+        "label": "Discord community",
+        "url": "https://discord.gg/qhuJ3mVYqG",
+        "type": "Community"
+      }
+    ],
+    "initials": "CS",
+    "accent": "#b8ed0a",
+    "cover": "/projects/claystonkz-cover.webp",
+    "coverFit": "cover",
+    "coverAspectRatio": 2.5,
+    "collections": [
+      {
+        "name": "Clay StonKz",
+        "url": "https://opensea.io/collection/claystonkz",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      }
+    ],
+    "claimed": false,
+    "source": "curated",
+    "sourceStatus": "confirmed",
+    "logo": "/projects/claystonkz-logo.webp",
+    "coverBackground": "#c5f31a",
+    "listedAt": "2026-11-24T16:00:00.000Z"
+  },
+  {
+    "id": "stray-cucks",
+    "slug": "stray-cucks",
+    "name": "Stray Cucks",
+    "tagline": "Pull up a chair. Find your stray.",
+    "description": "Hand-drawn pixel chairs on Robinhood Chain, with a connected arcade and tools for exploring collections and mint allowlists.",
+    "category": "Games",
+    "website": "https://straycucks.com/",
+    "launchUrl": "https://straycucks.com/",
+    "launchLabel": "Explore Stray Cucks",
+    "links": [
+      {
+        "label": "Arcade",
+        "url": "https://straycucks.com/arcade/",
+        "type": "Games"
+      },
+      {
+        "label": "Mint and collection scanner",
+        "url": "https://allowlist.straycucks.com/",
+        "type": "Tool · some features for holders"
+      },
+      {
+        "label": "Official website",
+        "url": "https://straycucks.com/",
+        "type": "Website"
+      },
+      {
+        "label": "Creator on X",
+        "url": "https://x.com/thearsondragon",
+        "type": "Creator"
+      }
+    ],
+    "initials": "SC",
+    "accent": "#dfa1be",
+    "cover": "/projects/stray-cucks-cover.webp",
+    "coverFit": "cover",
+    "coverAspectRatio": 3.50109409190372,
+    "collections": [
+      {
+        "name": "Stray Cucks",
+        "url": "https://opensea.io/collection/stray-cucks",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      }
+    ],
+    "claimed": false,
+    "source": "curated",
+    "sourceStatus": "confirmed",
+    "logo": "/projects/stray-cucks-logo.webp",
+    "coverBackground": "#17131f",
+    "listedAt": "2026-11-24T16:00:00.000Z"
+  },
+  {
+    "id": "hoodfi",
+    "slug": "hoodfi",
+    "name": "HoodFi Names",
+    "tagline": "An easier name for your onchain identity.",
+    "description": "An ENS name service for Robinhood Chain, with tools to search names, manage identity records, and build a website.",
+    "category": "Tools",
+    "website": "https://www.hoodfi.name/",
+    "launchUrl": "https://www.hoodfi.name/",
+    "launchLabel": "Explore HoodFi Names",
+    "links": [
+      {
+        "label": "Look up a name",
+        "url": "https://www.hoodfi.name/search/",
+        "type": "Tool"
+      },
+      {
+        "label": "Build a website",
+        "url": "https://build.hoodfi.name/",
+        "type": "Website builder tool · name required"
+      },
+      {
+        "label": "Official website",
+        "url": "https://www.hoodfi.name/",
+        "type": "Website"
+      },
+      {
+        "label": "HoodFi on X",
+        "url": "https://x.com/hoodfieth",
+        "type": "Social"
+      },
+      {
+        "label": "Source code",
+        "url": "https://github.com/RWA-ID/hoodfi-eth",
+        "type": "Software"
+      }
+    ],
+    "initials": "HF",
+    "accent": "#d8f600",
+    "cover": "/projects/hoodfi-cover.webp",
+    "coverFit": "contain",
+    "coverAspectRatio": 2.9962546816479403,
+    "collections": [
+      {
+        "name": "HoodFi Names",
+        "url": "https://opensea.io/collection/hoodfi",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      }
+    ],
+    "claimed": false,
+    "source": "curated",
+    "sourceStatus": "confirmed",
+    "logo": "/projects/hoodfi-logo.webp",
+    "coverBackground": "#000000",
+    "listedAt": "2026-11-24T16:00:00.000Z"
   }
 ];

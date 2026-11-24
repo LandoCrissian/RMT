@@ -5,7 +5,7 @@ import { seedProjects, type Project, type PublicArtwork } from './catalog';
 export const RMT_PUBLIC_ORIGIN = 'https://rmtlaunch.fun';
 export const SOCIAL_IMAGE_WIDTH = 1200;
 export const SOCIAL_IMAGE_HEIGHT = 630;
-export const SOCIAL_IMAGE_VERSION = 'v2';
+export const SOCIAL_IMAGE_VERSION = 'v3';
 type ShareArtworkProject = Pick<Project, 'id' | 'slug'> & Partial<Pick<Project, 'name' | 'cover' | 'artwork'>>;
 
 function approvedImage(image?: PublicArtwork) {
