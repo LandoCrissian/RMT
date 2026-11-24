@@ -37,16 +37,8 @@ type OwnedProject = { project: Project; revision: number; editableLinks: Project
 type EditForm = ArtworkSelection & { summary: string; category: Project["category"]; stage: ProjectStage; website: string; launchUrl: string; xProfile: string; links: Project["links"] };
 type ManageProjectsProps = StudioProps & { onAddProject?: () => void };
 
-function xProfile(project: Project) {
-  const link = project.links.find(item => {
-    try { const url = new URL(item.url); return ["x.com", "www.x.com", "twitter.com", "www.twitter.com"].includes(url.hostname) && /^\/[A-Za-z0-9_]{1,15}\/?$/.test(url.pathname); }
-    catch { return false; }
-  });
-  return link?.url ?? "";
-}
-
 function editableProject({ project, editableLinks,logoAssetId,bannerAssetId }: OwnedProject): EditForm {
-  return { summary: project.description, category: project.category, stage: project.stage ?? "building", website: project.website ?? "", launchUrl: project.launchUrl ?? "", xProfile: xProfile(project), links: editableLinks.map(link => ({ ...link })), logoAssetId:logoAssetId===undefined?project.artwork?.logo?.id??null:logoAssetId, bannerAssetId:bannerAssetId===undefined?project.artwork?.banner?.id??null:bannerAssetId };
+  return { summary: project.description, category: project.category, stage: project.stage ?? "building", website: project.website ?? "", launchUrl: project.launchUrl ?? "", xProfile: project.officialXProfile ?? "", links: editableLinks.map(link => ({ ...link })), logoAssetId:logoAssetId===undefined?project.artwork?.logo?.id??null:logoAssetId, bannerAssetId:bannerAssetId===undefined?project.artwork?.banner?.id??null:bannerAssetId };
 }
 
 export default function ManageProjects(props: ManageProjectsProps) {

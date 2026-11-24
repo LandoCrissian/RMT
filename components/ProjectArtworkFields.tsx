@@ -91,7 +91,7 @@ export default function ProjectArtworkFields({projectId,currentArtwork,value,onC
     }
   }
 
-  return <section className="pa-fields" aria-labelledby="project-artwork-heading">
+  return <section className="pa-fields" aria-busy={Boolean(busy)} aria-labelledby="project-artwork-heading">
     <div className="st-section-heading st-section-divider"><div><h2 id="project-artwork-heading">Make it yours</h2></div><span className="pa-free">Free · reviewed before publishing</span></div>
     <p className="st-panel-intro">Give your project a clear identity. Your approved banner appears on your RMT page and on new links shared to 𝕏. Uploading saves a private preview; submit your changes below to send it for review.</p>
     <div className="pa-grid">{(['logo','banner'] as const).map(kind => {

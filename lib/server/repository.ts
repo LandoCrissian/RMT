@@ -38,6 +38,7 @@ export function publicProject(row: PublicSubmissionRow): Project {
   return {
     id: `community-${row.id}`, slug: `project-${row.id}`, name: row.name,
     tagline: row.summary, description: row.summary, category: row.category, stage: row.stage,
+    officialXProfile: row.x_profile || undefined,
     website: row.website, launchUrl: row.launch_url, launchLabel: "Open project",
     links: [
       ...(row.website ? [{label: "Website", url: row.website}] : []),
@@ -161,7 +162,7 @@ async function buildCatalog(db:D1Database,includeHidden=false) {
       claimed:ownerStatus?ownerStatus==='active':project.claimed,
       ...(control?.featured!==null&&control?.featured!==undefined?{featured:control.featured===1}:{}),
       ...(edit?{tagline:edit.summary,description:edit.summary,category:edit.category,stage:edit.stage,
-        website:edit.website,launchUrl:edit.launchUrl,links:approvedDestinationLinks(edit)}:{}),
+        officialXProfile:edit.xProfile || undefined,website:edit.website,launchUrl:edit.launchUrl,links:approvedDestinationLinks(edit)}:{}),
       ...(artwork?{artwork,cover:banner?.url||logo!.url,coverFit:banner?'cover' as const:'contain' as const,
         coverAspectRatio:banner?banner.width/banner.height:logo!.width/logo!.height}:{})};
   });

@@ -1,0 +1,135 @@
+[
+  {
+    "project": "vamps",
+    "destination": "https://games.vamps.wtf/",
+    "image": "/experiences/vamps-shadow-crypt.webp",
+    "alt": "A VAMP runs from its purple shadow toward a blood seal in a gothic crypt.",
+    "source": "https://games.vamps.wtf/assets/og-shadow-crypt.jpg"
+  },
+  {
+    "project": "vamps",
+    "destination": "https://tenvek.com/",
+    "image": "/experiences/vamps-tenvek.webp",
+    "alt": "The Smart Matte panel in Tenvek with click points on a VAMPS character.",
+    "source": "https://tenvek.com/img/shots/04-smart-matte-vamps-960.webp"
+  },
+  {
+    "project": "vamps",
+    "destination": "https://play.vamps.wtf/studio",
+    "image": "/experiences/vamps-studio.webp",
+    "alt": "VAMPS Studio showing its avatar stage, face tracking controls and camera-off monitor.",
+    "source": "https://play.vamps.wtf/studio"
+  },
+  {
+    "project": "animal-pharm-71884901",
+    "destination": "https://animalpharm.xyz/mixer/",
+    "image": "/experiences/animal-pharm-71884901-holder-trait-mixer.webp",
+    "alt": "Holder Trait Mixer public interface",
+    "source": "https://animalpharm.xyz/mixer/"
+  },
+  {
+    "project": "suited-apes",
+    "destination": "https://suitedapes.com/jungletree/",
+    "image": "/experiences/suited-apes-jungletree.webp",
+    "alt": "JungleTree public interface",
+    "source": "https://suitedapes.com/jungletree/"
+  },
+  {
+    "project": "cash-grab-rh",
+    "destination": "https://streethood.media/cashgrab/",
+    "image": "/experiences/cash-grab-rh-vortex-run.webp",
+    "alt": "Vortex Run public interface",
+    "source": "https://streethood.media/cashgrab/"
+  },
+  {
+    "project": "companions-by-wfit",
+    "destination": "https://wfitapp.xyz/",
+    "image": "/experiences/companions-by-wfit-wfit.webp",
+    "alt": "WFit public interface",
+    "source": "https://wfitapp.xyz/"
+  },
+  {
+    "project": "rillaz-n-da-hood-apex-collection",
+    "destination": "https://rillazndahood.xyz/chess",
+    "image": "/experiences/rillaz-n-da-hood-apex-collection-chess-club.webp",
+    "alt": "Chess Club public interface",
+    "source": "https://rillazndahood.xyz/chess"
+  },
+  {
+    "project": "rillaz-n-da-hood-apex-collection",
+    "destination": "https://dominos.rillazndahood.xyz",
+    "image": "/experiences/rillaz-n-da-hood-apex-collection-rillaz-domino-club.webp",
+    "alt": "Rillaz Domino Club public interface",
+    "source": "https://dominos.rillazndahood.xyz"
+  },
+  {
+    "project": "rillaz-n-da-hood-apex-collection",
+    "destination": "https://spades.rillazndahood.xyz",
+    "image": "/experiences/rillaz-n-da-hood-apex-collection-rillaz-spades-club.webp",
+    "alt": "Rillaz Spades Club public interface",
+    "source": "https://spades.rillazndahood.xyz"
+  },
+  {
+    "project": "rillaz-n-da-hood-apex-collection",
+    "destination": "https://craps.rillazndahood.xyz",
+    "image": "/experiences/rillaz-n-da-hood-apex-collection-rillaz-craps-club.webp",
+    "alt": "Rillaz Craps Club public interface",
+    "source": "https://craps.rillazndahood.xyz"
+  },
+  {
+    "project": "rillaz-n-da-hood-apex-collection",
+    "destination": "https://terminal.rillazndahood.xyz/",
+    "image": "/experiences/rillaz-n-da-hood-apex-collection-hood-terminal.webp",
+    "alt": "Hood Terminal public interface",
+    "source": "https://terminal.rillazndahood.xyz/"
+  },
+  {
+    "project": "rillaz-n-da-hood-apex-collection",
+    "destination": "https://rillazndahood.xyz/office",
+    "image": "/experiences/rillaz-n-da-hood-apex-collection-gorilla-scouts.webp",
+    "alt": "Gorilla Scouts public interface",
+    "source": "https://rillazndahood.xyz/office"
+  },
+  {
+    "project": "stray-cucks",
+    "destination": "https://straycucks.com/arcade/",
+    "image": "/experiences/stray-cucks-arcade.webp",
+    "alt": "Arcade public interface",
+    "source": "https://straycucks.com/arcade/"
+  },
+  {
+    "project": "stray-cucks",
+    "destination": "https://allowlist.straycucks.com/",
+    "image": "/experiences/stray-cucks-mint-and-collection-scanner.webp",
+    "alt": "Mint and collection scanner public interface",
+    "source": "https://allowlist.straycucks.com/"
+  },
+  {
+    "project": "hoodfi",
+    "destination": "https://www.hoodfi.name/search/",
+    "image": "/experiences/hoodfi-look-up-a-name.webp",
+    "alt": "Look up a name public interface",
+    "source": "https://www.hoodfi.name/search/"
+  },
+  {
+    "project": "hoodfi",
+    "destination": "https://build.hoodfi.name/",
+    "image": "/experiences/hoodfi-build-a-website.webp",
+    "alt": "Build a website public interface",
+    "source": "https://build.hoodfi.name/"
+  },
+  {
+    "project": "tmo-initiates",
+    "destination": "https://portal.mallardorder.io/",
+    "image": "/experiences/tmo-sanctum-poster.webp",
+    "alt": "A hooded statue above the Sanctum altar and its green braziers.",
+    "source": "https://portal.mallardorder.io/assets/og/sanctum-og.jpg"
+  },
+  {
+    "project": "suited-apes",
+    "destination": "https://fightclub.suitedapes.com/",
+    "image": "/projects/fight-club.jpg",
+    "alt": "Ape Fight Club game artwork",
+    "source": "https://fightclub.suitedapes.com/"
+  }
+]

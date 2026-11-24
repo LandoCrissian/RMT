@@ -115,3 +115,28 @@ test('all served social images are actual 1200×630 JPEGs below 5 MB', async () 
     assert.ok(bytes.length < 5_000_000, path);
   }
 });
+test('X drafts mention only the reviewed project profile and keep the editable canonical link', () => {
+  const text = project => new URL(api.projectXIntentUrl(project)).searchParams.get('text');
+  const flagship = api.seedProjects.find(project => project.id === 'vamps');
+  assert.equal(text(flagship), 'Explore VAMPS (@VampsOnChain) on RMT.');
+  const creatorOnly = api.seedProjects.find(project => project.id === 'stray-cucks');
+  assert.doesNotMatch(text(creatorOnly), /@/);
+  for (const url of ['', 'https://x.com/intent/post', 'https://x.com/example/status/123', 'https://elsewhere.dev/example']) {
+    assert.doesNotMatch(text({...flagship, officialXProfile: url}), /@/);
+  }
+  assert.match(text({...flagship, officialXProfile: 'https://twitter.com/Approved_Name'}), /\(@Approved_Name\)/);
+});
+
+test('each destination preview belongs to its listed project and a local decodable image', async () => {
+  const media = JSON.parse(await readFile(new URL('../lib/experience-artwork.json', import.meta.url), 'utf8'));
+  const unique = new Set();
+  for (const {project, destination, source, image, alt} of media) {
+    const listing = api.seedProjects.find(item => item.id === project);
+    assert.ok(listing?.links.some(link => link.url === destination), destination);
+    assert.ok(source.startsWith('https://') && alt);
+    assert.ok(!unique.has(project + destination));
+    unique.add(project + destination);
+    const metadata = await sharp(await readFile(new URL('../public' + image, import.meta.url))).metadata();
+    assert.ok(metadata.width > 0 && metadata.height > 0);
+  }
+});

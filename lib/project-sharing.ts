@@ -1,3 +1,4 @@
+import { optionalXProfile } from './submission-validation';
 import type { Metadata } from 'next';
 import { seedProjects, type Project, type PublicArtwork } from './catalog';
 
@@ -42,8 +43,17 @@ export function projectSocialImageUrl(project: ShareArtworkProject): string {
   return RMT_PUBLIC_ORIGIN + projectSocialImagePath(project);
 }
 
-export function projectXIntentUrl(project: Pick<Project, 'slug' | 'name'>): string {
-  const query = new URLSearchParams({text: `Explore ${project.name} on RMT.`, url: projectShareUrl(project)});
+export function projectXIntentUrl(project: Pick<Project, 'slug' | 'name' | 'officialXProfile'>): string {
+  let mention = '';
+  if (project.officialXProfile) {
+    try {
+      const url = optionalXProfile(project.officialXProfile);
+      if (url) mention = ' (@' + new URL(url).pathname.slice(1) + ')';
+    } catch {
+      // Older catalog records can contain a social destination other than a profile.
+    }
+  }
+  const query = new URLSearchParams({text: `Explore ${project.name}${mention} on RMT.`, url: projectShareUrl(project)});
   return 'https://x.com/intent/post?' + query.toString();
 }
 

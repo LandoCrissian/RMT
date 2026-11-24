@@ -15,8 +15,7 @@ export type ProjectListInput={q:string;visibility:'all'|'public'|'hidden'|'archi
 const projectIdPattern=/^[a-zA-Z0-9_-]{1,120}$/;
 export function checkedProjectId(id:string){if(!projectIdPattern.test(id))throw new InputError('Choose a valid project.');return id;}
 function revisionGuard(id:string,revision:number,listingRevision:number){return{sql:'COALESCE((SELECT revision FROM project_controls WHERE project_id=?),0)=? AND COALESCE((SELECT revision FROM project_overrides WHERE project_id=?),0)=?',args:[id,revision,id,listingRevision]};}
-function fallbackX(project:Project){return project.links.find(link=>{try{return ['x.com','twitter.com'].includes(new URL(link.url).hostname.replace(/^www\./,''));}catch{return false;}})?.url??'';}
-function projectContent(project:Project,edit?:ProjectEditInput):ControlProjectContent{return{name:project.name,summary:project.description,category:project.category,stage:project.stage??'building',website:project.website,launchUrl:project.launchUrl,xProfile:edit?.xProfile??fallbackX(project),links:edit?.links??project.links};}
+function projectContent(project:Project,edit?:ProjectEditInput):ControlProjectContent{return{name:project.name,summary:project.description,category:project.category,stage:project.stage??'building',website:project.website,launchUrl:project.launchUrl,xProfile:edit?.xProfile??project.officialXProfile??'',links:edit?.links??project.links};}
 async function projectRows(db:D1Database):Promise<ControlProject[]>{
  const [directory,owners]=await Promise.all([administrativeCatalog(db),db.prepare('SELECT project_id,user_id,status,revision FROM project_owners').all<OwnerRow&{project_id:string}>()]);
  const controls=new Map(directory.controls.map(row=>[row.project_id,row])),overrides=new Map(directory.overrides.map(row=>[row.project_id,row]));

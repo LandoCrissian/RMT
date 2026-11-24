@@ -264,3 +264,8 @@ body.project-is-open{overflow:hidden}
   .showcase-cover .project-art.art-contained:not(.art-panoramic) .art-foreground{padding:60px 18px 155px;object-position:center}
   .showcase-cover .project-art.art-panoramic .art-foreground{padding:66px 12px 140px;object-position:center}
 }
+.unavailable-page { min-height: 100dvh; display: grid; place-items: center; padding: 20px; background: #101316; }
+.unavailable-page section { position: relative; isolation: isolate; overflow: hidden; width: min(100%, 480px); padding: clamp(24px,5vw,40px); border: 1px solid #363f45; border-radius: 12px; background: #161b1f; }
+.unavailable-page h1 { margin: 24px 0 12px; font-size: clamp(27px,5vw,36px); line-height: 1.12; letter-spacing: -.04em; }
+.unavailable-page p { margin-bottom: 24px; color: #afb8bb; line-height: 1.6; }
+.unavailable-mark { position: absolute; right: -14px; top: -10px; color: #ffffff09; z-index: -1; }

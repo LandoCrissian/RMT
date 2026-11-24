@@ -11,27 +11,36 @@ import { type Project } from '@/lib/catalog';
 import { normalizeProjectQuery, searchProjects } from '@/lib/project-search';
 import { discoverProjects, recentProjects, type DirectorySort } from '@/lib/project-discovery';
 import { projectPath, projectShareUrl, projectSocialImagePath, projectXIntentUrl } from '@/lib/project-sharing';
-import Studio from './Studio';
+import thumbnails from '@/lib/project-thumbnails.json';
+import dynamic from 'next/dynamic';
+import experienceArtwork from '@/lib/experience-artwork.json';
 import { FirebaseSessionBridge } from './FirebaseAccount';
-import ReviewQueue from './ReviewQueue';
-import ClaimProject from './ClaimProject';
 import Account, { LibrarySyncStatus, signInHref } from './Account';
 import { useProjectLibrary, type SessionStatus } from './use-project-library';
-import { LinkOptions, ManualCopyDialog } from './LinkOptions';
+import { DestinationDialog, type DestinationLink, LinkOptions, ManualCopyDialog } from './LinkOptions';
 import ProjectUpdates from './ProjectUpdates';
 import ActivityFeed from './ActivityFeed';
-import ProfileEditor from './ProfileEditor';
 import PublicProfilePage from './PublicProfilePage';
 import ProjectBuilders from './ProjectBuilders';
 import {PROFILE_HANDLE_PATTERN, type PublicProfile} from '@/lib/profiles';
 import { stageLabel, type StudioSession } from './studio-shared';
-import ControlCenter from './ControlCenter';
 import {useSiteSettings} from './use-site-settings';
 import {recordSiteMetric} from '@/lib/client/site-metrics';
 import type {PublicSiteSettings} from '@/lib/control-settings';
 import './site-status.css';
 import './discovery.css';
 import './navigation.css';
+import './platform.css';
+
+function WorkspaceLoading() {
+  return <p className="workspace-loading" role="status"><LoaderCircle size={18} className="rmt-spin" /> Opening workspace…</p>;
+}
+
+const ControlCenter = dynamic(() => import('./ControlCenter'), {loading: WorkspaceLoading});
+const Studio = dynamic(() => import('./Studio'), {loading: WorkspaceLoading});
+const ReviewQueue = dynamic(() => import('./ReviewQueue'), {loading: WorkspaceLoading});
+const ClaimProject = dynamic(() => import('./ClaimProject'), {loading: WorkspaceLoading});
+const ProfileEditor = dynamic(() => import('./ProfileEditor'), {loading: WorkspaceLoading});
 
 type Section = 'discover' | 'activity' | 'library' | 'games' | 'music' | 'tools' | 'studio' | 'review' | 'claim' | 'account' | 'profile' | 'member' | 'control';
 type Session = StudioSession;
@@ -54,10 +63,11 @@ const navItems = [
 
 function domain(url: string) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } }
 
-function Cover({ project, className = '', thumbnail = false }: { project: Project; className?: string; thumbnail?: boolean }) {
+function Cover({ project, className = '', thumbnail = false, priority = false }: { project: Project; className?: string; thumbnail?: boolean; priority?: boolean }) {
   const [failed, setFailed] = useState(false);
   const logo = thumbnail ? project.artwork?.logo?.url || project.logo : undefined;
-  const source = logo || project.cover;
+  const original = logo || project.cover;
+  const source = priority || className === 'hero-art' ? original : (thumbnails as Record<string, string>)[original] || original;
   useEffect(() => { setFailed(false); }, [source]);
   // Uploaded artwork has its own composition; curated styling belongs only to the original asset.
   const approvedCover = source.startsWith('/media/project-artwork/') || source.startsWith('/media/control-project-artwork/');
@@ -66,9 +76,17 @@ function Cover({ project, className = '', thumbnail = false }: { project: Projec
   const complete = !!logo || project.coverFit === 'contain' || panoramic;
   return <div className={'project-art art-' + (approvedCover ? 'owner-upload' : logo ? 'thumbnail' : project.slug) + (complete ? ' art-contained' : '') + (panoramic ? ' art-panoramic' : '') + (coverBackground ? ' art-branded' : '') + ' ' + className} style={{ '--accent': project.accent, '--art-background': coverBackground } as React.CSSProperties}>
     {source.startsWith('/') && !failed
-      ? <><span className="art-ambient" aria-hidden="true" /><img className="art-foreground" src={source} alt={project.name + ' project artwork'} onError={() => setFailed(true)} loading="lazy" decoding="async" /></>
+      ? <><span className="art-ambient" aria-hidden="true" /><img className="art-foreground" src={source} alt={project.name + ' project artwork'} onError={() => setFailed(true)} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : undefined} decoding="async" /></>
       : <span className="art-monogram">{project.initials}</span>}
   </div>;
+}
+
+function ExperienceSymbol({projectId, link}: {projectId: string; link: Project['links'][number]}) {
+  const art = experienceArtwork.find(item => item.project === projectId && item.destination === link.url);
+  const Icon = /game/i.test(link.type || '') ? Gamepad2 : /music|audio/i.test(link.type || '') ? Music2 : Wrench;
+  return <span className="destination-symbol">{art
+    ? <img src={art.image} alt={art.alt} loading="lazy" decoding="async" width={108} height={61} />
+    : <Icon size={21} aria-hidden="true" />}</span>;
 }
 
 function ProjectLogo({project}: {project: Project}) {
@@ -97,6 +115,9 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('loading');
   const [toast, setToast] = useState('');
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [destination, setDestination] = useState<DestinationLink | null>(null);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
+  const navigation = useRef<HTMLElement>(null);
   const [installOpen, setInstallOpen] = useState(false);
   const [catalogError, setCatalogError] = useState(initialCatalogError);
   const site=useSiteSettings(initialSiteSettings);
@@ -153,6 +174,25 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 4200);
   }
+
+  useEffect(() => {
+    if (!mobileMenu) return;
+    const trigger = menuTrigger.current;
+    navigation.current?.querySelector<HTMLButtonElement>('.nav-active, .brand')?.focus();
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileMenu(false);
+    };
+    const onResize = () => {
+      if (!trigger?.getClientRects().length) setMobileMenu(false);
+    };
+    document.addEventListener('keydown', onEscape);
+    window.addEventListener('resize', onResize);
+    return () => {
+      document.removeEventListener('keydown', onEscape);
+      window.removeEventListener('resize', onResize);
+      trigger?.focus({preventScroll: true});
+    };
+  }, [mobileMenu]);
 
   function go(next: Section) {
     setSection(next); setMemberHandle(''); setQuery(''); setCategory('All projects'); setDirectoryPaging({ key: '', page: 1 }); setMobileMenu(false); setSelected(null); setClaimProject(null);
@@ -358,8 +398,9 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
     return new Set([...project.links.map(link => link.url), ...(project.collections ?? []).map(item => item.url)]).size;
   }
 
+  const openProjectId = selected?.id;
   useEffect(() => {
-    if (selected&&!maintenance) {
+    if (openProjectId && !maintenance) {
       if (!dialogRef.current?.open) dialogRef.current?.showModal();
       dialogRef.current?.scrollTo({ top: 0 });
       dialogRef.current?.querySelector<HTMLElement>('#project-title')?.focus({ preventScroll: true });
@@ -369,7 +410,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
       document.body.classList.remove('project-is-open');
     }
     return () => document.body.classList.remove('project-is-open');
-  }, [selected,maintenance]);
+  }, [openProjectId, maintenance]);
   useEffect(() => {
     if (installOpen) installRef.current?.showModal();
     else installRef.current?.close();
@@ -428,12 +469,15 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   const savedProjects = saved.map(id => projects.find(project => project.id === id)).filter(Boolean) as Project[];
   const unavailableSaved = saved.filter(id => !projects.some(project => project.id === id));
   const returnTo = selected ? projectPath(selected) + (showcaseTab === 'updates' ? '#updates' : '') : section === 'member' && memberHandle ? '/u/' + encodeURIComponent(memberHandle) : '/#' + (claimProject ? 'claim/' + encodeURIComponent(claimProject.id) : section);
-  const selectedExperiences = selected?.links.filter(link => /game|creative|software|tool|wallet|app directory|music|audio/i.test(link.type ?? '')) ?? [];
-  const selectedCommunity = selected?.links.filter(link => !selectedExperiences.includes(link)) ?? [];
+  const uniqueLinks = selected?.links.filter((link, index, links) => links.findIndex(other => other.url === link.url) === index) ?? [];
+  const selectedExperiences = uniqueLinks.filter(link => /game|creative|software|tool|wallet|app|music|audio|experience|missions|comics|gallery/i.test(link.type ?? ''));
+  const selectedCommunity = uniqueLinks.filter(link => !selectedExperiences.includes(link)
+    && !selected?.collections?.some(collection => collection.url === link.url)
+    && !(link.url === selected?.launchUrl && uniqueLinks.length === 1));
   const relatedProjects = selected ? projects.filter(project => project.id !== selected.id).sort((a, b) => Number(b.category === selected.category) - Number(a.category === selected.category) || a.name.localeCompare(b.name)).slice(0, 3) : [];
   const titles: Record<string, { eyebrow: string; title: string; description: string }> = {
     discover: { eyebrow: 'LESS SEARCHING. MORE EXPLORING.', title: 'Your ecosystem. All together.', description: 'Discover what communities are building. Keep your favorites one tap away.' },
-    library: { eyebrow: 'MAKE YOURSELF AT HOME', title: 'Your corner of the ecosystem.', description: 'Your projects, games, and tools. Ready when you are.' },
+    library: { eyebrow: 'MAKE YOURSELF AT HOME', title: 'Your library', description: 'Your projects, games, and tools. Ready when you are.' },
     games: { eyebrow: 'FIND YOUR NEXT SESSION', title: 'Press play. Meet a new world.', description: 'Games from independent communities, launched from one place.' },
     music: { eyebrow: 'A SPACE FOR CREATORS', title: 'Something worth listening to.', description: 'A home for music experiences from independent creators.' },
     tools: { eyebrow: 'BUILT FOR THE CURIOUS', title: 'Find your next favorite tool.', description: 'Creative software and useful apps from ecosystem builders.' },
@@ -447,12 +491,13 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   }
 
   return <div className="hub">
-    <a className="skip-link" href="#main-content">Skip to content</a>
-    <aside className={'sidebar ' + (mobileMenu ? 'sidebar-open' : '')} aria-label="Main navigation">
+    <a className="skip-link" inert={mobileMenu} href="#main-content">Skip to content</a>
+    <aside id="main-navigation" ref={navigation} className={'sidebar ' + (mobileMenu ? 'sidebar-open' : '')} aria-label="Main navigation">
+      {mobileMenu && <button className="drawer-close" onClick={() => setMobileMenu(false)} aria-label="Close navigation"><X size={19} /></button>}
       <button className="brand" onClick={() => go('discover')} aria-label="RMT home">
         <img className="brand-icon" src="/icons/rmt-mark-v5.png" alt="" width="37" height="37" />
         <span className="brand-word">RMT<span className="brand-dot">.</span></span>
-        <span className="beta-tag">BETA</span>
+
       </button>
       <div className="nav-caption">YOUR SPACE</div>
       <nav>
@@ -469,14 +514,14 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
       {sessionStatus==='ready'&&session.isAdmin&&<button className={'nav-item '+(section==='control'?'nav-active':'')} onClick={()=>go('control')}><LayoutGrid size={19}/><span>Control Center</span></button>}
       <div className="sidebar-bottom">
         <div className="ecosystem-card"><span className="ecosystem-orbit">r</span><div><span>EXPLORING</span><strong>Robinhood ecosystem</strong></div><span className="status-dot" /></div>
-        <button className="install-nav" onClick={install}><ArrowDownToLine size={17} /> Add RMT to your phone</button>
-        <div className="sidebar-foot"><span>Independent. Community built.</span><span>v0.5</span></div>
+        <button className="install-nav" onClick={() => {setMobileMenu(false); void install();}}><ArrowDownToLine size={17} /> Add RMT to your phone</button>
+        <div className="sidebar-foot"><span>Independent. Community built.</span></div>
       </div>
     </aside>
-    {mobileMenu && <button className="sidebar-scrim" aria-label="Close menu" onClick={() => setMobileMenu(false)} />}
-    <div className="workspace">
+    {mobileMenu && <button className="sidebar-scrim" aria-label="Close menu" tabIndex={-1} onClick={() => setMobileMenu(false)} />}
+    <div className="workspace" inert={mobileMenu}>
       <header className="topbar">
-        <div className="mobile-brand"><button className="icon-button" onClick={() => setMobileMenu(!mobileMenu)} aria-label="Open navigation"><Menu size={21} /></button><button className="mobile-rmt-home" onClick={() => go('discover')} aria-label="RMT home"><img src="/icons/rmt-mark-v5.png" alt="" width="29" height="29" /><span className="mobile-rmt-word">RMT<span>.</span></span></button></div>
+        <div className="mobile-brand"><button ref={menuTrigger} aria-expanded={mobileMenu} aria-controls="main-navigation" className="icon-button" onClick={() => setMobileMenu(!mobileMenu)} aria-label="Open navigation"><Menu size={21} /></button><button className="mobile-rmt-home" onClick={() => go('discover')} aria-label="RMT home"><img src="/icons/rmt-mark-v5.png" alt="" width="29" height="29" /><span className="mobile-rmt-word">RMT<span>.</span></span></button></div>
         <div className="search-box" role="search"><Search size={18} aria-hidden="true" /><label htmlFor="project-search" className="sr-only">Search projects and experiences</label><input id="project-search" type="search" ref={searchRef} value={query} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="search" onChange={event => { const value = event.target.value; if (!isDirectory) go('discover'); setQuery(value); }} placeholder="Search projects, games, tools…" /><kbd>/</kbd>{query && <button type="button" className="search-clear" aria-label="Clear search" onClick={() => { setQuery(''); searchRef.current?.focus(); }}><X size={15} /></button>}</div>
         <div className="topbar-actions"><button className="button button-small button-outline submit-project-topbar" onClick={() => go('studio')} aria-label="Submit a project"><Plus size={16} /><span className="submit-label">Submit a project</span></button>{sessionStatus === 'loading' ? <span className="topbar-account-loading" role="status" aria-label="Checking your account"><LoaderCircle className="rmt-spin" size={17} /></span> : session.authenticated || sessionStatus === 'error' ? <button className="topbar-account" onClick={() => go('account')} aria-label="Open your RMT account" title={session.displayName || 'My account'}><span className="topbar-account-avatar"><UserRound size={14} /></span><span>{session.displayName?.split(' ')[0] || 'Account'}</span></button> : <a className="topbar-signin" href={signInHref(returnTo)} target="_top"><UserRound size={15} /> Sign in</a>}</div>
       </header>
@@ -495,7 +540,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
           {section==='discover'&&!hasSearch&&category==='All projects'&&featuredProjects.length>1&&<div className='featured-switches' aria-label='Featured projects'>{featuredProjects.map(project=><button key={project.id} aria-pressed={feature?.id===project.id} onClick={()=>setFeatureChoice(project.id)}>{project.name}</button>)}</div>}
           {section === 'discover' && !hasSearch && category === 'All projects' && feature && <section className="feature-layout discovery-feature" aria-label="Featured project and recent additions">
             <div className="hero-card">
-              <Cover project={feature} className="hero-art" />
+              <Cover project={feature} priority={!selected} className="hero-art" />
               <div className="hero-shade" />
               <div className="hero-content"><span className="feature-tag"><Sparkles size={13} /> FROM THE DIRECTORY</span><div className="hero-brand">{feature.name}<span>{feature.id==='vamps'?'AFTER HOURS':feature.category.toUpperCase()}</span></div><h2>{feature.id==='vamps'?<>Enter the<br/>after hours.</>:<>Meet your next<br/>favorite.</>}</h2><p>{feature.id==='vamps'?'Games. Creative tools. A whole community to discover.':feature.tagline}</p><div className="hero-buttons"><button type="button" className="button button-lime hero-project-trigger" onClick={() => openProject(feature)} aria-haspopup="dialog">Explore {feature.name} <ArrowUpRight size={17} /></button><button className={'button hero-save ' + (saved.includes(feature.id) ? 'is-saved' : '')} disabled={!library.canSave} onClick={() => void toggleSave(feature)} aria-label={saved.includes(feature.id) ? 'Remove '+feature.name+' from library' : 'Save '+feature.name+' to library'}>{saved.includes(feature.id) ? <Check size={19} /> : <Plus size={19} />}</button></div></div>
               <div className="hero-bottom"><span><span className="tiny-square" /> {feature.category}</span><span>CURATED PICK · NOT SPONSORED</span></div>
@@ -509,8 +554,8 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
           {section === 'discover' && !hasSearch && category === 'All projects' && <section className="quick-return" aria-label="Your saved projects"><span className="quick-return-label"><Bookmark size={16} />Your shortcuts</span><div className="quick-return-projects">{savedProjects.slice(0, 4).map(project => <button key={project.id} onClick={() => openProject(project)} aria-haspopup="dialog">{project.name}<ArrowUpRight size={12} /></button>)}{!savedProjects.length && <span>Save a project to keep it one tap away.</span>}</div><button className="quick-return-library" onClick={() => go('library')}>My library <ArrowRight size={14} /></button></section>}
           {section === 'library' && <>
             {!hasSearch && <section className="library-home" aria-label="Your personal launchpad">
-              <div className="library-home-header"><div className="library-home-heading"><span className="library-home-icon"><Library size={25} /></span><div><span className="account-kicker">YOUR PERSONAL LAUNCHPAD</span><h2>Right where you left them.</h2><p>{library.status === 'ready' ? savedProjects.length + (savedProjects.length === 1 ? ' project ready to explore.' : ' projects ready to explore.') : library.status === 'loading' ? 'Your favorites are on their way.' : 'Reconnect to see your saved projects.'}</p></div></div><div className="library-home-tools"><LibrarySyncStatus library={library} />{library.isCloud && <button className="library-refresh" disabled={library.busy || library.status === 'loading'} onClick={() => library.status === 'error' ? void refreshSession() : void library.refresh()} aria-label="Refresh your account library" title="Refresh your account library"><RefreshCw size={13} /></button>}</div></div>
-              {savedProjects.length > 0 && <div className="library-launches">{savedProjects.slice(0, 4).map(project => <div className="library-launch-entry" key={project.id}><button type="button" className="library-launch" onClick={() => openProject(project)} aria-label={'Explore ' + project.name} aria-haspopup="dialog"><div className="library-launch-art"><Cover project={project} /></div><div><strong>{project.name}</strong><small>View project · {domain(project.launchUrl)}</small></div><ArrowUpRight size={19} /></button><div className="library-launch-actions"><a className="library-direct-launch" href={project.launchUrl} target="_top" rel="noopener noreferrer" aria-label={'Launch ' + project.name + ' in this tab'}>{project.launchLabel} <ArrowUpRight size={13} /></a><LinkOptions href={project.launchUrl} label={project.name} onCopy={copyLink} /></div></div>)}</div>}
+              <div className="library-home-header"><div className="library-home-heading"><span className="library-home-icon"><Library size={25} /></span><div><h2>Quick launch</h2><p>{library.status === 'ready' ? savedProjects.length + (savedProjects.length === 1 ? ' project ready to explore.' : ' projects ready to explore.') : library.status === 'loading' ? 'Your favorites are on their way.' : 'Reconnect to see your saved projects.'}</p></div></div><div className="library-home-tools"><LibrarySyncStatus library={library} />{library.isCloud && <button className="library-refresh" disabled={library.busy || library.status === 'loading'} onClick={() => library.status === 'error' ? void refreshSession() : void library.refresh()} aria-label="Refresh your account library" title="Refresh your account library"><RefreshCw size={13} /></button>}</div></div>
+              {savedProjects.length > 0 && <div className="library-launches">{savedProjects.slice(0, 4).map(project => <div className="library-launch-entry" key={project.id}><button type="button" className="library-launch" onClick={() => openProject(project)} aria-label={'Explore ' + project.name} aria-haspopup="dialog"><div className="library-launch-art"><Cover project={project} /></div><div><strong>{project.name}</strong><small>View project · {domain(project.launchUrl)}</small></div><ArrowUpRight size={19} /></button><div className="library-launch-actions"><a className="library-direct-launch" href={project.launchUrl} target="_top" rel="noopener noreferrer" aria-label={'Launch ' + project.name + ' in this tab'}>{project.launchLabel} <ArrowUpRight size={13} /></a><LinkOptions href={project.launchUrl} label={project.name} onOpen={setDestination} /></div></div>)}</div>}
               {!session.authenticated && sessionStatus === 'ready' && <div className="library-account-prompt"><p>A new phone shouldn’t mean starting over. Sign in to save your library with your account.</p><a className="text-link" href={signInHref('/#library')} target="_top">Take it with you <ArrowRight size={14} /></a></div>}
             </section>}
             {!hasSearch && library.pendingImportCount > 0 && <section className="library-import" aria-label="Bring device favorites into your account"><div><h3>{library.pendingImportCount} {library.pendingImportCount === 1 ? 'favorite is' : 'favorites are'} waiting on this device.</h3><p>Choose to add these browser favorites to this account. Your existing account library stays in place.</p></div><div className="library-import-actions"><button className="button button-lime" disabled={library.busy} onClick={() => void importDeviceLibrary()}>{library.busy ? <LoaderCircle size={14} className="rmt-spin" /> : <Cloud size={14} />} Add to my account</button><button disabled={library.busy} onClick={library.dismissImport}>Later</button></div></section>}
@@ -519,7 +564,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
             {!hasSearch && unavailableSaved.length > 0 && <details className="library-unavailable"><summary>{unavailableSaved.length} saved {unavailableSaved.length === 1 ? 'project is' : 'projects are'} currently unavailable</summary><p>These projects are not in the current directory. Keep them for their return, or remove a saved reference below.</p><ul>{unavailableSaved.map(id => <li key={id}><span>Unavailable project <small>{id}</small></span><button disabled={!library.canSave} onClick={() => void removeUnavailable(id)} aria-label={'Remove unavailable saved project ' + id}>Remove <X size={12} /></button></li>)}</ul></details>}
           </>}
           <section ref={directoryRef} className="directory-section discovery-directory" aria-labelledby="directory-heading">
-            <div className="section-heading"><div><DirectoryHeading id="directory-heading" className="directory-heading" tabIndex={-1}>{hasSearch ? 'Search results' : section === 'library' ? 'Saved by you' : section === 'discover' ? 'Explore the ecosystem' : section === 'games' ? 'Find your next game' : section === 'music' ? 'Music experiences' : 'Tools & creative apps'}<span className="count-pill">{page.total}</span></DirectoryHeading>{!hasSearch && <p>{section === 'library' ? (library.status !== 'ready' ? 'Your library will appear when the connection is checked.' : library.isCloud ? 'Your favorites are connected to your RMT account.' : library.storageAvailable ? 'Favorites saved while signed out stay on this device.' : 'Browser storage is unavailable. Favorites last for this visit.') : 'Find your people. Open something new.'}</p>}</div></div>
+            <div className="section-heading"><div><DirectoryHeading id="directory-heading" className="directory-heading" tabIndex={-1}>{hasSearch ? 'Search results' : section === 'library' ? 'Saved by you' : section === 'discover' ? 'Project directory' : section === 'games' ? 'Find your next game' : section === 'music' ? 'Music experiences' : 'Tools & creative apps'}<span className="count-pill">{page.total}</span></DirectoryHeading>{!hasSearch && <p>{section === 'library' ? (library.status !== 'ready' ? 'Your library will appear when the connection is checked.' : library.isCloud ? 'Your favorites are connected to your RMT account.' : library.storageAvailable ? 'Favorites saved while signed out stay on this device.' : 'Browser storage is unavailable. Favorites last for this visit.') : 'Find your people. Open something new.'}</p>}</div></div>
             <div className="browse-toolbar">
               {['discover', 'library'].includes(section) && <div className="category-tabs browse-categories" aria-label="Filter by category">{categories.map(item => <button key={item} className={category === item ? 'tab-active' : ''} onClick={() => setCategory(item)} aria-pressed={category === item}>{item === 'Games' && <Gamepad2 size={14} />}{item === 'Music' && <Music2 size={14} />}{item === 'Tools' && <Wrench size={14} />}{item}</button>)}</div>}
               <div className="browse-controls"><span className="browse-result-range" aria-live="polite" aria-atomic="true">{page.total ? `${page.start}–${page.end} of ${page.total} projects` : 'No projects in this view'}</span><div className="browse-options"><label className="browse-sort"><ListFilter size={14} /><span className="sr-only">Sort projects</span><select aria-label="Sort projects" value={directorySort} onChange={event => setDirectorySort(event.target.value as DirectorySort)}><option value="name">Name A–Z</option><option value="recent">Newest on RMT</option></select><ChevronDown size={13} /></label><div className="view-switch" role="group" aria-label="Project layout"><button type="button" className={directoryView === 'grid' ? 'view-active' : ''} aria-label="Grid view" aria-pressed={directoryView === 'grid'} onClick={() => changeDirectoryView('grid')}><Grid2X2 size={17} /></button><button type="button" className={directoryView === 'list' ? 'view-active' : ''} aria-label="List view" aria-pressed={directoryView === 'list'} onClick={() => changeDirectoryView('list')}><List size={18} /></button></div></div></div>
@@ -544,29 +589,29 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
         {section==='control'&&sessionStatus!=='ready'&&<p className='inline-notice' role='status'>{sessionStatus==='loading'?'Checking your administrator access…':'Your account connection needs a refresh.'}<button className='button button-outline' onClick={()=>void refreshSession()}>Check again</button></p>}
       </main>
     </div>
-    <nav className="mobile-bottom" aria-label="Mobile navigation">
-      {[navItems[0], navItems[1], navItems[2], { id: 'studio' as Section, label: 'Build', icon: Terminal }, {id: 'account' as Section, label: 'Account', icon: UserRound}].map(({ id, label, icon: Icon }) => <button key={id} className={section === id || (id === 'account' && (section === 'profile'||section==='control')) ? 'active' : ''} onClick={() => go(id)}><Icon size={20} /><span>{label}</span></button>)}
+    <nav inert={mobileMenu} className="mobile-bottom" aria-label="Mobile navigation">
+      {[navItems[0], navItems[1], navItems[2], { id: 'studio' as Section, label: 'Build', icon: Terminal }, {id: 'account' as Section, label: 'Account', icon: UserRound}].map(({ id, label, icon: Icon }) => <button key={id} aria-current={section === id || (id === 'account' && (section === 'profile' || section === 'control')) ? 'page' : undefined} className={section === id || (id === 'account' && (section === 'profile'||section==='control')) ? 'active' : ''} onClick={() => go(id)}><Icon size={20} /><span>{label}</span></button>)}
     </nav>
     <dialog ref={dialogRef} className="project-dialog showcase-dialog" aria-labelledby="project-title" onCancel={closeProject} onClick={event => { if (event.target === event.currentTarget) closeProject(); }}>
       {selected && !maintenance && <div className="detail-inner" onClickCapture={event=>{const anchor=(event.target as Element).closest('a[href]');if(anchor&&selected&&!session.isAdmin&&!maintenance){try{if(new URL(anchor.getAttribute('href')!,window.location.href).origin!==window.location.origin)recordSiteMetric('outbound',selected.id);}catch{}}}} style={{ '--project-accent': selected.accent } as React.CSSProperties}>
         <div className="detail-cover showcase-cover">
-          <Cover project={selected} />
+          <Cover project={selected} priority />
           <div className="detail-cover-shade" />
-          <div className="showcase-toolbar"><button onClick={closeProject} className="showcase-back"><ArrowLeft size={15} /> Back to RMT</button><span>PROJECT HOME</span></div>
-          <button className="dialog-close" onClick={closeProject} aria-label="Close project"><X size={20} /></button>
+          <div className="showcase-toolbar"><button onClick={closeProject} className="showcase-back"><ArrowLeft size={15} /> Back to RMT</button></div>
           <div className="showcase-title">
             <div className="showcase-badges"><span className="showcase-category">{selected.category === 'Games' ? <Gamepad2 size={13} /> : selected.category === 'Tools' ? <Wrench size={13} /> : selected.category === 'Music' ? <Music2 size={13} /> : <Compass size={13} />}{selected.category}</span>{selected.stage && <span>{stageLabel(selected.stage)}</span>}</div>
             <h2 id="project-title" tabIndex={-1}><ProjectLogo project={selected} />{selected.name}</h2>
-            <p>{selected.tagline}</p>
+            {selected.tagline !== selected.description && <p>{selected.tagline}</p>}
           </div>
         </div>
         <div className="detail-body showcase-body">
           <div className="showcase-actionbar">
-            <a className="button button-lime showcase-launch" href={selected.launchUrl} target="_top" rel="noopener noreferrer">{selected.launchLabel} <ArrowUpRight size={18} /></a>
+            <a className="button button-lime showcase-launch" href={selected.launchUrl} target="_top" rel="noopener noreferrer">{selected.launchUrl === selected.officialXProfile ? 'Visit on X' : selected.launchLabel} <ArrowUpRight size={18} /></a>
+            <LinkOptions href={selected.launchUrl} label={selected.name + ' launch destination'} onOpen={setDestination} />
             <button className={'button button-outline detail-save ' + (saved.includes(selected.id) ? 'is-saved' : '')} disabled={!library.canSave} onClick={() => void toggleSave(selected)} aria-pressed={saved.includes(selected.id)}>{saved.includes(selected.id) ? <Check size={16} /> : <Bookmark size={16} />}{saved.includes(selected.id) ? 'In your library' : 'Save project'}</button>
             <button className="button button-outline showcase-share" onClick={() => void shareProject(selected)}><Share2 size={16} /><span>Share</span></button>
           </div>
-          <div className="launch-hint"><span>Opens {domain(selected.launchUrl)}.</span><LinkOptions href={selected.launchUrl} label={selected.name + ' launch destination'} onCopy={copyLink} /></div>
+
           <div className="showcase-columns">
             <div className="showcase-main">
               <div className="showcase-tabs" role="tablist" aria-label="Project sections" onKeyDown={event => {
@@ -578,9 +623,9 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
               }}><button type="button" role="tab" id="project-tab-overview" aria-selected={showcaseTab === 'overview'} aria-controls="project-panel-overview" tabIndex={showcaseTab === 'overview' ? 0 : -1} onClick={() => chooseShowcaseTab('overview')}><Compass size={15} /> Overview</button><button type="button" role="tab" id="project-tab-updates" aria-selected={showcaseTab === 'updates'} aria-controls="project-panel-updates" tabIndex={showcaseTab === 'updates' ? 0 : -1} onClick={() => chooseShowcaseTab('updates')}><Megaphone size={15} /> Updates</button></div>
               <div className="showcase-panel" id="project-panel-overview" role="tabpanel" aria-labelledby="project-tab-overview" hidden={showcaseTab !== 'overview'}>
               <section className="showcase-about" aria-labelledby="project-about"><div className="showcase-section-heading"><h3 id="project-about">Inside {selected.name}</h3><span className="showcase-listing">{selected.claimed ? <><Check size={12} /> Builder claimed</> : selected.source === 'curated' ? 'Curated by RMT' : 'Community listing'}</span></div><p className="detail-description">{selected.description}</p></section>
-              {selectedExperiences.length > 0 && <section className="showcase-destinations" aria-labelledby="experience-heading"><div className="showcase-section-heading"><h3 id="experience-heading">Things to try</h3><span>{selectedExperiences.length} {selectedExperiences.length === 1 ? 'experience' : 'experiences'}</span></div><div className="destination-list">{selectedExperiences.map((link, index) => <div className="destination-entry experience-entry" key={link.url}><a href={link.url} target="_top" rel="noopener noreferrer" className="destination"><span className="destination-symbol">{/game/i.test(link.type || '') ? <Gamepad2 size={21} /> : /music|audio/i.test(link.type || '') ? <Music2 size={21} /> : <Wrench size={21} />}</span><span><span className="experience-index">EXPERIENCE {String(index + 1).padStart(2, '0')}</span><strong>{link.label}</strong><small>{link.type || domain(link.url)}</small></span><ArrowUpRight size={18} /></a><LinkOptions href={link.url} label={link.label} onCopy={copyLink} /></div>)}</div></section>}
-              {selectedCommunity.length > 0 && <section className="showcase-destinations" aria-labelledby="destination-heading"><div className="showcase-section-heading"><h3 id="destination-heading">{selectedExperiences.length ? 'Find the community' : 'Explore the project'}</h3><span>{selectedCommunity.length} {selectedCommunity.length === 1 ? 'destination' : 'destinations'}</span></div><div className="destination-list">{selectedCommunity.map(link => <div className="destination-entry" key={link.url}><a href={link.url} target="_top" rel="noopener noreferrer" className="destination"><span className="destination-symbol">{/social/i.test(link.type || '') ? <span className="destination-x">𝕏</span> : /collection|explore/i.test(link.type || '') ? <Layers3 size={19} /> : <Compass size={19} />}</span><span><strong>{link.label}</strong><small>{domain(link.url)}{link.type && <span> · {link.type}</span>}</small></span><ArrowUpRight size={18} /></a><LinkOptions href={link.url} label={link.label} onCopy={copyLink} /></div>)}</div></section>}
-              {!!selected.collections?.length && <section className="collections-section" aria-labelledby="collection-heading"><div className="showcase-section-heading"><h3 id="collection-heading">The collections</h3><span><Layers3 size={13} /> {selected.collections.length}</span></div><div className="collection-list">{selected.collections.map((collection, index) => <div className="collection-entry" key={collection.url}><a className="collection-link" href={collection.url} target="_top" rel="noopener noreferrer"><span className="collection-index">{String(index + 1).padStart(2, '0')}</span><span><strong>{collection.name}</strong><small>{domain(collection.url)} · {collection.chain || 'Collection'} · {index === 0 ? 'Primary collection' : 'Related collection'}</small></span><ArrowUpRight size={16} /></a><LinkOptions href={collection.url} label={collection.name} onCopy={copyLink} /></div>)}</div><p className="collection-footnote">Grouped using links published by the project or its creator.</p></section>}
+              {selectedExperiences.length > 0 && <section className="showcase-destinations" aria-labelledby="experience-heading"><div className="showcase-section-heading"><h3 id="experience-heading">Things to try</h3><span>{selectedExperiences.length} {selectedExperiences.length === 1 ? 'experience' : 'experiences'}</span></div><div className="destination-list">{selectedExperiences.map(link => <div className="destination-entry experience-entry" key={link.url}><a href={link.url} target="_top" rel="noopener noreferrer" className="destination"><ExperienceSymbol projectId={selected.id} link={link} /><span><strong>{link.label}</strong><small>{link.type || domain(link.url)}</small></span><ArrowUpRight size={18} /></a><LinkOptions href={link.url} label={link.label} onOpen={setDestination} /></div>)}</div></section>}
+              {selectedCommunity.length > 0 && <section className="showcase-destinations" aria-labelledby="destination-heading"><div className="showcase-section-heading"><h3 id="destination-heading">{selectedExperiences.length ? 'Find the community' : 'Explore the project'}</h3><span>{selectedCommunity.length} {selectedCommunity.length === 1 ? 'destination' : 'destinations'}</span></div><div className="destination-list">{selectedCommunity.map(link => <div className="destination-entry" key={link.url}><a href={link.url} target="_top" rel="noopener noreferrer" className="destination"><span className="destination-symbol">{/social/i.test(link.type || '') ? <span className="destination-x">𝕏</span> : /collection|explore/i.test(link.type || '') ? <Layers3 size={19} /> : <Compass size={19} />}</span><span><strong>{link.label}</strong><small>{domain(link.url)}{link.type && <span> · {link.type}</span>}</small></span><ArrowUpRight size={18} /></a><LinkOptions href={link.url} label={link.label} onOpen={setDestination} /></div>)}</div></section>}
+              {!!selected.collections?.length && <section className="collections-section" aria-labelledby="collection-heading"><div className="showcase-section-heading"><h3 id="collection-heading">The collections</h3><span><Layers3 size={13} /> {selected.collections.length}</span></div><div className="collection-list">{selected.collections.map((collection, index) => <div className="collection-entry" key={collection.url}><a className="collection-link" href={collection.url} target="_top" rel="noopener noreferrer"><span className="collection-index">{String(index + 1).padStart(2, '0')}</span><span><strong>{collection.name}</strong><small>{domain(collection.url)} · {collection.chain || 'Collection'} · {index === 0 ? 'Primary collection' : 'Related collection'}</small></span><ArrowUpRight size={16} /></a><LinkOptions href={collection.url} label={collection.name} onOpen={setDestination} /></div>)}</div><p className="collection-footnote">Grouped using links published by the project or its creator.</p></section>}
               </div>
               <div className="showcase-panel" id="project-panel-updates" role="tabpanel" aria-labelledby="project-tab-updates" hidden={showcaseTab !== 'updates'}>
                 {showcaseTab === 'updates' && <ProjectUpdates key={selected.id} project={selected} onBuilder={() => selected.claimed ? openProjectManagement() : startClaim(selected)} />}
@@ -589,24 +634,21 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
             <aside className="showcase-sidebar" aria-label="Share this project">
               <ProjectBuilders key={selected.id} projectId={selected.id} />
               <section className="showcase-share-card">
-                <div className="share-card-heading"><span>PASS IT ON</span><Share2 size={15} /></div>
-                <h3>A find worth sharing.</h3>
-                <p>One link to this project’s home on RMT.</p>
-                <span className="share-preview-caption">Card preview</span><div className="project-share-preview"><img src={projectSocialImagePath(selected)} alt={selected.name + ' share card preview'} loading="lazy" /><div><small>RMTLAUNCH.FUN</small><strong>{selected.name} on RMT</strong></div></div>
+                <h3>Share {selected.name}</h3>
+                <div className="project-share-preview"><img src={projectSocialImagePath(selected)} alt={selected.name + ' share card preview'} loading="lazy" /><div><small>RMTLAUNCH.FUN</small><strong>{selected.name} on RMT</strong></div></div>
                 <div className="showcase-share-actions"><button className="button button-outline" onClick={() => void copyLink(projectShareUrl(selected), 'Project link copied. Ready to share.')}><Copy size={14} /> Copy link</button><a className="button button-outline" href={projectXIntentUrl(selected)} target="_blank" rel="noopener noreferrer" aria-label={'Share ' + selected.name + ' on X'}><span className="share-x">𝕏</span> Post</a></div>
-                <button className="showcase-device-share" onClick={() => void shareProject(selected)}><Share2 size={13} /> More sharing options <ArrowUpRight size={13} /></button>
               </section>
-              <div className="showcase-library-tip"><Bookmark size={17} /><p>Make it a regular stop.<br /><span>Save this project to keep it in your library.</span></p></div>
             </aside>
           </div>
           <div className="detail-note"><ArrowUpRight size={15} /><p>Experiences open on their creators’ sites. Access requirements vary. {selected.claimed ? 'Project ownership has been reviewed by RMT.' : 'This listing uses public project pages and is waiting for its builder to claim it.'}</p></div>
-          <div className="detail-claim-row"><div className="showcase-builder-icon"><Terminal size={21} /></div><div><strong>{selected.claimed ? 'Keep your project moving.' : 'Built by you? Make yourself at home.'}</strong><p>{selected.claimed ? 'Manage your listing and share project updates in Builder Studio.' : 'Claim this page for free. Bring your links, collections, and experiences together.'}</p></div><button className="button button-outline" onClick={() => selected.claimed ? openProjectManagement() : startClaim(selected)}>{selected.claimed ? 'Builder Studio' : 'Claim this project'} <ArrowUpRight size={15} /></button></div>
+          <div className="detail-claim-row"><div className="showcase-builder-icon"><Terminal size={21} /></div><div><strong>{selected.claimed ? 'Project management' : 'Do you build ' + selected.name + '?'}</strong><p>{selected.claimed ? 'Manage your listing and share project updates in Builder Studio.' : 'Claim this page for free. Bring your links, collections, and experiences together.'}</p></div><button className="button button-outline" onClick={() => selected.claimed ? openProjectManagement() : startClaim(selected)}>{selected.claimed ? 'Builder Studio' : 'Claim this project'} <ArrowUpRight size={15} /></button></div>
           {relatedProjects.length > 0 && <section className="showcase-related" aria-labelledby="related-heading"><div className="showcase-section-heading"><h3 id="related-heading">Keep exploring</h3><Compass size={15} /></div><div className="related-projects">{relatedProjects.map(project => <button className="related-project" key={project.id} onClick={() => openProject(project)}><span className="related-project-art"><Cover project={project} /></span><span><strong>{project.name}</strong><small>{project.category}</small></span><ArrowUpRight size={15} /></button>)}</div></section>}
         </div>
         {toastNode}
       </div>}
     </dialog>
-    <dialog ref={installRef} className="install-dialog" onCancel={() => setInstallOpen(false)} onClick={event => { if (event.target === event.currentTarget) setInstallOpen(false); }}><button className="dialog-close" onClick={() => setInstallOpen(false)} aria-label="Close install instructions"><X size={20} /></button><div className="install-app-icon install-app-image"><img src="/icons/rmt-mark-v5.png" alt="RMT" width="78" height="78" /></div><h2>One tap from home.</h2><p>Add RMT to your phone’s home screen for quick access to your library.</p><div className="install-step"><span>1</span><div><strong>On iPhone</strong><p>Open RMT in Safari. Tap Share, then “Add to Home Screen.”</p></div></div><div className="install-step"><span>2</span><div><strong>On Android</strong><p>Open RMT in Chrome. Open the browser menu and choose “Install app” or “Add to Home screen.”</p></div></div><p className="small-note">Sign in to keep your library across devices. Guest favorites stay in this browser. Games and tools open on their creators’ websites.</p><button className="button button-lime" onClick={() => setInstallOpen(false)}>Got it <Check size={16} /></button></dialog>
+    <dialog ref={installRef} className="install-dialog" aria-labelledby="install-title" onCancel={() => setInstallOpen(false)} onClick={event => { if (event.target === event.currentTarget) setInstallOpen(false); }}><button className="dialog-close" onClick={() => setInstallOpen(false)} aria-label="Close install instructions"><X size={20} /></button><div className="install-app-icon install-app-image"><img src="/icons/rmt-mark-v5.png" alt="RMT" width="78" height="78" /></div><h2 id="install-title">Add RMT to your home screen</h2><p>Add RMT to your phone’s home screen for quick access to your library.</p><div className="install-step"><span>1</span><div><strong>On iPhone</strong><p>Open RMT in Safari. Tap Share, then “Add to Home Screen.”</p></div></div><div className="install-step"><span>2</span><div><strong>On Android</strong><p>Open RMT in Chrome. Open the browser menu and choose “Install app” or “Add to Home screen.”</p></div></div><p className="small-note">Sign in to keep your library across devices. Guest favorites stay in this browser. Games and tools open on their creators’ websites.</p><button className="button button-lime" onClick={() => setInstallOpen(false)}>Got it <Check size={16} /></button></dialog>
+    <DestinationDialog link={destination} onClose={() => setDestination(null)} onCopy={copyLink} />
     <ManualCopyDialog value={copyFallback} onClose={() => setCopyFallback(null)} />
     {!selected && toastNode}
   </div>;

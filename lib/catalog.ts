@@ -14,6 +14,8 @@ export type Project = {
   website: string;
   launchUrl: string;
   launchLabel: string;
+  /** Project-owned public profile from the reviewed listing. */
+  officialXProfile?: string;
   links: { label: string; url: string; type?: string }[];
   collections?: { name: string; url: string; chain?: string; relationship?: string }[];
   stage?: 'starting' | 'building' | 'beta' | 'live';
@@ -36,7 +38,7 @@ export type Project = {
 
 // Public, unclaimed directory entries. Sources and artwork attribution:
 // docs/catalog-sources.md. A listing never implies a partnership or audit.
-export const seedProjects: Project[] = [
+const curatedCatalog: Project[] = [
   {
     id: 'vamps', slug: 'vamps', name: 'VAMPS',
     tagline: 'A little after dark. A lot to explore.',
@@ -80,6 +82,11 @@ export const seedProjects: Project[] = [
   },
   ...additionalProjects,
 ];
+
+export const seedProjects: Project[] = curatedCatalog.map(project => ({
+  ...project,
+  officialXProfile: project.links.find(link => link.type === 'Social' && /^https:\/\/(?:www\.)?(?:x|twitter)\.com\//i.test(link.url))?.url,
+}));
 
 export function getSeedProjects(): Project[] { return seedProjects; }
 

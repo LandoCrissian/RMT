@@ -37,6 +37,7 @@ export default function FirebaseAccount({authenticated, emailVerified, allowAcco
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [noticeError, setNoticeError] = useState(false);
   const [notice, setNotice] = useState('');
   const [environment, setEnvironment] = useState<FirebaseAuthEnvironment>({origin: '', userAgent: ''});
   const flow = useSyncExternalStore(subscribeFirebaseAuthFlow, getFirebaseAuthFlowStatus, getFirebaseAuthFlowServerStatus);
@@ -44,9 +45,10 @@ export default function FirebaseAccount({authenticated, emailVerified, allowAcco
   const controlsBusy = busy || flow.checkingRedirect;
   const displayedNotice = notice || flow.problem?.message;
   async function run(operation: () => Promise<void>) {
-    setBusy(true); setNotice(''); clearFirebaseAuthProblem();
+    setBusy(true); setNoticeError(false); setNotice(''); clearFirebaseAuthProblem();
     try {await operation(); onChange();}
     catch (error) {
+      setNoticeError(true);
       setNotice(firebaseAuthProblem(error).message);
     } finally {setBusy(false);}
   }
@@ -56,15 +58,16 @@ export default function FirebaseAccount({authenticated, emailVerified, allowAcco
     await syncFirebaseSession(await user.getIdToken(true), user.uid);
   }
   if(authenticated&&emailVerified&&!allowAccountLinking&&!displayedNotice)return null;
-  return <section className="firebase-account" aria-label="RMT sign-in">
+  return <section className={authenticated ? "firebase-account" : "firebase-account guest-auth"} aria-label="RMT sign-in">
     {authenticated ? <>
       {!emailVerified && <><p>Verify your email to save your library, submit projects, or make claims.</p><button disabled={controlsBusy} className="button button-outline" onClick={() => void run(async () => {const user = firebaseAuth().currentUser; if (user) {await sendEmailVerification(user); setNotice('Verification email sent. Check your inbox and spam folder.');}})}>Send verification email</button><button disabled={controlsBusy} className="button button-outline" onClick={() => void run(async () => {const user = firebaseAuth().currentUser; if (user) {await reload(user); await connect(); setNotice(user.emailVerified ? 'Email verified.' : 'Email is not verified yet. Open the link in your email first.');}})}>I verified my email</button></>}
-      {emailVerified && allowAccountLinking && <details><summary>Bring over an existing RMT account</summary><p>If you used RMT before Firebase, verify your original account once, then link it. Your existing library, claims and reviewer access will stay with that account.</p><a className="text-link" href="/signin-with-chatgpt?return_to=%2F%23account" target="_top">Verify original account</a><button disabled={controlsBusy} className="button button-outline" onClick={() => void run(async () => {const user = firebaseAuth().currentUser; if (!user) throw new Error('Sign in first'); const response = await fetch('/api/auth/link', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({idToken: await user.getIdToken(true)})}); const data = await response.json() as {error?: string}; if (!response.ok) {setNotice(data.error || 'Linking failed.'); return;} setNotice('Your original RMT account is linked. Your saved records and access are preserved.');})}>Link verified accounts</button></details>}
+      {emailVerified && allowAccountLinking && <details><summary>Bring over an existing RMT account</summary><p>If you used RMT before Firebase, verify your original account once, then link it. Your existing library, claims and reviewer access will stay with that account.</p><a className="text-link" href="/signin-with-chatgpt?return_to=%2F%23account" target="_top">Verify original account</a><button disabled={controlsBusy} className="button button-outline" onClick={() => void run(async () => {const user = firebaseAuth().currentUser; if (!user) throw new Error('Sign in first'); const response = await fetch('/api/auth/link', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({idToken: await user.getIdToken(true)})}); const data = await response.json() as {error?: string}; if (!response.ok) {setNoticeError(true); setNotice(data.error || 'Linking failed.'); return;} setNotice('Your original RMT account is linked. Your saved records and access are preserved.');})}>Link verified accounts</button></details>}
     </> : <>
-      <h3>{mode === 'register' ? 'Create your free RMT account' : mode === 'reset' ? 'Recover your password' : 'Sign in to RMT'}</h3>
+      <header className="auth-intro"><h2>{mode === 'register' ? 'Create your free RMT account' : mode === 'reset' ? 'Recover your password' : 'Sign in to RMT'}</h2><p>Save your library across devices and manage your projects.</p></header>
+      <div className="auth-controls">
       {mode !== 'reset' && <button className="button button-outline" disabled={controlsBusy} onClick={() => void run(() => startGoogleSignIn())}>{flow.checkingRedirect ? 'Finishing sign-in…' : 'Continue with Google'}</button>}
       {mode !== 'reset' && isKnownEmbeddedAuthBrowser(environment.userAgent) && !flow.problem?.needsBrowser && <p className="inline-notice">Google may not finish sign-in inside this app. Open this RMT page in Safari or Chrome, or use email below.</p>}
-      <form onSubmit={event => {event.preventDefault(); void run(async () => {
+      <form aria-busy={controlsBusy} onSubmit={event => {event.preventDefault(); void run(async () => {
         const auth = firebaseAuth();
         if (mode === 'reset') {await sendPasswordResetEmail(auth, email); setNotice('If an account uses this email, a recovery link will arrive shortly.'); return;}
         const result = mode === 'register' ? await createUserWithEmailAndPassword(auth, email, password) : await signInWithEmailAndPassword(auth, email, password);
@@ -76,9 +79,9 @@ export default function FirebaseAccount({authenticated, emailVerified, allowAcco
         <button className="button button-lime" disabled={controlsBusy}>{controlsBusy ? 'Please wait…' : mode === 'register' ? 'Create free account' : mode === 'reset' ? 'Send recovery link' : 'Sign in with email'}</button>
       </form>
       <div className="firebase-modes"><button disabled={controlsBusy} onClick={() => {setMode(mode === 'register' ? 'signin' : 'register'); setNotice(''); clearFirebaseAuthProblem();}}>{mode === 'register' ? 'Already have an account? Sign in' : 'Create an account'}</button><button disabled={controlsBusy} onClick={() => {setMode(mode === 'reset' ? 'signin' : 'reset'); setNotice(''); clearFirebaseAuthProblem();}}>{mode === 'reset' ? 'Back to sign in' : 'Forgot password?'}</button></div>
-      <p>Any valid email provider is welcome. Registration and project listings are free. You can also keep browsing as a guest.</p>
+      </div><p className="auth-guest-note">Registration and listings are free. Browse as a guest anytime.</p>
     </>}
-    {displayedNotice && <p role="status" className="inline-notice">{displayedNotice}</p>}
+    {displayedNotice && <p role={(notice ? noticeError : flow.problem) ? "alert" : "status"} className="auth-feedback">{displayedNotice}</p>}
     {flow.problem?.retryOnSamePage && supportsSameOriginFirebaseAuth(environment.origin) && <button type="button" disabled={controlsBusy} className="button button-outline" onClick={() => void run(() => startGoogleSignIn(true))}>Continue with Google in this tab</button>}
     {flow.problem?.reconnect && <button type="button" disabled={controlsBusy} className="button button-outline" onClick={() => void run(connect)}>Reconnect account</button>}
   </section>;

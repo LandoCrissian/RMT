@@ -1,0 +1,217 @@
+/* Shared interaction surfaces across the public hub and private workspaces. */
+.hub {
+  --surface: #151a1e;
+  --field: #101519;
+  --stroke: #363f45;
+  --muted-text: #a4afb6;
+  --field-error: #ffa6a1;
+  --corner: 12px;
+  --control-corner: 8px;
+  --touch: 44px;
+  color-scheme: dark;
+}
+.hub :where(button, a, summary, input, textarea, select) { touch-action: manipulation; }
+.hub :is(.profile-form-section, .st-panel, .cc-panel, .account-card, .activity-card,
+  .public-profile-card, .discovery-arrivals, .empty-state, .browse-card) {
+  border-color: var(--stroke);
+  border-radius: var(--corner);
+}
+.hub :is(.button, .st-button, .cc-button, .nt-button) {
+  border-radius: var(--control-corner);
+  min-height: var(--touch);
+  line-height: 1.35;
+}
+.hub :is(.profile-field, .st-field, .cc-field, .firebase-account, .cc-mobile-section)
+  :is(textarea, select, input:not([type="radio"], [type="checkbox"], [type="file"])),
+.hub .copy-link-dialog textarea {
+  border: 1px solid var(--stroke);
+  border-radius: var(--control-corner);
+  background: var(--field);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: #eff3f1;
+  min-height: var(--touch);
+  min-width: 0;
+}
+.hub :is(textarea, input)::placeholder { color: #95a0a7; opacity: 1; }
+.hub :is(.profile-handle-input, .search-box, .cc-search, .browse-sort) {
+  background-color: var(--field);
+  border-color: var(--stroke);
+  border-radius: var(--control-corner);
+}
+.hub :is(.profile-field .profile-handle-input, .search-box, .cc-search, .browse-sort) > :is(input, select) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  min-width: 0;
+}
+.hub :is(input, textarea, select):focus,
+.hub :is(.profile-handle-input, .search-box, .cc-search, .browse-sort):has(> :is(input, select):focus),
+.hub :is(.profile-upload, .pa-upload, .cc-upload-button, .profile-visibility-option, .st-method-option):has(input:focus-visible) {
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+.hub :is(.profile-handle-input, .search-box, .cc-search, .browse-sort,
+  .profile-upload, .pa-upload, .cc-upload-button, .profile-visibility-option, .st-method-option) input:focus,
+.hub .browse-sort select:focus {
+  outline: 0;
+  box-shadow: none;
+}
+.hub :is(input, textarea, select):is([aria-invalid="true"], :user-invalid),
+.hub :is(.profile-handle-input, .search-box, .cc-search):has(input:is([aria-invalid="true"], :user-invalid)) {
+  border-color: var(--field-error);
+  outline-color: var(--field-error);
+}
+.hub :is(input, textarea, select):disabled,
+.hub :is(.cc-upload-button, .pa-upload, .profile-upload, .profile-handle-input):has(input:disabled) {
+  color: #a2a9ad;
+  border-color: #30383c;
+  background-color: #1d2326;
+  cursor: not-allowed;
+}
+.hub .profile-field .profile-handle-input > input:disabled { background: transparent; }
+.hub [aria-busy="true"], .hub button:has(.rmt-spin, .cc-spin, .st-spin) { cursor: progress; }
+.hub :is(.st-error, .cc-save-error) { color: var(--field-error); }
+.hub .auth-feedback { margin-top: 12px; border-radius: var(--control-corner); padding: 12px 14px; font-size: 14px; }
+.hub .auth-feedback[role="alert"] { color: #ffd0cc; background: #302024; border: 1px solid #704148; }
+.hub .auth-feedback[role="status"] { color: #d8ebbc; background: #1a251f; border: 1px solid #3a4d38; }
+.hub :is(.st-panel-intro, .st-hint, .profile-guidance, .pa-guidance, .storage-list small, .activity-card time) {
+  color: var(--muted-text);
+  font-size: .8125rem;
+  line-height: 1.55;
+}
+.hub :is(.st-method-option, .profile-visibility-option, .profile-field, .cc-field) { min-width: 0; }
+.hub .empty-state { min-height: clamp(200px, 28vw, 270px); }
+.hub .discovery-feature .hero-bottom { font-size: 10px; line-height: 1.5; }
+.hub .drawer-close {
+  position: absolute; top: 12px; right: 8px; display: grid; place-items: center;
+  width: 44px; height: 44px; border-radius: var(--control-corner); color: var(--muted-text);
+}
+
+/* Each showcase inherits its approved project accent. RMT's primary action stays lime. */
+.hub .showcase-body {
+  --project-ink: color-mix(in srgb, var(--project-accent) 70%, white);
+  --project-line: color-mix(in srgb, var(--project-accent) 25%, #343b40);
+  background: linear-gradient(155deg, color-mix(in srgb, var(--project-accent) 5%, #14181c), #14181c 28rem);
+}
+.hub .showcase-body :is(.showcase-tabs [aria-selected="true"], .destination-symbol, .collection-index) { color: var(--project-ink); }
+.hub .showcase-body :is(.destination-symbol, .collection-index, .showcase-builder-icon) {
+  background: color-mix(in srgb, var(--project-accent) 10%, var(--surface));
+}
+.hub .showcase-tabs [aria-selected="true"] { border-color: var(--project-line); }
+.hub .showcase-section-heading h3 { font-size: clamp(1rem, 2vw, 1.2rem); }
+.hub .showcase-about .detail-description { font-size: .90625rem; line-height: 1.65; color: #bbc4ca; }
+.hub .showcase-body .launch-hint { margin: 0 0 12px; gap: 6px; }
+.hub .showcase-body :is(.destination-entry, .collection-entry) {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+  padding-right: 4px; background: var(--surface); border: 1px solid var(--stroke);
+  border-radius: var(--control-corner);
+}
+.hub .showcase-body :is(.destination-entry, .collection-entry):is(:hover, :focus-within) { border-color: var(--project-line); }
+.hub .showcase-body :is(.destination-entry > .destination, .collection-link) {
+  min-width: 0; min-height: 56px; padding: 8px 10px; gap: 10px; background: transparent;
+}
+.hub .showcase-body .destination-symbol { width: 40px; height: 40px; flex: 0 0 40px; }
+.hub .showcase-body .experience-entry:has(img) .destination-symbol {
+  width: clamp(68px, 9vw, 108px); height: auto; aspect-ratio: 16 / 9;
+  flex-basis: auto; overflow: hidden; border-radius: 5px; background: var(--field);
+}
+.hub .experience-entry .destination-symbol img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.hub .showcase-body :is(.destination, .collection-link) > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
+.hub .showcase-body :is(.destination, .collection-link) strong { font-size: 14px; line-height: 1.35; }
+.hub .showcase-body :is(.destination, .collection-link) small { font-size: 11px; color: var(--muted-text); }
+.hub .showcase-body .showcase-share-card {
+  padding: 16px; background: var(--surface); border: 1px solid var(--project-line); border-radius: var(--corner);
+}
+.hub .showcase-share-card h3 { font-size: 17px; margin: 0 0 12px; }
+.hub .showcase-builder-icon { color: var(--project-ink); }
+.hub .showcase-body .detail-claim-row { border-color: var(--project-line); }
+.hub .showcase-actionbar { padding-top: 10px; }
+.hub .link-options-trigger {
+  display: inline-grid; place-items: center; flex-shrink: 0; position: relative; z-index: 1;
+  min-width: var(--touch); min-height: var(--touch); border-radius: var(--control-corner); color: #afbabd;
+}
+.hub .link-options-trigger:hover { color: white; background: #ffffff0c; }
+.hub .library-launch-actions .link-options-trigger { margin-left: auto; }
+.hub .destination-dialog {
+  width: min(360px, calc(100vw - 32px)); margin: auto; padding: 0;
+  color: #edf2ec; background: var(--surface); border: 1px solid var(--stroke); border-radius: var(--corner);
+}
+.hub .destination-dialog::backdrop { background: #080b0ec9; }
+.hub .destination-dialog > div { display: grid; gap: 10px; padding: 24px; }
+.hub .destination-dialog h2 { padding-right: 34px; font-size: 21px; line-height: 1.3; overflow-wrap: anywhere; }
+.hub .destination-dialog p { overflow-wrap: anywhere; font-size: 13px; color: var(--muted-text); margin: 0 0 8px; }
+.hub .dialog-close { min-width: var(--touch); min-height: var(--touch); }
+@media (max-width: 700px) {
+  .hub .sidebar:not(.sidebar-open) { visibility: hidden; }
+  .hub:has(.sidebar-open) { height: 100dvh; overflow: hidden; }
+  .hub :is(.mobile-brand .icon-button, .topbar-actions .submit-project-topbar, .topbar-actions .topbar-account,
+    .topbar-actions .topbar-signin, .activity-filters button, .st-workspace-tabs button, .st-text-button,
+    .quick-return button, .browse-view button, .cc-icon-button, .search-clear, .account-review-link, .text-link) {
+    min-height: var(--touch); min-width: var(--touch);
+  }
+  .hub :is(.text-link, .account-review-link) { display: inline-flex; align-items: center; }
+  .hub .showcase-body { padding-inline: clamp(14px, 4vw, 20px); }
+  .hub .showcase-cover { height: clamp(245px, 72vw, 310px); }
+  .hub .showcase-cover:has(.art-contained:not(.art-panoramic)) { height: 310px; }
+  .hub .showcase-cover .project-art.art-contained:not(.art-panoramic) .art-foreground { padding: 49px 16px 118px; }
+  .hub .showcase-cover .project-art.art-panoramic .art-foreground { padding: 49px 12px 112px; }
+  .hub .showcase-title { bottom: 14px; }
+  .hub .showcase-title h2 { font-size: clamp(28px, 7.8vw, 36px); }
+  .hub .showcase-body .detail-note { line-height: 1.55; font-size: 12px; }
+  .hub .showcase-body .showcase-share-card { margin: 0; }
+}
+@media (max-width: 1024px), (pointer: coarse) {
+  .hub :is(input, select, textarea):not([type="radio"], [type="checkbox"]) { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub *, .hub *::before, .hub *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+.hub .guest-auth {
+  display: grid; grid-template-columns: minmax(180px, .8fr) minmax(250px, 1fr);
+  align-items: start; column-gap: clamp(20px,5vw,72px); row-gap: 12px;
+  padding: clamp(18px,3vw,36px); border-color: var(--stroke); border-radius: var(--corner);
+}
+.hub .auth-intro h2 { font-size: clamp(22px, 3vw, 32px); line-height: 1.2; letter-spacing: -.035em; }
+.hub .auth-intro p, .hub .auth-guest-note { font-size: 14px; margin-top: 10px; }
+.hub .auth-controls { grid-column: 2; grid-row: 1 / span 2; display: grid; gap: 16px; }
+.hub .auth-controls form { max-width: none; }
+.hub .auth-controls .firebase-modes { flex-wrap: wrap; }
+.hub .auth-guest-note { align-self: end; }
+.hub .guest-auth .auth-feedback { grid-column: 1 / -1; }
+.hub :is(.activity-heading, .profile-editor-heading, .st-heading, .cc-hero, .page-heading) h1 {
+  font-size: clamp(28px,3.2vw,48px); line-height: 1.12; letter-spacing: -.043em;
+}
+.hub :is(.member-toolbar button, .firebase-modes button, .activity-pagination button,
+  .view-switch button, .pu-pagination button, .st-review-filters button) { min-height: var(--touch); }
+.hub .view-switch button { min-width: var(--touch); }
+.hub .profile-artwork-size, .hub .pa-field small, .hub .st-review-list-item small,
+.hub .storage-label, .hub .cc-stat-label { font-size: 11px; }
+.hub .showcase-body .showcase-actionbar { margin-bottom: 18px; }
+.hub .showcase-body .pu-card { background: var(--surface); border-color: var(--project-line); border-radius: var(--control-corner); }
+.hub .showcase-body .pu-action, .hub .showcase-body .pu-read-more { color: var(--project-ink); }
+.hub .showcase-cover:has(.art-monogram) { height: auto; min-height: 185px; display: grid; align-items: end; }
+.hub .showcase-cover:has(.art-monogram) .project-art { position: absolute; inset: 0; }
+.hub .showcase-cover:has(.art-monogram) .art-monogram {
+  display: flex; align-items: flex-start; justify-content: flex-end; padding: 18px;
+  font-size: 24px; color: var(--accent); background: linear-gradient(125deg,#11171a,color-mix(in srgb,var(--accent) 11%,#141a1e));
+}
+.hub .showcase-cover:has(.art-monogram) .showcase-title { position: relative; inset: auto; padding: 72px clamp(16px,3vw,32px) 15px; }
+@media (max-width: 700px) {
+  .hub .guest-auth { grid-template-columns: minmax(0,1fr); }
+  .hub .auth-controls { grid-column: auto; grid-row: auto; }
+  .hub .showcase-actionbar > .showcase-launch { flex: 1 1 calc(100% - 58px); min-width: 0; }
+  .hub .showcase-actionbar > .link-options-trigger { flex: 0 0 44px; }
+  .hub .showcase-body .showcase-actionbar { margin-bottom: 14px; }
+  .hub .view-switch { flex-shrink: 0; }
+}
+.hub .showcase-body .destination small > span { display: inline; }
+@media (max-width: 700px) {
+  .hub :is(.mobile-rmt-home, .directory-jump, .page-slot button, .content-footer button) { min-height: 44px; }
+  .hub .page-slot button { min-width: 44px; }
+  .hub .browse-pagination { flex-wrap: wrap; }
+}
+.hub .workspace-loading { display: flex; align-items: center; gap: 10px; min-height: 96px; font-size: 14px; color: var(--muted-text); }

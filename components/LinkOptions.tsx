@@ -1,19 +1,38 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { ArrowUpRight, Copy, MousePointer2, X } from 'lucide-react';
+import { ArrowUpRight, Copy, Ellipsis, MousePointer2, X } from 'lucide-react';
 
-type LinkOptionsProps = {
-  href: string;
-  label: string;
+export type DestinationLink = {href: string; label: string};
+
+export function LinkOptions({ href, label, onOpen }: DestinationLink & {onOpen: (link: DestinationLink) => void}) {
+  return <button type="button" className="link-options-trigger" aria-haspopup="dialog"
+    aria-label={'Link options for ' + label} onClick={() => onOpen({href, label})}>
+    <Ellipsis size={19} aria-hidden="true" />
+  </button>;
+}
+
+export function DestinationDialog({ link, onClose, onCopy }: {
+  link: DestinationLink | null;
+  onClose: () => void;
   onCopy: (value: string, message: string) => Promise<void>;
-};
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (link && !ref.current?.open) ref.current?.showModal();
+    else if (!link && ref.current?.open) ref.current.close();
+  }, [link]);
 
-export function LinkOptions({ href, label, onCopy }: LinkOptionsProps) {
-  return <div className="link-options" role="group" aria-label={label + ' link options'}>
-    <a href={href} target="_blank" rel="noopener noreferrer" aria-label={'Open ' + label + ' in a new tab'}><ArrowUpRight size={13} aria-hidden="true" /> New tab</a>
-    <button type="button" onClick={() => void onCopy(href, 'Destination link copied.')} aria-label={'Copy ' + label + ' link'}><Copy size={12} aria-hidden="true" /> Copy</button>
-  </div>;
+  return <dialog ref={ref} className="destination-dialog" aria-labelledby="link-options-title"
+    onCancel={onClose} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+    {link && <div>
+      <button type="button" className="dialog-close" aria-label="Close link options" onClick={onClose}><X size={18} /></button>
+      <h2 id="link-options-title">{link.label}</h2>
+      <p>{link.href}</p>
+      <a className="button button-outline" href={link.href} target="_blank" rel="noopener noreferrer" onClick={onClose}><ArrowUpRight size={16} /> Open in new tab</a>
+      <button className="button button-outline" onClick={() => {onClose(); void onCopy(link.href, 'Destination link copied.');}}><Copy size={16} /> Copy link</button>
+    </div>}
+  </dialog>;
 }
 
 export function ManualCopyDialog({ value, onClose }: { value: string | null; onClose: () => void }) {
