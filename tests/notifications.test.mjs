@@ -49,19 +49,21 @@ function seed(db, id, channel, overrides = {}) {
 }
 function row(db, id) { return db.raw.prepare('SELECT * FROM notification_outbox WHERE id = ?').get(id); }
 function emailAccepted() { return Response.json({id: '00000000-1111-2222-3333-444444444444'}); }
-function smsAccepted() { return Response.json({sid: `SM${'b'.repeat(32)}`, status: 'queued'}, {status: 201}); }
 
-test('missing configuration queues both channels without an HTTP request or false send record', async t => {
+test('missing configuration retains email without sending and leaves historical SMS disabled', async t => {
   const db = database(t); seed(db, 'email-1', 'email'); seed(db, 'sms-1', 'sms');
   const result = await api.flushNotifications(db, {}, 3, {now: () => now, fetch: () => assert.fail('No HTTP before configuration')});
-  assert.deepEqual(result, {attempted: 0, accepted: 0, failed: 0, uncertain: 0, unconfigured: 2});
+  assert.deepEqual(result, {attempted: 0, accepted: 0, failed: 0, uncertain: 0, unconfigured: 1});
   assert.equal(row(db, 'email-1').status, 'unconfigured');
+  assert.equal(row(db, 'sms-1').status, 'pending');
   assert.equal(row(db, 'sms-1').attempt_count, 0);
   assert.equal(row(db, 'email-1').sent_at, null);
   const report = await api.notificationStatus(db, {}, now);
   assert.equal(report.channels.email.configured, false);
-  assert.ok(report.channels.sms.missing.includes('Owner phone number with country code'));
+  assert.deepEqual(report.channels.sms, {enabled: false, configured: false, missing: []});
   assert.equal(report.readyCount, 0);
+  assert.equal(report.counts.unconfigured, 1);
+  assert.equal(report.recent.some(item => item.channel === 'sms'), false);
 });
 
 test('trusted HTTPS review URL and reviewer setup are required; recipients never come from a request', () => {
@@ -72,29 +74,26 @@ test('trusted HTTPS review URL and reviewer setup are required; recipients never
   assert.equal(api.notificationConfiguration({...env, RMT_ADMIN_USER_IDS: ''}).email.configured, false);
 });
 
-test('provider contracts use one immutable email key, form-encoded SMS and explicit owner destinations', async t => {
+test('email uses one immutable provider key; SMS remains disabled even with historical credentials', async t => {
   const db = database(t); seed(db, 'email-1', 'email'); seed(db, 'sms-1', 'sms');
   const calls = [];
-  const transport = async (url, options) => { calls.push({url, options}); return url.includes('resend') ? emailAccepted() : smsAccepted(); };
+  const transport = async (url, options) => { calls.push({url, options}); return emailAccepted(); };
   const result = await api.flushNotifications(db, env, 3, {now: () => now, fetch: transport});
-  assert.equal(result.accepted, 2);
-  const email = calls.find(call => call.url.includes('resend'));
+  assert.equal(result.accepted, 1);
+  assert.equal(calls.length, 1);
+  const email = calls[0];
   assert.equal(email.url, 'https://api.resend.com/emails');
   assert.equal(email.options.headers['Idempotency-Key'], 'rmt-notification/email-1');
-  const emailBody = JSON.parse(email.options.body);
-  assert.deepEqual(emailBody.to, [env.RMT_NOTIFICATION_EMAIL]);
-  assert.equal(emailBody.from, env.RMT_EMAIL_FROM);
-  assert.match(emailBody.text, /https:\/\/hub\.rmt\.example\/#review/);
-  assert.equal(emailBody.text.includes('approve='), false);
-  const sms = calls.find(call => call.url.includes('twilio'));
-  assert.equal(sms.url, `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`);
-  assert.equal(sms.options.headers['Content-Type'], 'application/x-www-form-urlencoded');
-  assert.equal(new URLSearchParams(sms.options.body).get('To'), env.RMT_NOTIFICATION_PHONE);
-  assert.equal(sms.options.headers.Authorization, `Basic ${btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`)}`);
-  assert.equal(row(db, 'sms-1').status, 'sent');
+  const body = JSON.parse(email.options.body);
+  assert.deepEqual(body.to, [env.RMT_NOTIFICATION_EMAIL]);
+  assert.equal(body.from, env.RMT_EMAIL_FROM);
+  assert.ok(body.text.includes('https://hub.rmt.example/#review'));
+  assert.equal(body.text.includes('approve='), false);
+  assert.equal(row(db, 'sms-1').status, 'pending');
+  assert.equal(row(db, 'sms-1').attempt_count, 0);
   const repeated = await api.flushNotifications(db, env, 3, {now: () => now + 120_000, fetch: transport});
   assert.equal(repeated.attempted, 0);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 1);
   assert.equal(row(db, 'email-1').payload_json.includes(env.RESEND_API_KEY), false);
   const report = await api.notificationStatus(db, env, now);
   assert.equal(report.deliveryConfirmed, false);
@@ -115,18 +114,18 @@ test('concurrent processors claim each queue item at most once', async t => {
   assert.equal(row(db, 'email-race').attempt_count, 1);
 });
 
-test('SMS timeout is recorded as uncertain and can never be blindly retried', async t => {
-  const db = database(t); seed(db, 'sms-timeout', 'sms');
+test('email timeout is uncertain without falsely recording acceptance or immediate retry', async t => {
+  const db = database(t); seed(db, 'email-timeout-clock', 'email');
   let calls = 0;
   const result = await api.flushNotifications(db, env, 3, {now: () => now, timeoutMs: 2, fetch: async (_url, options) => {
     calls++;
     return new Promise((_resolve, reject) => options.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {once: true}));
   }});
   assert.equal(result.uncertain, 1);
-  assert.equal(row(db, 'sms-timeout').status, 'uncertain');
-  await api.flushNotifications(db, env, 3, {now: () => now + 180_000, fetch: () => { calls++; return smsAccepted(); }});
+  assert.equal(row(db, 'email-timeout-clock').status, 'uncertain');
+  assert.equal(row(db, 'email-timeout-clock').sent_at, null);
+  await api.flushNotifications(db, env, 3, {now: () => now + 30_000, fetch: () => assert.fail('Wait before retry')});
   assert.equal(calls, 1);
-  assert.equal((await api.notificationStatus(db, env, now + 180_000)).readyCount, 0);
 });
 
 test('uncertain email retries reuse the exact body and key inside the retention window', async t => {
@@ -164,17 +163,14 @@ test('explicit rejection remains failed, excludes provider response text, and wa
   assert.equal(result.accepted, 1);
 });
 
-test('malformed success never becomes a false acceptance; SMS provider failures are not duplicated', async t => {
-  const db = database(t); seed(db, 'email-bad-success', 'email'); seed(db, 'sms-provider-failed', 'sms');
-  await api.flushNotifications(db, env, 3, {now: () => now, fetch: async url => url.includes('resend') ? Response.json({success: true}) : Response.json({sid: `SM${'c'.repeat(32)}`, status: 'failed'})});
+test('malformed provider success never becomes a false acceptance', async t => {
+  const db = database(t); seed(db, 'email-bad-success', 'email');
+  await api.flushNotifications(db, env, 3, {now: () => now, fetch: async () => Response.json({success: true})});
   assert.equal(row(db, 'email-bad-success').status, 'uncertain');
   assert.equal(row(db, 'email-bad-success').sent_at, null);
-  assert.equal(row(db, 'sms-provider-failed').status, 'failed');
-  const report = await api.notificationStatus(db, env, now + 61_000);
-  assert.equal(report.recent.find(item => item.id === 'sms-provider-failed').retryable, false);
 });
 
-test('processing is bounded at three, and unconfigured SMS does not block configured email', async t => {
+test('processing is bounded at three, and disabled SMS does not block configured email', async t => {
   const db = database(t);
   for (let index = 0; index < 8; index++) seed(db, `email-${index}`, 'email');
   seed(db, 'sms-first', 'sms', {created_at: now - 1000});
@@ -182,23 +178,23 @@ test('processing is bounded at three, and unconfigured SMS does not block config
   const result = await api.flushNotifications(db, {...env, TWILIO_AUTH_TOKEN: ''}, 100, {now: () => now, fetch: async () => { calls++; return emailAccepted(); }});
   assert.equal(result.attempted, 3);
   assert.equal(calls, 3);
-  assert.equal(row(db, 'sms-first').status, 'unconfigured');
+  assert.equal(row(db, 'sms-first').status, 'pending');
   assert.equal((await api.notificationStatus(db, {...env, TWILIO_AUTH_TOKEN: ''}, now)).readyCount, 5);
 });
 
-test('interrupted sending is held for SMS and eligible for the same safe email replay', async t => {
+test('interrupted email uses the same safe replay while historical SMS is untouched', async t => {
   const db = database(t); seed(db, 'stale-sms', 'sms'); seed(db, 'stale-email', 'email');
   await api.flushNotifications(db, env, 3, {now: () => now, fetch: async () => { throw new Error('Unknown'); }});
   db.raw.exec("UPDATE notification_outbox SET status = 'sending'");
   const before = await api.notificationStatus(db, env, now + 180_000);
-  assert.equal(before.counts.uncertain, 2);
+  assert.equal(before.counts.uncertain, 1);
   assert.equal(before.readyCount, 1);
   const result = await api.flushNotifications(db, env, 3, {now: () => now + 180_000, fetch: async url => {
     assert.equal(url.includes('resend'), true);
     return emailAccepted();
   }});
   assert.equal(result.attempted, 1);
-  assert.equal(row(db, 'stale-sms').status, 'uncertain');
+  assert.equal(row(db, 'stale-sms').status, 'sending');
   assert.equal(row(db, 'stale-email').status, 'sent');
 });
 

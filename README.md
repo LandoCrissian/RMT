@@ -2,12 +2,13 @@
 
 **Your ecosystem. All together.**
 
-RMT is an independent discovery and launch hub for community projects, games, music experiences, and creative tools. Its first directory focuses on the Robinhood ecosystem. Users browse project pages, open official destinations, and save a personal library on their device.
+RMT is an independent discovery and launch hub for community projects, games, music experiences, and creative tools. Its first directory focuses on the Robinhood ecosystem. Users browse project pages, open official destinations, and keep a personal library in their account or on their device.
 
 ## Community directory and builder ownership
 
 - Responsive discovery interface, search, category filters, and project destination pages.
-- Device-local saved library; no wallet is required to browse.
+- Account library stored in the hosted database and available after sign-in on another device. Guests can save on their current device and explicitly import those favorites when signed in.
+- Visible account controls, ChatGPT sign-in, sign-out, and plain-language explanations of where information is saved. No RMT password or wallet connection is required.
 - Home-screen web app manifest, icons, and a reconnect page. External games still need their own network connection.
 - Seventeen curated, unclaimed project homes, with creator-linked experiences, official artwork, collection groups, and shareable links.
 - Builder applications saved to a real database, with pending, changes requested, approved, rejected, and suspended states.
@@ -16,7 +17,8 @@ RMT is an independent discovery and launch hub for community projects, games, mu
 - Free listing and claiming, including projects just starting out. No payment prompts or paid placement.
 - Expiring ownership challenges through existing official project websites, X profiles, or OpenSea collection descriptions.
 - Reviewed owner edit proposals, ownership revocation, immutable audit events, and server-owned publication state.
-- Durable email/SMS alert queue with Resend and Twilio adapters; providers and owner recipients need server configuration.
+- Durable email alert queue with a Resend adapter; sending requires a configured recipient, verified sender, and provider credential. Phone and SMS are not launch requirements.
+- Authenticated tools for an owner's dot to read new review work and record which notices were acknowledged. Monitoring does not approve projects or change their publication state.
 
 The preview starts owner-private. The GitHub repository is public. Curated listings are not partnerships, endorsements, ownership claims, or smart-contract audits.
 
@@ -44,6 +46,7 @@ After the first build, apply pending SQL migrations in order to the local databa
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_slimy_crystal.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_chief_impossible_man.sql
 node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_eager_hulk.sql
+node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0003_nosy_tag.sql
 ```
 
 Do not replay migrations already applied. Hosted deployment applies tracked migrations separately. No request handler creates tables.
@@ -66,8 +69,8 @@ One server-controlled owner assignment can be active for each project. Holding a
 
 ## Current scope
 
-The app launches external experiences. Libraries remain device-local. Artwork uploads, third-party game hosting, payments, public launch, and custom-domain migration are separate work. The current preview remains owner-private. Before inviting builders, configure the actual site-specific reviewer identity, notification destinations/providers, and the intended public audience. No new token or wallet is required.
+The app launches external experiences. Signed-in libraries live in the hosted database; guest libraries stay on the device. Artwork uploads, third-party game hosting, payments, public launch, and custom-domain migration are separate work. The current preview remains owner-private. Before inviting builders, verify the actual site-specific reviewer identity, the chosen notification connection, and the intended public audience. No new token or wallet is required.
 
-See [notification configuration](docs/notifications.md) for delivery semantics and required server settings.
+See [accounts and saved information](docs/data-storage.md) for the sign-in model, private data boundaries, library limits, and hosting portability. See [notification configuration](docs/notifications.md) for delivery semantics and required server settings.
 
 See [catalog sources and artwork](docs/catalog-sources.md), [deployment](docs/deployment.md), and [release status](docs/release-status.md).

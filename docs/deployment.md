@@ -27,8 +27,12 @@ D1's underlying data is SQLite. The query/review logic is separated from the UI 
 
 ## Service worker
 
-Only an offline reconnect page is cached. APIs, authentication responses, and private application records are not cached by the service worker. A personal library uses localStorage and is intentionally device-local in this first release.
+Only an offline reconnect page is cached. APIs, authentication responses, and private application records are not cached by the service worker. Guest favorites use localStorage. Signed-in favorites are stored in D1, keyed by the authenticated site-specific user ID. Importing guest favorites into an account requires an explicit action; signing in does not silently merge another person's device library.
 
 ## Review alerts
 
-`RMT_PUBLIC_URL` points to the current private preview. Configure reviewer access and the owner email/phone plus provider credentials before expecting live alerts. See [notification setup](notifications.md) for exact server variables, provider acceptance semantics, and retry limitations. Secrets and private recipient values belong in the hosting runtime, not GitHub or browser code.
+`RMT_PUBLIC_URL` points to the current private preview. The owner's chosen email recipient is stored as a runtime secret. Email delivery still requires reviewer access, a verified sender, and provider credentials. Phone and SMS are not part of the current launch.
+
+The Site's MCP capability exposes an authenticated identity tool and reviewer-only review-monitor tools. Publishing provisions the Site's private connection; a published endpoint alone does not prove that the owner's dot has installed or connected it. Verify the actual identity, reviewer authorization, digest read, and acknowledgement before enabling a recurring monitor. The authenticated identity tool may provide the exact account reference needed for administrator setup above. Never derive administrator identity from the notification email or hosting account ID.
+
+See [notification setup](notifications.md) for exact server variables, provider acceptance semantics, and retry limitations. Secrets and private recipient values belong in the hosting runtime, not GitHub or browser code.
