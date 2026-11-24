@@ -1,9 +1,14 @@
 import handler from "vinext/server/fetch-handler";
 import { runWithConnectorBinding } from "../lib/connector-context";
 import type { ConnectorBinding } from "../lib/connector-contract.mjs";
+import { proxyFirebaseAuth } from "../lib/server/firebase-auth-proxy";
 
 const worker = {
   fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext<{ CONNECTORS?: ConnectorBinding }>) {
+    // Next treats underscore-prefixed directories as private. Handle Firebase's
+    // exact reserved helper routes before the application router.
+    const authHelper = proxyFirebaseAuth(request);
+    if (authHelper) return authHelper;
     let binding = ctx.props?.CONNECTORS;
     // Local preview emulates the same request-scoped capability. This branch and
     // the auxiliary service binding are absent from production builds.

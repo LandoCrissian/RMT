@@ -1,3 +1,36 @@
+# Google sign-in state recovery — November 24, 2026
+
+- Replaced the cross-origin helper dependency on the three production addresses
+  with a fixed, uncached same-origin Firebase helper proxy. The public init
+  configuration is served locally; application cookies and identity headers
+  are never forwarded to Firebase's helper host.
+- Phones and iPad desktop mode use a same-tab Google handoff. Desktop popups
+  retain direct click activation; recovery by redirect requires an explicit
+  action. Redirect completion is handled once, and failures are shown in Account.
+- Preserved validated project/claim continuations, any-provider email/password
+  sign-in, the existing Firebase project, account links, reviewer authorization,
+  all twenty projects, stored records and approved artwork.
+- Existing Google callback registrations were confirmed for apex, www, and
+  platform origins by reaching normal Google sign-in forms. No administrator
+  credential or provider change was needed for that check.
+- Added 25 focused tests covering helper boundaries, mobile/origin decisions,
+  callback consumption, session recovery and account-switch races; the full
+  suite contains 156 tests. Typecheck, full regression and production build are
+  required before the source helper packages this release.
+- The managed preview exposes Google/email registration and recovery choices
+  without affecting public browsing. Original claim continuation tests remain
+  part of the regression suite.
+- Real Google consent/callback completion and a fresh sign-in on the owner's
+  physical iPhone remain separate acceptance checks. An outbound Google login
+  form is not recorded as a completed authenticated account.
+
+See [Google sign-in recovery](google-signin-repair.md) for provider evidence,
+scope, and the retained version 9 rollback. No data migration, new dependency,
+DNS change, billing upgrade, social post, or approval action is included.
+Native hosting records identify the exact saved version and deployment result.
+
+---
+
 # Compact discovery and catalog expansion — November 24, 2026
 
 - Expanded the curated directory from 17 to 20 with Clay StonKz, Stray Cucks and HoodFi Names; official covers, logos, links, collection pages and claim options are included.

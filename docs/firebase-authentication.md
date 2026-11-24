@@ -1,5 +1,14 @@
 # Firebase authentication and account migration
 
+## Google sign-in repair
+
+The November 24 Google helper-state repair is documented in
+[Google sign-in recovery](google-signin-repair.md). Approved production origins
+use their own Firebase helper routes, with same-tab mobile sign-in and explicit
+callback completion. Existing project/account identities and server access
+controls remain unchanged. The earlier release checks below are historical;
+they did not establish a completed Google sign-in on the owner's iPhone.
+
 RMT uses the new dedicated Firebase project `rmt-launch-auth-20261124` (RMT Authentication), created using the Firebase CLI account `launchrmt@gmail.com`. Web app ID: `1:719694340242:web:399b13786cf403b3be064b`. No pre-existing Firebase project, database, domain, or billing plan was modified. `firebase.json` deploys only Google and email/password authentication. Any valid email provider is accepted; registration and listings remain free.
 
 ## Identity and data
