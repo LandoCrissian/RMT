@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  ArrowDownToLine, ArrowRight, ArrowUpRight, Bookmark, Check, ChevronRight,
+  ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, Bookmark, Check, ChevronRight,
   Compass, Gamepad2, Grid2X2, LayoutGrid, Library, ListFilter, Menu,
   Music2, Plus, Search, ShieldCheck, Sparkles, Terminal, Wrench, X, Copy, Share2, Layers3,
   UserRound, Cloud, LoaderCircle, RefreshCw, AlertCircle,
 } from 'lucide-react';
 import { seedProjects, type Project } from '@/lib/catalog';
 import { normalizeProjectQuery, searchProjects } from '@/lib/project-search';
+import { projectPath, projectShareUrl, projectSocialImagePath, projectXIntentUrl } from '@/lib/project-sharing';
 import Studio from './Studio';
 import ReviewQueue from './ReviewQueue';
 import ClaimProject from './ClaimProject';
@@ -20,6 +21,11 @@ type Section = 'discover' | 'library' | 'games' | 'music' | 'tools' | 'studio' |
 type Session = { authenticated: boolean; userId: string | null; displayName: string | null; isAdmin: boolean };
 const emptySession: Session = { authenticated: false, userId: null, displayName: null, isAdmin: false };
 const categories = ['All projects', 'Games', 'Music', 'Tools', 'Community'];
+const sectionTitles: Record<Section, string> = {
+  discover: 'RMT — Your ecosystem. All together.',
+  library: 'My library | RMT', games: 'Games | RMT', music: 'Music | RMT', tools: 'Tools | RMT',
+  studio: 'Builder Studio | RMT', review: 'Review queue | RMT', claim: 'Claim a project | RMT', account: 'My account | RMT',
+};
 const navItems = [
   { id: 'discover' as Section, label: 'Discover', icon: Compass },
   { id: 'library' as Section, label: 'My library', icon: Library },
@@ -32,6 +38,7 @@ function domain(url: string) { try { return new URL(url).hostname.replace(/^www\
 
 function Cover({ project, className = '' }: { project: Project; className?: string }) {
   const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [project.cover]);
   return <div className={'project-art art-' + project.slug + (project.coverFit === 'contain' ? ' art-contained' : '') + ' ' + className} style={{ '--accent': project.accent } as React.CSSProperties}>
     {project.cover.startsWith('/') && !failed
       ? <img src={project.cover} alt={project.name + ' project artwork'} onError={() => setFailed(true)} loading="lazy" />
@@ -39,12 +46,12 @@ function Cover({ project, className = '' }: { project: Project; className?: stri
   </div>;
 }
 
-export default function Hub() {
+export default function Hub({ initialProjectId, initialProjects = seedProjects }: { initialProjectId?: string; initialProjects?: Project[] } = {}) {
   const [section, setSection] = useState<Section>('discover');
   const [category, setCategory] = useState('All projects');
   const [query, setQuery] = useState('');
-  const [projects, setProjects] = useState<Project[]>(seedProjects);
-  const [selected, setSelected] = useState<Project | null>(null);
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [selected, setSelected] = useState<Project | null>(() => initialProjects.find(project => project.id === initialProjectId) ?? null);
   const [claimProject, setClaimProject] = useState<Project | null>(null);
   const [session, setSession] = useState<Session>(emptySession);
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('loading');
@@ -52,6 +59,7 @@ export default function Hub() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
   const [catalogError, setCatalogError] = useState(false);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [copyFallback, setCopyFallback] = useState<string | null>(null);
   const [framedOrigin, setFramedOrigin] = useState('');
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -72,7 +80,7 @@ export default function Hub() {
 
   function go(next: Section) {
     setSection(next); setQuery(''); setCategory('All projects'); setMobileMenu(false); setSelected(null); setClaimProject(null);
-    window.history.replaceState(null, '', '#' + next);
+    window.history.pushState(null, '', '/#' + next);
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
 
@@ -110,7 +118,7 @@ export default function Hub() {
       const value = data as { projects?: Project[] };
       if (Array.isArray(value.projects)) setProjects(value.projects);
       else throw new Error('Invalid catalog response');
-    }).catch(() => setCatalogError(true));
+    }).catch(() => setCatalogError(true)).finally(() => setCatalogLoaded(true));
     const onShortcut = (event: KeyboardEvent) => {
       if (event.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes((event.target as HTMLElement).tagName)) {
         event.preventDefault(); searchRef.current?.focus();
@@ -142,40 +150,66 @@ export default function Hub() {
 
   useEffect(() => {
     const route = () => {
+      const unavailable = () => {
+        setSelected(null); setClaimProject(null); setSection('discover');
+        window.history.replaceState(null, '', '/#discover');
+        notify('This project is unavailable right now. Explore the directory or try its link again.');
+      };
       const hash = window.location.hash.slice(1);
+      const pathMatch = window.location.pathname.match(/^\/projects\/([^/]+)\/?$/);
       const match = hash.match(/^(project|claim)\/(.+)$/);
       const legacyClaim = new URLSearchParams(window.location.search).get('claim');
-      if (match || (hash === 'claim' && legacyClaim)) {
+      if (pathMatch || match || (hash === 'claim' && legacyClaim)) {
         let id: string;
-        try { id = decodeURIComponent(match?.[2] ?? legacyClaim ?? ''); } catch { return; }
+        try { id = decodeURIComponent(pathMatch?.[1] ?? match?.[2] ?? legacyClaim ?? ''); } catch { unavailable(); return; }
         const project = projects.find(item => item.id === id || item.slug === id);
         if (project) {
-          if (match?.[1] === 'project') { setSection('discover'); setSelected(project); setClaimProject(null); }
+          if (pathMatch || match?.[1] === 'project') {
+            setSection('discover'); setSelected(project); setClaimProject(null);
+            if (!pathMatch) window.history.replaceState(null, '', projectPath(project));
+          }
           else { setSection('claim'); setClaimProject(project); setSelected(null); }
+        } else {
+          // Never retain a project that is absent from the refreshed public catalog.
+          setSelected(null); setClaimProject(null);
+          // A legacy link can point to an approved community listing not in the
+          // seed catalog. Resolve it after the first catalog request completes.
+          if (catalogLoaded) unavailable();
         }
         return;
       }
       if (['discover', 'library', 'games', 'music', 'tools', 'studio', 'review', 'account'].includes(hash)) {
         setSection(hash as Section); setSelected(null); setClaimProject(null);
+      } else if (!hash) {
+        setSection('discover'); setSelected(null); setClaimProject(null);
       }
     };
     route(); window.addEventListener('hashchange', route); window.addEventListener('popstate', route);
     return () => { window.removeEventListener('hashchange', route); window.removeEventListener('popstate', route); };
-  }, [projects]);
+  }, [projects, catalogLoaded]);
+
+  useEffect(() => {
+    // The server emits canonical metadata for direct requests. Keep the browser
+    // tab title in step with in-app history navigation as well.
+    document.title = selected ? `${selected.name} | RMT`
+      : claimProject ? `Claim ${claimProject.name} | RMT`
+      : normalizeProjectQuery(query) && !['studio', 'review', 'claim', 'account'].includes(section) ? 'Search results | RMT'
+      : sectionTitles[section];
+  }, [selected, claimProject, section, query]);
 
   function openProject(project: Project) {
     setSelected(project); setClaimProject(null);
-    window.history.pushState(null, '', '#project/' + encodeURIComponent(project.id));
+    window.history.pushState(null, '', projectPath(project));
   }
 
   function closeProject() {
     setSelected(null);
-    window.history.replaceState(null, '', '#' + (section === 'claim' ? 'discover' : section));
+    window.history.replaceState(null, '', '/#' + (section === 'claim' ? 'discover' : section));
   }
 
   function startClaim(project: Project) {
     setSelected(null); setClaimProject(project); setSection('claim'); setMobileMenu(false);
-    window.history.pushState(null, '', '#claim/' + encodeURIComponent(project.id));
+    window.history.pushState(null, '', '/#claim/' + encodeURIComponent(project.id));
     window.scrollTo({top: 0, behavior: 'instant'});
   }
 
@@ -197,13 +231,34 @@ export default function Hub() {
     }
   }
 
+  async function shareProject(project: Project) {
+    const url = projectShareUrl(project);
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: project.name + ' on RMT', text: project.tagline, url });
+        return;
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') return;
+      }
+    }
+    await copyLink(url, 'Project link copied. Ready to share.');
+  }
+
   function destinationCount(project: Project) {
     return new Set([...project.links.map(link => link.url), ...(project.collections ?? []).map(item => item.url)]).size;
   }
 
   useEffect(() => {
-    if (selected) dialogRef.current?.showModal();
-    else dialogRef.current?.close();
+    if (selected) {
+      if (!dialogRef.current?.open) dialogRef.current?.showModal();
+      dialogRef.current?.scrollTo({ top: 0 });
+      dialogRef.current?.querySelector<HTMLElement>('#project-title')?.focus({ preventScroll: true });
+      document.body.classList.add('project-is-open');
+    } else {
+      dialogRef.current?.close();
+      document.body.classList.remove('project-is-open');
+    }
+    return () => document.body.classList.remove('project-is-open');
   }, [selected]);
   useEffect(() => {
     if (installOpen) installRef.current?.showModal();
@@ -253,7 +308,10 @@ export default function Hub() {
   const feature = projects.find(project => project.id === 'vamps') || projects[0];
   const savedProjects = saved.map(id => projects.find(project => project.id === id)).filter(Boolean) as Project[];
   const unavailableSaved = saved.filter(id => !projects.some(project => project.id === id));
-  const returnTo = '/#' + (claimProject ? 'claim/' + encodeURIComponent(claimProject.id) : selected ? 'project/' + encodeURIComponent(selected.id) : section);
+  const returnTo = selected ? projectPath(selected) : '/#' + (claimProject ? 'claim/' + encodeURIComponent(claimProject.id) : section);
+  const selectedExperiences = selected?.links.filter(link => /game|creative|software|tool|wallet|app directory|music|audio/i.test(link.type ?? '')) ?? [];
+  const selectedCommunity = selected?.links.filter(link => !selectedExperiences.includes(link)) ?? [];
+  const relatedProjects = selected ? projects.filter(project => project.id !== selected.id).sort((a, b) => Number(b.category === selected.category) - Number(a.category === selected.category) || a.name.localeCompare(b.name)).slice(0, 3) : [];
   const titles: Record<string, { eyebrow: string; title: string; description: string }> = {
     discover: { eyebrow: 'LESS SEARCHING. MORE EXPLORING.', title: 'Your ecosystem. All together.', description: 'Discover what communities are building. Keep your favorites one tap away.' },
     library: { eyebrow: 'MAKE YOURSELF AT HOME', title: 'Your corner of the ecosystem.', description: 'Your projects, games, and tools. Ready when you are.' },
@@ -268,7 +326,7 @@ export default function Hub() {
     <a className="skip-link" href="#main-content">Skip to content</a>
     <aside className={'sidebar ' + (mobileMenu ? 'sidebar-open' : '')} aria-label="Main navigation">
       <button className="brand" onClick={() => go('discover')} aria-label="RMT home">
-        <span className="brand-mark" aria-hidden="true"><span /><span /><span /></span>
+        <img className="brand-icon" src="/icons/rmt-mark-v5.png" alt="" width="37" height="37" />
         <span className="brand-word">RMT<span className="brand-dot">.</span></span>
         <span className="beta-tag">BETA</span>
       </button>
@@ -287,13 +345,13 @@ export default function Hub() {
       <div className="sidebar-bottom">
         <div className="ecosystem-card"><span className="ecosystem-orbit">r</span><div><span>EXPLORING</span><strong>Robinhood ecosystem</strong></div><span className="status-dot" /></div>
         <button className="install-nav" onClick={install}><ArrowDownToLine size={17} /> Add RMT to your phone</button>
-        <div className="sidebar-foot"><span>Independent. Community built.</span><span>v0.4</span></div>
+        <div className="sidebar-foot"><span>Independent. Community built.</span><span>v0.5</span></div>
       </div>
     </aside>
     {mobileMenu && <button className="sidebar-scrim" aria-label="Close menu" onClick={() => setMobileMenu(false)} />}
     <div className="workspace">
       <header className="topbar">
-        <div className="mobile-brand"><button className="icon-button" onClick={() => setMobileMenu(!mobileMenu)} aria-label="Open navigation"><Menu size={21} /></button><button onClick={() => go('discover')}>RMT<span>.</span></button></div>
+        <div className="mobile-brand"><button className="icon-button" onClick={() => setMobileMenu(!mobileMenu)} aria-label="Open navigation"><Menu size={21} /></button><button className="mobile-rmt-home" onClick={() => go('discover')} aria-label="RMT home"><img src="/icons/rmt-mark-v5.png" alt="" width="29" height="29" /><span className="mobile-rmt-word">RMT<span>.</span></span></button></div>
         <div className="search-box" role="search"><Search size={18} aria-hidden="true" /><label htmlFor="project-search" className="sr-only">Search projects and experiences</label><input id="project-search" type="search" ref={searchRef} value={query} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="search" onChange={event => { const value = event.target.value; if (!isDirectory) go('discover'); setQuery(value); }} placeholder="Search projects, games, tools…" /><kbd>/</kbd>{query && <button type="button" className="search-clear" aria-label="Clear search" onClick={() => { setQuery(''); searchRef.current?.focus(); }}><X size={15} /></button>}</div>
         <div className="topbar-actions"><button className="button button-small button-outline submit-project-topbar" onClick={() => go('studio')} aria-label="Submit a project"><Plus size={16} /><span className="submit-label">Submit a project</span></button>{sessionStatus === 'loading' ? <span className="topbar-account-loading" role="status" aria-label="Checking your account"><LoaderCircle className="rmt-spin" size={17} /></span> : session.authenticated || sessionStatus === 'error' ? <button className="topbar-account" onClick={() => go('account')} aria-label="Open your RMT account" title={session.displayName || 'My account'}><span className="topbar-account-avatar"><UserRound size={14} /></span><span>{session.displayName?.split(' ')[0] || 'Account'}</span></button> : <a className="topbar-signin" href={signInHref(returnTo)} target="_top"><UserRound size={15} /> Sign in</a>}</div>
       </header>
@@ -350,23 +408,53 @@ export default function Hub() {
     <nav className="mobile-bottom" aria-label="Mobile navigation">
       {[navItems[0], navItems[1], navItems[2], { id: 'studio' as Section, label: 'Build', icon: Terminal }].map(({ id, label, icon: Icon }) => <button key={id} className={section === id ? 'active' : ''} onClick={() => go(id)}><Icon size={20} /><span>{label}</span></button>)}
     </nav>
-    <dialog ref={dialogRef} className="project-dialog" aria-labelledby="project-title" onCancel={closeProject} onClick={event => { if (event.target === event.currentTarget) closeProject(); }}>
-      {selected && <div className="detail-inner">
-        <div className="detail-cover"><Cover project={selected} /><div className="detail-cover-shade" /><button className="dialog-close" onClick={closeProject} aria-label="Close project"><X size={20} /></button><span className="detail-category">{selected.category}{selected.stage && selected.stage !== 'live' ? ' · ' + (selected.stage === 'starting' ? 'Starting out' : 'In development') : ''}</span></div>
-        <div className="detail-body">
-          <div className="detail-heading"><div><span className="detail-listing">{selected.claimed ? 'BUILDER CLAIMED' : 'CURATED LISTING · UNCLAIMED'}</span><h2 id="project-title">{selected.name}</h2><p>{selected.tagline}</p></div><button className={'button button-outline detail-save ' + (saved.includes(selected.id) ? 'is-saved' : '')} disabled={!library.canSave} onClick={() => void toggleSave(selected)}>{saved.includes(selected.id) ? <Check size={16} /> : <Plus size={16} />}{saved.includes(selected.id) ? 'In your library' : 'Add to library'}</button></div>
-          <p className="detail-description">{selected.description}</p>
-          <div className="detail-launch-row"><a className="button button-lime" href={selected.launchUrl} target="_top" rel="noopener noreferrer">{selected.launchLabel} <ArrowUpRight size={17} /></a><button className="button button-outline" onClick={() => void copyLink(window.location.origin + '/#project/' + encodeURIComponent(selected.id), 'Project link copied.')}><Share2 size={15} /> Share project</button></div>
-          <div className="launch-hint"><span>Opens {domain(selected.launchUrl)} in this tab.</span><LinkOptions href={selected.launchUrl} label={selected.name + ' launch destination'} onCopy={copyLink} /></div>
-          {selected.links.length > 0 && <><div className="detail-section-label">EXPLORE THE PROJECT <span>{selected.links.length}</span></div><div className="destination-list">{selected.links.map(link => <div className="destination-entry" key={link.url}><a href={link.url} target="_top" rel="noopener noreferrer" className="destination"><span className="destination-symbol">{/game/i.test(link.type || '') ? <Gamepad2 size={20} /> : /tool|software|wallet/i.test(link.type || '') ? <Wrench size={20} /> : <Compass size={20} />}</span><span><strong>{link.label}</strong><small>{domain(link.url)}{link.type && <span> · {link.type}</span>}</small></span><ArrowUpRight size={18} /></a><LinkOptions href={link.url} label={link.label} onCopy={copyLink} /></div>)}</div></>}
-          {!!selected.collections?.length && <section className="collections-section" aria-label="Project collections"><div className="detail-section-label"><Layers3 size={14} /> COLLECTIONS <span>{selected.collections.length}</span></div><div className="collection-list">{selected.collections.map((collection, index) => <div className="collection-entry" key={collection.url}><a className="collection-link" href={collection.url} target="_top" rel="noopener noreferrer"><span className="collection-index">{String(index + 1).padStart(2, '0')}</span><span><strong>{collection.name}</strong><small>{domain(collection.url)} · {collection.chain || 'Collection'} · {index === 0 ? 'Primary collection' : 'Related collection'}</small></span><ArrowUpRight size={16} /></a><LinkOptions href={collection.url} label={collection.name} onCopy={copyLink} /></div>)}</div><p className="collection-footnote">Collections are grouped using links published by the project or its creator.</p></section>}
-          <div className="detail-note"><ArrowUpRight size={15} /><p>Experiences open on their creators’ sites. Access requirements vary. {selected.claimed ? 'Project ownership has been reviewed by RMT.' : 'This listing is curated from public project pages and is waiting for its builder to claim it.'}</p></div>
-          <div className="detail-claim-row"><div><strong>{selected.claimed ? 'Keep your project up to date.' : 'Is this your project?'}</strong><p>{selected.claimed ? 'Manage your listing in Builder Studio.' : 'Claim it for free and help people find everything you build.'}</p></div><button className="button button-outline" onClick={() => selected.claimed ? go('studio') : startClaim(selected)}>{selected.claimed ? 'Builder Studio' : 'Claim this project'} <ChevronRight size={15} /></button></div>
+    <dialog ref={dialogRef} className="project-dialog showcase-dialog" aria-labelledby="project-title" onCancel={closeProject} onClick={event => { if (event.target === event.currentTarget) closeProject(); }}>
+      {selected && <div className="detail-inner" style={{ '--project-accent': selected.accent } as React.CSSProperties}>
+        <div className="detail-cover showcase-cover">
+          <Cover project={selected} />
+          <div className="detail-cover-shade" />
+          <div className="showcase-toolbar"><button onClick={closeProject} className="showcase-back"><ArrowLeft size={15} /> Back to RMT</button><span>PROJECT HOME</span></div>
+          <button className="dialog-close" onClick={closeProject} aria-label="Close project"><X size={20} /></button>
+          <div className="showcase-title">
+            <div className="showcase-badges"><span className="showcase-category">{selected.category === 'Games' ? <Gamepad2 size={13} /> : selected.category === 'Tools' ? <Wrench size={13} /> : selected.category === 'Music' ? <Music2 size={13} /> : <Compass size={13} />}{selected.category}</span>{selected.stage && selected.stage !== 'live' && <span>{selected.stage === 'starting' ? 'Starting out' : 'In development'}</span>}</div>
+            <h2 id="project-title" tabIndex={-1}>{selected.name}</h2>
+            <p>{selected.tagline}</p>
+          </div>
+        </div>
+        <div className="detail-body showcase-body">
+          <div className="showcase-actionbar">
+            <a className="button button-lime showcase-launch" href={selected.launchUrl} target="_top" rel="noopener noreferrer">{selected.launchLabel} <ArrowUpRight size={18} /></a>
+            <button className={'button button-outline detail-save ' + (saved.includes(selected.id) ? 'is-saved' : '')} disabled={!library.canSave} onClick={() => void toggleSave(selected)} aria-pressed={saved.includes(selected.id)}>{saved.includes(selected.id) ? <Check size={16} /> : <Bookmark size={16} />}{saved.includes(selected.id) ? 'In your library' : 'Save project'}</button>
+            <button className="button button-outline showcase-share" onClick={() => void shareProject(selected)}><Share2 size={16} /><span>Share</span></button>
+          </div>
+          <div className="launch-hint"><span>Opens {domain(selected.launchUrl)}.</span><LinkOptions href={selected.launchUrl} label={selected.name + ' launch destination'} onCopy={copyLink} /></div>
+          <div className="showcase-columns">
+            <div className="showcase-main">
+              <section className="showcase-about" aria-labelledby="project-about"><div className="showcase-section-heading"><h3 id="project-about">Inside {selected.name}</h3><span className="showcase-listing">{selected.claimed ? <><Check size={12} /> Builder claimed</> : selected.source === 'curated' ? 'Curated by RMT' : 'Community listing'}</span></div><p className="detail-description">{selected.description}</p></section>
+              {selectedExperiences.length > 0 && <section className="showcase-destinations" aria-labelledby="experience-heading"><div className="showcase-section-heading"><h3 id="experience-heading">Things to try</h3><span>{selectedExperiences.length} {selectedExperiences.length === 1 ? 'experience' : 'experiences'}</span></div><div className="destination-list">{selectedExperiences.map((link, index) => <div className="destination-entry experience-entry" key={link.url}><a href={link.url} target="_top" rel="noopener noreferrer" className="destination"><span className="destination-symbol">{/game/i.test(link.type || '') ? <Gamepad2 size={21} /> : /music|audio/i.test(link.type || '') ? <Music2 size={21} /> : <Wrench size={21} />}</span><span><span className="experience-index">EXPERIENCE {String(index + 1).padStart(2, '0')}</span><strong>{link.label}</strong><small>{link.type || domain(link.url)}</small></span><ArrowUpRight size={18} /></a><LinkOptions href={link.url} label={link.label} onCopy={copyLink} /></div>)}</div></section>}
+              {selectedCommunity.length > 0 && <section className="showcase-destinations" aria-labelledby="destination-heading"><div className="showcase-section-heading"><h3 id="destination-heading">{selectedExperiences.length ? 'Find the community' : 'Explore the project'}</h3><span>{selectedCommunity.length} {selectedCommunity.length === 1 ? 'destination' : 'destinations'}</span></div><div className="destination-list">{selectedCommunity.map(link => <div className="destination-entry" key={link.url}><a href={link.url} target="_top" rel="noopener noreferrer" className="destination"><span className="destination-symbol">{/social/i.test(link.type || '') ? <span className="destination-x">𝕏</span> : /collection|explore/i.test(link.type || '') ? <Layers3 size={19} /> : <Compass size={19} />}</span><span><strong>{link.label}</strong><small>{domain(link.url)}{link.type && <span> · {link.type}</span>}</small></span><ArrowUpRight size={18} /></a><LinkOptions href={link.url} label={link.label} onCopy={copyLink} /></div>)}</div></section>}
+              {!!selected.collections?.length && <section className="collections-section" aria-labelledby="collection-heading"><div className="showcase-section-heading"><h3 id="collection-heading">The collections</h3><span><Layers3 size={13} /> {selected.collections.length}</span></div><div className="collection-list">{selected.collections.map((collection, index) => <div className="collection-entry" key={collection.url}><a className="collection-link" href={collection.url} target="_top" rel="noopener noreferrer"><span className="collection-index">{String(index + 1).padStart(2, '0')}</span><span><strong>{collection.name}</strong><small>{domain(collection.url)} · {collection.chain || 'Collection'} · {index === 0 ? 'Primary collection' : 'Related collection'}</small></span><ArrowUpRight size={16} /></a><LinkOptions href={collection.url} label={collection.name} onCopy={copyLink} /></div>)}</div><p className="collection-footnote">Grouped using links published by the project or its creator.</p></section>}
+            </div>
+            <aside className="showcase-sidebar" aria-label="Share this project">
+              <section className="showcase-share-card">
+                <div className="share-card-heading"><span>PASS IT ON</span><Share2 size={15} /></div>
+                <h3>A find worth sharing.</h3>
+                <p>One link to this project’s home on RMT.</p>
+                <span className="share-preview-caption">Card preview</span><div className="project-share-preview"><img src={projectSocialImagePath(selected)} alt={selected.name + ' share card preview'} loading="lazy" /><div><small>RMTLAUNCH.FUN</small><strong>{selected.name} on RMT</strong></div></div>
+                <div className="showcase-share-actions"><button className="button button-outline" onClick={() => void copyLink(projectShareUrl(selected), 'Project link copied. Ready to share.')}><Copy size={14} /> Copy link</button><a className="button button-outline" href={projectXIntentUrl(selected)} target="_blank" rel="noopener noreferrer" aria-label={'Share ' + selected.name + ' on X'}><span className="share-x">𝕏</span> Post</a></div>
+                <button className="showcase-device-share" onClick={() => void shareProject(selected)}><Share2 size={13} /> More sharing options <ArrowUpRight size={13} /></button>
+              </section>
+              <div className="showcase-library-tip"><Bookmark size={17} /><p>Make it a regular stop.<br /><span>Save this project to keep it in your library.</span></p></div>
+            </aside>
+          </div>
+          <div className="detail-note"><ArrowUpRight size={15} /><p>Experiences open on their creators’ sites. Access requirements vary. {selected.claimed ? 'Project ownership has been reviewed by RMT.' : 'This listing uses public project pages and is waiting for its builder to claim it.'}</p></div>
+          <div className="detail-claim-row"><div className="showcase-builder-icon"><Terminal size={21} /></div><div><strong>{selected.claimed ? 'Keep your project moving.' : 'Built by you? Make yourself at home.'}</strong><p>{selected.claimed ? 'Manage your listing in Builder Studio.' : 'Claim this page for free. Bring your links, collections, and experiences together.'}</p></div><button className="button button-outline" onClick={() => selected.claimed ? go('studio') : startClaim(selected)}>{selected.claimed ? 'Builder Studio' : 'Claim this project'} <ArrowUpRight size={15} /></button></div>
+          {relatedProjects.length > 0 && <section className="showcase-related" aria-labelledby="related-heading"><div className="showcase-section-heading"><h3 id="related-heading">Keep exploring</h3><Compass size={15} /></div><div className="related-projects">{relatedProjects.map(project => <button className="related-project" key={project.id} onClick={() => openProject(project)}><span className="related-project-art"><Cover project={project} /></span><span><strong>{project.name}</strong><small>{project.category}</small></span><ArrowUpRight size={15} /></button>)}</div></section>}
         </div>
         {toastNode}
       </div>}
     </dialog>
-    <dialog ref={installRef} className="install-dialog" onCancel={() => setInstallOpen(false)} onClick={event => { if (event.target === event.currentTarget) setInstallOpen(false); }}><button className="dialog-close" onClick={() => setInstallOpen(false)} aria-label="Close install instructions"><X size={20} /></button><div className="install-app-icon">RMT<span>.</span></div><h2>One tap from home.</h2><p>Add RMT to your phone’s home screen for quick access to your library.</p><div className="install-step"><span>1</span><div><strong>On iPhone</strong><p>Open RMT in Safari. Tap Share, then “Add to Home Screen.”</p></div></div><div className="install-step"><span>2</span><div><strong>On Android</strong><p>Open RMT in Chrome. Open the browser menu and choose “Install app” or “Add to Home screen.”</p></div></div><p className="small-note">Sign in to keep your library across devices. Guest favorites stay in this browser. Games and tools open on their creators’ websites.</p><button className="button button-lime" onClick={() => setInstallOpen(false)}>Got it <Check size={16} /></button></dialog>
+    <dialog ref={installRef} className="install-dialog" onCancel={() => setInstallOpen(false)} onClick={event => { if (event.target === event.currentTarget) setInstallOpen(false); }}><button className="dialog-close" onClick={() => setInstallOpen(false)} aria-label="Close install instructions"><X size={20} /></button><div className="install-app-icon install-app-image"><img src="/icons/rmt-mark-v5.png" alt="RMT" width="78" height="78" /></div><h2>One tap from home.</h2><p>Add RMT to your phone’s home screen for quick access to your library.</p><div className="install-step"><span>1</span><div><strong>On iPhone</strong><p>Open RMT in Safari. Tap Share, then “Add to Home Screen.”</p></div></div><div className="install-step"><span>2</span><div><strong>On Android</strong><p>Open RMT in Chrome. Open the browser menu and choose “Install app” or “Add to Home screen.”</p></div></div><p className="small-note">Sign in to keep your library across devices. Guest favorites stay in this browser. Games and tools open on their creators’ websites.</p><button className="button button-lime" onClick={() => setInstallOpen(false)}>Got it <Check size={16} /></button></dialog>
     <ManualCopyDialog value={copyFallback} onClose={() => setCopyFallback(null)} />
     {!selected && toastNode}
   </div>;
