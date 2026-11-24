@@ -1,3 +1,20 @@
+# Compact discovery and catalog expansion — November 24, 2026
+
+- Expanded the curated directory from 17 to 20 with Clay StonKz, Stray Cucks and HoodFi Names; official covers, logos, links, collection pages and claim options are included.
+- Added two-column phone browsing, a compact list view remembered on this device, bounded eight-project pages, category filters, name/newest sorting, a recent-additions section, and a saved-project shortcut strip.
+- Replaced 1KiSS and Animal Pharm's primary covers with their original official wide banners. Curated presentation rules do not override approved owner artwork.
+- Newest sorting uses first RMT publication; existing review events supply approved community listing dates without schema or write-workflow changes.
+- Generated v3 share images for all 20 projects and the general RMT fallback.
+- All 131 tests passed; typecheck and production build passed during implementation. Final packaging reruns the source-dependent typecheck and build.
+- Managed-preview checks passed at 320, 390, 768 and 1280 pixels with no horizontal overflow. Search/page reset, layout preference, independent bookmark actions, whole-card clicks, project headers and new showcase destinations were checked.
+- Existing Firebase accounts, reviewer authorization, free listing/claim flow, approved artwork storage and monitoring configuration are preserved.
+
+See [discovery](discovery.md) and [source provenance](discovery-project-sources.json). Hosting records identify the exact saved version and publication outcome. Actual X composer rendering is not a browser-validation claim.
+
+---
+
+The following sections are historical release reports; their pending owner checks describe the state at those releases.
+
 # Artwork and builder improvements — November 24, 2026
 
 Built on deployed Sites release 7 without replacing its Firebase project, session verification, original-account linking, reviewer allowlist, or existing records.

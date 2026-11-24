@@ -72,3 +72,19 @@ PRICED OUT has no confirmed separate website or game. CannaCats collection desti
 ## Artwork
 
 Local project artwork is copied from the first-party public URLs above and the precise media sources in `docs/catalog-research.json` for the curated preview and remains the property of its respective creator. It is not an RMT-created logo or an endorsement. Obtain publisher approval for ongoing promotional use before a public campaign; replace/remove assets on request. RMT's simple bar mark and interface are original to this build.
+
+## Discovery additions — November 24, 2026
+
+Three owner-requested projects bring the curated directory to 20 entries. All are public, unclaimed listings on Robinhood Chain. Their `listedAt` values record when RMT added them, not when their collections launched. Source URLs, image dimensions, and hashes are recorded in `docs/discovery-project-sources.json`.
+
+| Project | Primary collection | Creator-linked destinations |
+| --- | --- | --- |
+| Clay StonKz | https://opensea.io/collection/claystonkz | https://claystonkz.com/ · Brrrbon on X · creator-linked Discord |
+| Stray Cucks | https://opensea.io/collection/stray-cucks | https://straycucks.com/ · arcade · https://allowlist.straycucks.com/ |
+| HoodFi Names | https://opensea.io/collection/hoodfi | https://www.hoodfi.name/ · name lookup · https://build.hoodfi.name/ · official source repository |
+
+Each collection's public HTML confirms its identity, chain, official site, and original artwork. Clay StonKz uses photographed physical clay sculptures by Brrrbon. Stray Cucks' homepage describes its arcade and pinball; the arcade destination returned HTTP 403 to this research client, so gameplay was not tested. The scanner responded, and its holder restrictions are retained in the link label. HoodFi's older OpenSea description contains yearly pricing; RMT uses a neutral summary of its current name and website tools without repeating pricing claims. No wallet connection, mint, or transaction was performed.
+
+### Official banner corrections
+
+1KiSS now uses the collection's original 2000×667 desktop banner, with its square lip-print artwork kept as a separate logo. Animal Pharm uses the creator site's original static 2400×900 header, preserving the wordmark and all five characters. These originals are copied without artwork modification; matching background colors and complete-image fitting are presentation choices. The three new project covers and logos are optimized static WebP copies of official collection artwork.

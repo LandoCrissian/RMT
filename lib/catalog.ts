@@ -23,6 +23,10 @@ export type Project = {
   cover: string;
   coverFit?: 'cover' | 'contain';
   coverAspectRatio?: number;
+  coverBackground?: string;
+  logo?: string;
+  /** Date first added to the RMT directory, not the collection launch date. */
+  listedAt?: string;
   artwork?: {logo?: PublicArtwork; banner?: PublicArtwork};
   claimed: boolean;
   source: 'curated' | 'community';
