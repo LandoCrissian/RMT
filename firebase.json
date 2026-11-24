@@ -9,9 +9,11 @@
           "https://rmtlaunch.fun",
           "https://www.rmtlaunch.fun",
           "https://rmt-hub.wise-elf-8473.chatgpt.site",
+          "https://rmtlaunch.fun/__/auth/handler",
+          "https://www.rmtlaunch.fun/__/auth/handler",
+          "https://rmt-hub.wise-elf-8473.chatgpt.site/__/auth/handler",
           "https://rmt-launch-auth-20261124.firebaseapp.com/__/auth/handler",
           "http://localhost"
-
         ]
       }
     }

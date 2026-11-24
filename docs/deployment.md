@@ -1,3 +1,17 @@
+# Google sign-in recovery (November 24, 2026)
+
+The current auth repair keeps public browsing and all existing identities and
+data. Same-origin Firebase helper routes run inside the existing Sites Worker;
+mobile Google sign-in uses a same-tab flow. The original Firebase callback is
+retained, and all three production callback addresses passed an anonymous
+Google authorization-page check. No Firebase Hosting, DNS, database migration,
+runtime-secret change or billing upgrade is part of this repair. See
+[Google sign-in recovery](google-signin-repair.md) for the implementation,
+provider evidence, validation boundary and version 9 rollback reference.
+
+The following deployment sections retain historical release details. Their
+earlier private-audience descriptions are not the current access configuration.
+
 # Artwork and builder navigation update (November 24, 2026)
 
 The current app keeps public browsing, release 7 Firebase authentication and secure account linking. This update appends `0005_aromatic_dracula.sql` and declares an R2 binding named `BUCKET` for reviewed project artwork. Sites provisions the binding and applies the new schema; existing D1 records, domain settings, runtime authentication secrets and Dot monitoring are retained.

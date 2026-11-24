@@ -5,3 +5,21 @@ export const firebaseConfig = {
   apiKey: 'AIzaSyDxzd7IG2ntLP1Y7R13EiKrXx8ez63KsPQ',
   authDomain: 'rmt-launch-auth-20261124.firebaseapp.com',
 };
+
+// These origins have the same-origin auth helper and an explicitly authorized
+// OAuth callback. Preview and unknown hosts keep the original Firebase helper.
+const sameOriginAuthOrigins: ReadonlySet<string> = new Set([
+  'https://rmtlaunch.fun',
+  'https://www.rmtlaunch.fun',
+  'https://rmt-hub.wise-elf-8473.chatgpt.site',
+]);
+
+export function supportsSameOriginFirebaseAuth(origin: string) {
+  return sameOriginAuthOrigins.has(origin);
+}
+
+export function firebaseConfigForOrigin(origin = '') {
+  return supportsSameOriginFirebaseAuth(origin)
+    ? {...firebaseConfig, authDomain: new URL(origin).hostname}
+    : firebaseConfig;
+}
