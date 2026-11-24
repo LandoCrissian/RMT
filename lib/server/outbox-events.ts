@@ -4,7 +4,7 @@ export function pendingNotifications(db: D1Database, event: {
 }): D1PreparedStatement[] {
   const table = {submission:'submissions',claim:'project_claims',edit:'project_edits'}[event.kind];
   const key = `${event.kind}:${event.id}:revision:${event.revision}:pending`;
-  return ['email','sms'].map(channel => db.prepare(`
+  return ['email'].map(channel => db.prepare(`
     INSERT INTO notification_outbox (id,event_key,kind,entity_id,project_name,channel,status,attempt_count,provider_id,last_error,payload_json,created_at,updated_at)
     SELECT ?,?,?,?,?,?,'pending',0,'','','',?,? FROM ${table}
     WHERE id=? AND revision=? AND status='pending'

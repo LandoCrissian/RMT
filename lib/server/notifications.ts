@@ -3,13 +3,9 @@ import type { runtime } from "./runtime";
 /** Server bindings only. Never use NEXT_PUBLIC_ variables for these values. */
 export type NotificationEnvironment = ReturnType<typeof runtime> & {
   RMT_NOTIFICATION_EMAIL?: string;
-  RMT_NOTIFICATION_PHONE?: string;
   RMT_PUBLIC_URL?: string;
   RESEND_API_KEY?: string;
   RMT_EMAIL_FROM?: string;
-  TWILIO_ACCOUNT_SID?: string;
-  TWILIO_AUTH_TOKEN?: string;
-  TWILIO_FROM_NUMBER?: string;
 };
 
 type Channel = "email" | "sms";
@@ -21,14 +17,13 @@ type NotificationRow = {
   first_attempt_at: number | null; created_at: number; updated_at: number; sent_at: number | null;
 };
 type EmailBody = { from: string; to: string[]; subject: string; text: string };
-type SmsBody = { From: string; To: string; Body: string };
 type SavedPayload = {
-  version: 1; channel: Channel; body: EmailBody | SmsBody;
-  credentialFingerprint: string; accountSid?: string; ambiguous: boolean;
+  version: 1; channel: "email"; body: EmailBody;
+  credentialFingerprint: string; ambiguous: boolean;
 };
 type Outcome = { status: "sent" | "failed" | "uncertain"; providerId: string; error: string };
 type RunOptions = { fetch?: typeof fetch; now?: () => number; timeoutMs?: number };
-type ChannelConfiguration = { configured: boolean; missing: string[] };
+type ChannelConfiguration = { enabled: boolean; configured: boolean; missing: string[] };
 
 // A 23-hour window leaves a margin inside Resend's documented 24-hour retention.
 const RETRY_WINDOW_MS = 23 * 60 * 60 * 1000;
@@ -36,7 +31,7 @@ const RETRY_DELAY_MS = 60_000;
 const SENDING_LEASE_MS = 2 * 60_000;
 const MAX_ATTEMPTS = 3;
 const REQUEST_TIMEOUT_MS = 8_000;
-const CHANNELS: Channel[] = ["email", "sms"];
+const CHANNELS: Channel[] = ["email"];
 const STATUSES: Status[] = ["pending", "sending", "sent", "failed", "unconfigured", "uncertain"];
 
 function value(input: unknown): string { return typeof input === "string" ? input.trim() : ""; }
@@ -46,7 +41,6 @@ function senderAddress(input: string): boolean {
   const address = input.match(/^[^<>]+<([^<>]+)>$/)?.[1] ?? input;
   return emailAddress(address);
 }
-function phoneNumber(input: string): boolean { return /^\+[1-9]\d{7,14}$/.test(input); }
 
 /** The configured server URL is the only source of notification links. */
 export function notificationReviewUrl(env: NotificationEnvironment): string | null {
@@ -67,12 +61,10 @@ export function notificationConfiguration(env: NotificationEnvironment): Record<
   if (!emailAddress(value(env.RMT_NOTIFICATION_EMAIL))) email.push("Owner email address");
   if (!senderAddress(value(env.RMT_EMAIL_FROM))) email.push("Verified sender email");
   if (!value(env.RESEND_API_KEY) || /\s/.test(value(env.RESEND_API_KEY))) email.push("Resend API key");
-  const sms = [...common];
-  if (!phoneNumber(value(env.RMT_NOTIFICATION_PHONE))) sms.push("Owner phone number with country code");
-  if (!phoneNumber(value(env.TWILIO_FROM_NUMBER))) sms.push("Twilio sender number");
-  if (!/^AC[a-f\d]{32}$/i.test(value(env.TWILIO_ACCOUNT_SID))) sms.push("Twilio account SID");
-  if (!value(env.TWILIO_AUTH_TOKEN) || /[^\x21-\x7e]/.test(value(env.TWILIO_AUTH_TOKEN))) sms.push("Twilio auth token");
-  return { email: {configured: email.length === 0, missing: email}, sms: {configured: sms.length === 0, missing: sms} };
+  return {
+    email: {enabled: true, configured: email.length === 0, missing: email},
+    sms: {enabled: false, configured: false, missing: []},
+  };
 }
 
 function effectiveStatus(row: Pick<NotificationRow, "status" | "updated_at">, now: number): Status {
@@ -80,7 +72,7 @@ function effectiveStatus(row: Pick<NotificationRow, "status" | "updated_at">, no
 }
 
 function retryable(row: NotificationRow, configured: boolean, now: number): boolean {
-  if (!configured || row.provider_id || row.attempt_count >= MAX_ATTEMPTS) return false;
+  if (row.channel !== "email" || !configured || row.provider_id || row.attempt_count >= MAX_ATTEMPTS) return false;
   if (["invalid_saved_payload", "provider_configuration_changed"].includes(row.last_error)) return false;
   const status = effectiveStatus(row, now);
   if (row.first_attempt_at !== null && row.first_attempt_at <= now - RETRY_WINDOW_MS) return false;
@@ -102,8 +94,8 @@ export async function notificationStatus(db: D1Database, env: NotificationEnviro
   const channels = notificationConfiguration(env);
   const [totals, recent, ready] = await Promise.all([
     db.prepare(`SELECT CASE WHEN status = 'sending' AND updated_at <= ? THEN 'uncertain' ELSE status END AS status,
-      COUNT(*) AS count FROM notification_outbox GROUP BY 1`).bind(now - SENDING_LEASE_MS).all<{status: Status; count: number}>(),
-    db.prepare("SELECT * FROM notification_outbox ORDER BY created_at DESC, id DESC LIMIT 40").all<NotificationRow>(),
+      COUNT(*) AS count FROM notification_outbox WHERE channel = 'email' GROUP BY 1`).bind(now - SENDING_LEASE_MS).all<{status: Status; count: number}>(),
+    db.prepare("SELECT * FROM notification_outbox WHERE channel = 'email' ORDER BY created_at DESC, id DESC LIMIT 40").all<NotificationRow>(),
     db.prepare(`SELECT COUNT(*) AS count FROM (SELECT provider_id, attempt_count, first_attempt_at, updated_at, channel, last_error,
       CASE WHEN status = 'sending' AND updated_at <= ? THEN 'uncertain' ELSE status END AS status FROM notification_outbox) WHERE ${eligibilitySql()}
       AND ((channel = 'email' AND ? = 1) OR (channel = 'sms' AND ? = 1))`)
@@ -129,7 +121,7 @@ function issueMessage(code: string): string | null {
   if (code === "interrupted_attempt") return "The previous attempt ended before its outcome was recorded. Check provider logs.";
   if (code === "provider_configuration_changed") return "Provider credentials changed after an uncertain attempt. Check provider logs before sending again.";
   if (code === "invalid_saved_payload") return "The saved alert needs manual review before another attempt.";
-  if (code === "outcome_unknown") return "The provider outcome is unknown. An SMS will not be retried automatically.";
+  if (code === "outcome_unknown") return "The provider outcome is unknown. Check provider logs before further action.";
   if (code === "provider_reported_failure") return "The provider created a message but reported failure. Check its message log.";
   if (/^provider_http_\d{3}$/.test(code)) return `The provider rejected the request (HTTP ${code.slice(-3)}).`;
   return "Check the provider message log before another attempt.";
@@ -146,7 +138,7 @@ async function newPayload(row: NotificationRow, env: NotificationEnvironment): P
   const reviewUrl = notificationReviewUrl(env)!;
   const name = projectName(row.project_name);
   const event = row.kind === "claim" ? "ownership claim" : row.kind === "edit" ? "project update" : "project application";
-  if (row.channel === "email") return {
+  return {
     version: 1, channel: "email", ambiguous: false,
     credentialFingerprint: await fingerprint(value(env.RESEND_API_KEY)),
     body: {
@@ -155,24 +147,16 @@ async function newPayload(row: NotificationRow, env: NotificationEnvironment): P
       text: `A ${event} for ${name} was submitted to RMT.\n\nOpen the review workspace to check its current status:\n${reviewUrl}\n\nSign in with your reviewer account. Opening this link does not approve or publish a project.`,
     },
   };
-  return {
-    version: 1, channel: "sms", ambiguous: false,
-    credentialFingerprint: await fingerprint(value(env.TWILIO_AUTH_TOKEN)), accountSid: value(env.TWILIO_ACCOUNT_SID),
-    body: {From: value(env.TWILIO_FROM_NUMBER), To: value(env.RMT_NOTIFICATION_PHONE), Body: `RMT: ${name} submitted a ${event}. Check its current status: ${reviewUrl} (reviewer sign-in required)`},
-  };
+
 }
 
 function savedPayload(row: NotificationRow): SavedPayload | null {
   try {
     const payload = JSON.parse(row.payload_json) as SavedPayload;
     if (payload.version !== 1 || payload.channel !== row.channel || !payload.body || !/^[a-f\d]{64}$/.test(payload.credentialFingerprint)) return null;
-    if (row.channel === "email") {
-      const body = payload.body as EmailBody;
-      if (!senderAddress(body.from) || !Array.isArray(body.to) || body.to.length !== 1 || !emailAddress(body.to[0]) || typeof body.subject !== "string" || typeof body.text !== "string") return null;
-    } else {
-      const body = payload.body as SmsBody;
-      if (!/^AC[a-f\d]{32}$/i.test(payload.accountSid ?? "") || !phoneNumber(body.From) || !phoneNumber(body.To) || typeof body.Body !== "string") return null;
-    }
+    if (row.channel !== "email" || payload.channel !== "email") return null;
+    const body = payload.body;
+    if (!senderAddress(body.from) || !Array.isArray(body.to) || body.to.length !== 1 || !emailAddress(body.to[0]) || typeof body.subject !== "string" || typeof body.text !== "string") return null;
     return payload;
   } catch { return null; }
 }
@@ -200,17 +184,13 @@ async function send(row: NotificationRow, payload: SavedPayload, env: Notificati
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), Math.max(1, Math.min(options.timeoutMs ?? REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_MS)));
   try {
-    const email = row.channel === "email";
-    const response = await (options.fetch ?? fetch)(email ? "https://api.resend.com/emails" : `https://api.twilio.com/2010-04-01/Accounts/${payload.accountSid}/Messages.json`, {
+    const response = await (options.fetch ?? fetch)("https://api.resend.com/emails", {
       method: "POST", redirect: "error", signal: controller.signal,
-      headers: email ? {
+      headers: {
         "Authorization": `Bearer ${value(env.RESEND_API_KEY)}`, "Content-Type": "application/json",
         "Idempotency-Key": `rmt-notification/${row.id}`,
-      } : {
-        "Authorization": `Basic ${btoa(`${payload.accountSid}:${value(env.TWILIO_AUTH_TOKEN)}`)}`,
-        "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: email ? JSON.stringify(payload.body) : new URLSearchParams(payload.body as SmsBody).toString(),
+      body: JSON.stringify(payload.body),
     });
     // An explicit 4xx rejection is retryable. Timeout/conflict/server errors may
     // have accepted the message; never treat those as evidence of non-delivery.
@@ -220,12 +200,7 @@ async function send(row: NotificationRow, payload: SavedPayload, env: Notificati
       return {status: definite && !payload.ambiguous ? "failed" : "uncertain", providerId: "", error: definite ? `provider_http_${response.status}` : "outcome_unknown"};
     }
     const data = await readProviderResponse(response);
-    if (email && typeof data.id === "string" && /^[a-z\d_-]{6,128}$/i.test(data.id)) return {status: "sent", providerId: data.id, error: ""};
-    if (!email && typeof data.sid === "string" && /^SM[a-f\d]{32}$/i.test(data.sid)) {
-      if (["failed", "undelivered", "canceled"].includes(String(data.status))) return {status: "failed", providerId: data.sid, error: "provider_reported_failure"};
-      if (["queued", "accepted", "sending", "sent", "delivered", "scheduled"].includes(String(data.status))) return {status: "sent", providerId: data.sid, error: ""};
-      return {status: "uncertain", providerId: data.sid, error: "outcome_unknown"};
-    }
+    if (typeof data.id === "string" && /^[a-z\d_-]{6,128}$/i.test(data.id)) return {status: "sent", providerId: data.id, error: ""};
     return {status: "uncertain", providerId: "", error: "outcome_unknown"};
   } catch {
     // No raw exception/provider body is persisted or logged: it may contain PII.
@@ -235,7 +210,7 @@ async function send(row: NotificationRow, payload: SavedPayload, env: Notificati
 
 /**
  * Bounded, awaited delivery. A durable CAS claims each row before any HTTP call.
- * "sent" means provider accepted, never handset/inbox delivery confirmation.
+ * "sent" means provider accepted, never inbox delivery confirmation.
  */
 export async function flushNotifications(db: D1Database, env: NotificationEnvironment, limit = 3, options: RunOptions = {}) {
   const now = options.now ?? Date.now;
@@ -244,7 +219,7 @@ export async function flushNotifications(db: D1Database, env: NotificationEnviro
   const summary = {attempted: 0, accepted: 0, failed: 0, uncertain: 0, unconfigured: 0};
   const configured = notificationConfiguration(env);
   await db.prepare(`UPDATE notification_outbox SET status = 'uncertain', last_error = 'interrupted_attempt'
-    WHERE status = 'sending' AND updated_at <= ?`).bind(started - SENDING_LEASE_MS).run();
+    WHERE channel = 'email' AND status = 'sending' AND updated_at <= ?`).bind(started - SENDING_LEASE_MS).run();
   for (const channel of CHANNELS) {
     if (configured[channel].configured) continue;
     const result = await db.prepare(`UPDATE notification_outbox SET status = 'unconfigured', last_error = 'configuration_needed', updated_at = ?
@@ -267,7 +242,7 @@ export async function flushNotifications(db: D1Database, env: NotificationEnviro
       continue;
     }
     payload.ambiguous = payload.ambiguous || row.status === "uncertain";
-    const currentFingerprint = await fingerprint(value(row.channel === "email" ? env.RESEND_API_KEY : env.TWILIO_AUTH_TOKEN));
+    const currentFingerprint = await fingerprint(value(env.RESEND_API_KEY));
     if (payload.ambiguous && currentFingerprint !== payload.credentialFingerprint) {
       await db.prepare("UPDATE notification_outbox SET status = 'uncertain', last_error = 'provider_configuration_changed', updated_at = ? WHERE id = ? AND status = ? AND attempt_count = ?")
         .bind(attemptAt, row.id, row.status, row.attempt_count).run();

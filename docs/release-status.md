@@ -1,44 +1,39 @@
-# RMT v0.2 — directory and builder ownership
+# RMT v0.3 — accounts, personal libraries, and review monitoring
 
-## Implemented
+## This release
 
-- Seventeen sourced project homes: the original three plus all fourteen supplied collections.
-- Official project artwork, direct launch buttons, copy/share links, same-tab launch fallback, and creator-confirmed collection groups.
-- Alphabetical discovery, search across projects/experiences/collections, category filters, saved library, responsive navigation, and project dialogs.
-- Shareable project and ownership-claim routes that survive reload and sign-in.
-- Free applications and claims. The initial paid Spotlight concept and all payment prompts have been removed.
-- New projects can use an official website or X profile and choose Starting out, Building, or Live. A minted collection or finished app is not required.
-- Seven-day proof challenges using existing official website, X, or OpenSea creator channels, followed by manual owner review.
-- One authoritative project manager, private proof records, ownership revocation, and reviewed content changes.
-- Server-side submission limits, duplicate prevention, same-origin mutation checks, revision guards, and recorded review decisions.
-- Durable email/SMS alert intents with Resend and Twilio adapters, a reviewer delivery-status screen, and bounded retries.
-- Original migrations preserved; the new tables and stage field are in `0002_eager_hulk.sql`.
+- A dedicated account page, visible sign-in controls, sign-out, an account reference, and explanations of what RMT saves.
+- Signed-in libraries stored in the hosted database and guest favorites stored in the current browser. Device favorites enter an account only through an explicit import.
+- A personal launchpad with direct launch links, loading and retry states, and clear account/device storage labels.
+- A 200-project account-library limit enforced atomically. Server identity scopes every library operation. An expected-account check prevents a stale tab from writing to a different signed-in account.
+- A stateless Site MCP connection for the owner's dot: read authenticated identity, read new review work, and acknowledge specific notices without changing review decisions.
+- Per-reviewer, per-revision monitor receipts, so repeated checks need not repeat the same notice and resubmissions can produce a new notice.
+- Email-only alert intents. Phone setup and SMS delivery are disabled; historical SMS records are preserved but never retried.
+- Additive migration `0003_nosy_tag.sql` for saved projects and monitor receipts. Existing migrations are unchanged.
 
-## Activation still required
+## Preserved
 
-The deployment remains owner-private. Its public review URL is configured, but live reviewer identity has not been established. Configure the site-specific account reference as `RMT_ADMIN_USER_IDS` after the owner signs in. The authenticated review-access screen provides a copyable reference; account IDs from hosting sharing settings are not substitutes.
+The directory retains all seventeen sourced project homes, original project artwork, grouped collections, official destinations, search, category filters, shareable project/claim pages, and responsive navigation. Listings and ownership claims remain free. New projects can use an official website or X profile without a minted collection or finished app.
 
-Email and SMS require the owner's chosen recipients, sender identities, and provider credentials. No recipients or provider secrets were guessed. No live message was sent. The Notifications screen distinguishes missing configuration, pending work, provider acceptance, rejection, and uncertain outcomes. Provider acceptance is not proof of delivery to a handset or inbox.
+Applications, ownership challenges, and listing edits stay private until an authorized reviewer acts. Claim approval still requires checking the proof on an existing official channel. Notification acknowledgement never substitutes for review.
 
-## Before inviting builders on X
+## Runtime activation
 
-1. Connect and verify the owner's reviewer identity.
-2. Configure email/text delivery if alerts are required at launch.
-3. Choose and open the intended Site audience. The current private preview cannot accept public builders.
-4. Keep the existing domain unchanged until its hosting and sign-in migration is deliberately handled.
+The preview remains owner-private. The owner-selected email recipient is stored as a runtime secret, separate from source and browser code. Sending email also needs a verified sender, Resend credential, and configured reviewer identity; recipient configuration alone does not prove delivery.
 
-A public campaign, messages to project teams, and changes to `rmtlaunch.fun` are outside this update.
+The published MCP capability provisions the Site's private connection. Installation, authenticated connection, reviewer authorization, and a monitoring schedule are separate states. Verify the actual site-specific account reference through the identity tool or account page before configuring `RMT_ADMIN_USER_IDS`. Hosting sharing IDs and recipient addresses are not substitutes. Exercise the digest and acknowledgement through the connected tools before creating unattended monitoring. See [owner alerts](notifications.md).
 
-## Current limits
+Public access and `rmtlaunch.fun` routing require a deliberate launch decision. This release does not publish an X announcement or contact project teams.
 
-- The directory launches external experiences; their gameplay, wallet operations, and rewards are not audited by RMT.
-- Collection relationships remain curated. Confirmed builders can propose additional collection URLs as reviewed destination links.
-- No uploaded artwork/game hosting, payments, wallet custody, new token, cloud-synced favorites, or mobile push notifications.
-- Review queues show at most 200 recent/priority records, owned applications at most 100, and the public community catalog at most 500. Add pagination before reaching those limits.
-- There is no background alert scheduler. Pending-write requests and the reviewer retry action process a small batch. Delivery failures never roll back a saved application.
+## Verification and practical limits
 
-## Verification
+The integrated test suite uses actual SQL operations with every tracked migration. Coverage includes library persistence after reopening, account isolation, stale account guards, concurrent quota enforcement, approved-only saving, ownership-review races, revision checks, notification deduplication, monitor authorization, receipt persistence, and disabled SMS delivery. Provider HTTP responses are simulated; tests do not establish live inbox delivery.
 
-The current integrated test suite runs the actual data/review logic with in-memory SQLite and every tracked migration. All 51 tests pass. It covers competing ownership approvals, expired proof, private-field exclusion, stale edits, ownership revocation, distinct collection identities, transactional notification deduplication, provider failures and uncertain SMS outcomes. Provider HTTP calls in tests are mocked; live delivery is not claimed.
+The release workflow checks TypeScript, all tests, a production build, and desktop/phone interaction. Live owner authentication and notification delivery are verified separately when their connections are available.
 
-TypeScript, production build, and responsive browser interaction checks are completed as part of the release workflow. The final delivery identifies the actual published preview and repository state. Live owner authentication and actual email/SMS receipt remain unverified until configuration is supplied.
+- The directory launches external experiences. RMT does not host their game files, music, accounts, progress, or wallet operations.
+- Library updates are server-confirmed; an ambiguous interrupted save requires a refresh. This release does not promise offline cloud writes or instant synchronization between already-open tabs on different devices.
+- Private account APIs are not cached by the service worker. Guest favorites can disappear when browser data is cleared.
+- Review lists cap at 200, owned applications at 100, the community catalog at 500, and each monitor digest at 50 new records. Add pagination before these directory/review limits are reached. Monitoring can consume another batch after acknowledging the previous one.
+- Email work runs after a pending write or reviewer retry; a dot digest does not flush the email queue.
+- Backup/export and account-deletion workflows are not implemented. GitHub preserves source and migration definitions, not private database rows. See [data storage](data-storage.md).

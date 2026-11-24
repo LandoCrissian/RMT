@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, index, uniqueIndex, check } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, uniqueIndex, check, primaryKey } from "drizzle-orm/sqlite-core";
 
 export const submissions = sqliteTable("submissions", {
   id: text("id").primaryKey(),
@@ -94,4 +94,22 @@ export const notificationOutbox = sqliteTable('notification_outbox', {
   uniqueIndex('outbox_event_channel').on(table.eventKey,table.channel),index('outbox_status_created').on(table.status,table.createdAt),
   check('outbox_valid_kind',sql`${table.kind} IN ('submission','claim','edit')`),check('outbox_valid_channel',sql`${table.channel} IN ('email','sms')`),
   check('outbox_valid_status',sql`${table.status} IN ('pending','sending','sent','failed','unconfigured','uncertain')`),
+]);
+
+export const savedProjects = sqliteTable('saved_projects', {
+  userId: text('user_id').notNull(),
+  projectId: text('project_id').notNull(),
+  createdAt: integer('created_at').notNull(),
+}, table => [
+  primaryKey({columns: [table.userId, table.projectId]}),
+  index('saved_projects_user_created').on(table.userId, table.createdAt),
+]);
+
+export const reviewAlertReceipts = sqliteTable('review_alert_receipts', {
+  reviewerId: text('reviewer_id').notNull(),
+  eventKey: text('event_key').notNull(),
+  acknowledgedAt: integer('acknowledged_at').notNull(),
+}, table => [
+  primaryKey({columns: [table.reviewerId, table.eventKey]}),
+  index('review_alert_receipts_reviewer_acknowledged').on(table.reviewerId, table.acknowledgedAt),
 ]);

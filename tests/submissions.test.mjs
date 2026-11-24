@@ -127,7 +127,7 @@ test('account quota accepts exactly three unique applications per 24 hours', asy
   const failure = results.find(result => result.status === 'rejected');
   assert.equal(failure.reason.status, 429);
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM submissions').get().count, 3);
-  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count, 6);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count, 3);
 });
 
 test('duplicate name and canonical website are rejected across different accounts', async t => {
@@ -342,14 +342,14 @@ test('claim proof must match official channel and be submitted by its owner befo
   assert.equal(api.proofMatchesChannel('opensea','https://opensea.io/collection/real','https://opensea.io/collection/fake'),false);
 });
 
-test('submitting proof queues exactly one event per channel without automatically approving ownership', async t => {
+test('submitting proof queues exactly one email event without automatically approving ownership', async t => {
   const db=database();t.after(()=>db.close());
   const claim=await submittedClaim(db);
   assert.equal(claim.status,'pending');
   assert.equal((await api.catalog(db)).projects.find(project=>project.id==='vamps').claimed,false);
-  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count,2);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count,1);
   await assert.rejects(api.submitClaim(db,user,claim.id,{proofUrl:claim.proofUrl,note:'',expectedRevision:1}),rejection(409));
-  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count,2);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count,1);
   assert.throws(()=>claimDecision('approve',claim.revision,{confirmedOwnership:false}),rejection(400));
 });
 
@@ -397,7 +397,7 @@ test('pending owner edits do not alter public project data and never leak throug
   assert.deepEqual(after,before);
   assert.equal(edit.status,'pending');
   assert.equal((await api.ownProjectEdits(db,'outsider')).length,0);
-  assert.equal(db.raw.prepare("SELECT COUNT(*) AS count FROM notification_outbox WHERE kind='edit'").get().count,2);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS count FROM notification_outbox WHERE kind='edit'").get().count,1);
   await assert.rejects(api.createProjectEdit(db,user,projectEdit()),rejection(409));
   assert.throws(()=>api.validateProjectEdit({...projectEdit(),name:'Impersonated project'}),rejection(400));
   assert.throws(()=>api.validateProjectEdit({...projectEdit(),links:[{label:'Unsafe',url:'javascript:alert(1)'}]}),rejection(400));
@@ -456,10 +456,10 @@ test('review notifications are transactional and idempotent per event and channe
   const db=database();t.after(()=>db.close());
   const application=await api.createSubmission(db,user,input('notify'));
   await db.batch(api.pendingNotifications(db,{kind:'submission',id:application.id,projectName:application.name,revision:1,now:Date.now()}));
-  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count,2);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count,1);
   const requested=await api.reviewSubmission(db,'admin',application.id,decision('request_changes',1));
   await api.resubmit(db,user,application.id,input('notify'),requested.revision);
-  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count,4);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count,2);
 });
 
 

@@ -1,0 +1,35 @@
+# Accounts and saved information
+
+## Sign-in
+
+The hosted RMT preview uses **Sign in with ChatGPT**. Visitors do not create an RMT password and do not need to connect a crypto wallet. The hosting gateway supplies a verified, site-specific account ID to the application. That account ID scopes private data. Notification email addresses do not grant reviewer privileges.
+
+The website's owner-private audience is a separate setting from application permissions. A visitor allowed to open the site still needs the correct signed-in identity to manage their own projects, and an explicit server-side allowlist to review other people's applications.
+
+## What is saved where
+
+| Information | Storage and access |
+| --- | --- |
+| Curated project names, artwork, and official links | Versioned application source and public project catalog. |
+| A signed-in user's saved-project library | Hosted D1 database (`saved_projects`), scoped to that user's site-specific account ID. Rows contain account ID, project ID, and save time; no wallet key or email address. |
+| A guest's saved-project library | That browser's local storage. It does not automatically follow the visitor to another device. Clearing browser storage can remove it. |
+| Project applications, ownership claims, and proposed updates | Hosted D1 database. Pending records remain private to the submitter and authorized reviewers. |
+| Contact information and ownership evidence | Private application/claim records, not the public catalog or GitHub source. |
+| Review decisions and history | Hosted D1 database, with reviewer identity and record revisions. |
+| Notification queue and monitor acknowledgements | Hosted D1 database. Provider credentials and the owner's notification recipient remain server runtime settings. |
+
+D1 uses SQLite. Saving an item to an account is acknowledged only after the server writes it. A browser refresh or application redeployment does not intentionally erase these database records. Data is not put on a blockchain, and RMT does not store the external games or music that project links open.
+
+## Personal library behavior
+
+Signed-in accounts can save up to **200 projects**. The server checks the cap inside the write operation so concurrent devices cannot exceed it. Saving or removing the same project repeatedly is safe. Library APIs always select the signed-in account from the server identity, never a caller-supplied account ID.
+
+Every library request also sends `X-RMT-Account` with the account ID currently displayed by the client. The server compares it with the authenticated identity; a missing or mismatched value receives HTTP 409 with `code: "account_changed"`, without reading or writing the library. This is a consistency guard, not an alternative sign-in mechanism. It prevents a tab showing one account from accidentally saving into a different account after sign-in changes in another tab. Clients refresh the session after that error and never silently retry the mutation.
+
+Importing device favorites is an explicit action. It merges currently public projects into the account library without deleting existing account favorites. Duplicate and already-saved entries are ignored; missing, unavailable, and capacity-limited items are reported as skipped. No account change should silently import another person's device favorites.
+
+If a saved project becomes unavailable, its project ID remains in the account library until the user removes it. Private application details are not exposed by that saved ID. API responses are marked `Cache-Control: no-store`, and the service worker does not cache private account data.
+
+## Hosting and recovery
+
+The database lives with the hosted Site; it is separate from the GitHub code repository and from browser local storage. GitHub preserves application source and migration definitions, not a backup of private application rows. Moving to another host requires migrating the database and replacing the current gateway authentication adapter. Backup/export and account deletion policies should be defined before a public launch; this release does not claim those workflows are already implemented.
