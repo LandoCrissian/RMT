@@ -1,3 +1,28 @@
+# RMT v0.5 — project showcases, sharing, and identity
+
+## Release content
+
+- Cinematic project homes with organized experiences, community links, and collections.
+- Full-screen phone layout, clear launch/save/share controls, related-project discovery, and client navigation titles.
+- Clean `/projects/{slug}` URLs, backward-compatible legacy links, and server-generated canonical/Open Graph/Twitter metadata.
+- Individual 1200 × 630 JPEG share cards for all 17 curated projects; RMT fallback for new projects without reviewed artwork.
+- Updated RMT monogram, versioned PWA/Apple/browser icons, and a refreshed offline reconnect page.
+- Public showcases use the approved catalog projection. Private proof, contact data, account IDs, and review notes remain excluded.
+
+## Validation
+
+Typecheck, all **83 automated tests**, and the production build passed. New tests exercise individual metadata, image dimensions/format/size, URL encoding, fallback behavior, and pending → approved → suspended showcase visibility using real SQLite migrations.
+
+Browser checks confirmed the VAMPS direct route and metadata, project-specific artwork, related-project navigation and Back, unavailable-project/noindex rendering, a 390px phone-width showcase without horizontal overflow, 16px search text, `sui ` returning Suited Apes, and a tap on the card body opening that project. The copy control reached its success state and share/composer destinations were checked. Physical iPhone focus zoom, the native phone share sheet, and actual X card rendering were not tested.
+
+## Publication boundary
+
+The source update preserves the existing owner-private Sites audience. Public social previews additionally require an owner-authorized public audience and anonymous access to both HTML and image assets. No X post was sent. The owner's screenshot verifies that `rmtlaunch.fun` reaches the expected private login screen on an iPhone; completed signed-in custom-domain flows remain unverified.
+
+See [deployment](deployment.md), [sharing](social-sharing.md), and [brand assets](brand.md) for operational details.
+
+---
+
 # RMT v0.4 — navigation, mobile search, and hosting entrypoints
 
 ## Source changes

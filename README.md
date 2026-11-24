@@ -42,7 +42,7 @@ For this environment, Sites provides the authenticated gateway and provisions D1
 
 ### Hosting
 
-The complete v0.4 app is published at `https://rmt-hub.wise-elf-8473.chatgpt.site`, with its database and ChatGPT sign-in. The GitHub-connected Netlify project at `https://rmthub.netlify.app` is deployed as a small redirect entrypoint to that app. Its live redirect preserves paths and queries, and browser navigation preserves fragments. Netlify does not run a second backend. See [Netlify entrypoint](docs/netlify-entry.md) for the build command and publish directory.
+The complete app is published at `https://rmt-hub.wise-elf-8473.chatgpt.site`, with its database and ChatGPT sign-in. The GitHub-connected Netlify project at `https://rmthub.netlify.app` is deployed as a small redirect entrypoint to that app. Its live redirect preserves paths and queries, and browser navigation preserves fragments. Netlify does not run a second backend. See [Netlify entrypoint](docs/netlify-entry.md) for the build command and publish directory.
 
 `rmtlaunch.fun` and `www.rmtlaunch.fun` have active Sites domain bindings and TLS. Checks from this environment still return HTTP 403 **Site Unavailable** with `x-openai-site-blocked: true`, identifying a platform/network block rather than an RMT application error. Its precise source is unresolved, so custom-domain access for users is not established. The working platform URL remains canonical, and the app remains owner-private.
 
