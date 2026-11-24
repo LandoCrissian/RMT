@@ -1,4 +1,4 @@
-export type PlatformIdentity = {userId: string; email: string; displayName: string};
+export type PlatformIdentity = {userId: string; email: string; displayName: string; emailVerified?: boolean; provider?: string};
 
 /**
  * Trust these headers ONLY behind the Sites authentication dispatch, which supplies

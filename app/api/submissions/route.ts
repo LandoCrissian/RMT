@@ -6,13 +6,13 @@ import { handle, json, readMutation } from "@/lib/server/http";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   return handle(async () => {
-    const user = requireIdentity(request);
+    const user = await requireIdentity(request);
     return json({submissions: await ownSubmissions(database(), user.userId)});
   });
 }
 export async function POST(request: Request) {
   return handle(async () => {
-    const user = requireIdentity(request);
+    const user = await requireIdentity(request);
     const input = validateSubmission(await readMutation(request));
     const db = database();
     const submission = await createSubmission(db, user, input);

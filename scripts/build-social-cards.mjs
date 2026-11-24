@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { resolve, join } from 'node:path';
+import { resolve, join, sep } from 'node:path';
 import { build } from 'esbuild';
 import sharp from 'sharp';
 
@@ -58,7 +58,7 @@ function overlay(project) {
 for (const project of seedProjects) {
   if (!project.cover.startsWith('/projects/')) throw new Error(`Missing local artwork for ${project.slug}`);
   const sourcePath = resolve(root, 'public', project.cover.slice(1));
-  if (!sourcePath.startsWith(join(root, 'public/projects') + '/')) throw new Error('Artwork must be in public/projects.');
+  if (!sourcePath.startsWith(join(root, 'public/projects') + sep)) throw new Error('Artwork must be in public/projects.');
   const source = await readFile(sourcePath);
   const base = await sharp(source).resize(width, height, {fit: 'cover', position: 'centre'}).flatten({background: '#11140f'}).toBuffer();
   const cards = [];

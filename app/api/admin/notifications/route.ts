@@ -7,14 +7,14 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   return handle(async () => {
-    requireAdmin(request);
+    await requireAdmin(request);
     return json({notifications: await notificationStatus(database(), runtime())});
   });
 }
 
 export async function POST(request: Request) {
   return handle(async () => {
-    requireAdmin(request);
+    await requireAdmin(request);
     const body = await readMutation(request);
     if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length !== 1 || (body as Record<string, unknown>).action !== "retry") {
       throw new InputError("Choose retry to process queued notification attempts.");

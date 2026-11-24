@@ -113,7 +113,7 @@ export default function Studio({ session, onToast }: StudioProps) {
               <div className="st-symbol"><Plus size={25} /></div>
               <h2>Give your project a home.</h2>
               <p>Sign in to submit your project and follow its review. No wallet is required to browse or apply.</p>
-              <a className="st-button st-primary" href="/signin-with-chatgpt?return_to=/%23studio" target="_top">Sign in to apply <ArrowRight size={17} /></a>
+              <a className="st-button st-primary" href="/#account" target="_top">Sign in to apply <ArrowRight size={17} /></a>
             </section>
           ) : received ? (
             <section className="st-panel st-received" aria-live="polite">

@@ -10,7 +10,7 @@ RMT is an independent discovery and launch hub for community projects, games, mu
 - Search across project names, initials, collections, experiences, and website addresses, with normalized spacing and punctuation, visible result counts, and an option to search beyond the current category or library.
 - Readable phone form controls, direct destination links, explicit new-tab/copy options, and a selectable-link fallback when the browser blocks clipboard access.
 - Account library stored in the hosted database and available after sign-in on another device. Guests can save on their current device and explicitly import those favorites when signed in.
-- Visible account controls, ChatGPT sign-in, sign-out, and plain-language explanations of where information is saved. No RMT password or wallet connection is required.
+- Google and email/password sign-in, email verification, password recovery, and sign-out. Any valid email provider is supported. No ChatGPT account or wallet is required for ordinary users.
 - Home-screen web app manifest, icons, and a reconnect page. External games still need their own network connection.
 - Seventeen curated, unclaimed project homes, with creator-linked experiences, official artwork, collection groups, and shareable links.
 - Builder applications saved to a real database, with pending, changes requested, approved, rejected, and suspended states.
@@ -22,11 +22,11 @@ RMT is an independent discovery and launch hub for community projects, games, mu
 - Durable email alert queue with a Resend adapter; sending requires a configured recipient, verified sender, and provider credential. Phone and SMS are not launch requirements.
 - Authenticated tools for an owner's dot to read new review work and record which notices were acknowledged. Monitoring does not approve projects or change their publication state.
 
-The preview starts owner-private. The GitHub repository is public. Curated listings are not partnerships, endorsements, ownership claims, or smart-contract audits.
+The current Site audience is public. The GitHub repository is public. Curated listings are not partnerships, endorsements, ownership claims, or smart-contract audits.
 
 ## Development
 
-Requires Node.js 24 for the test suite (the framework supports Node >=22.13) and npm.
+Requires Node.js >=24.12 and npm.
 
 ```sh
 npm run install:ci
@@ -38,13 +38,13 @@ npm run dev
 
 The app uses React, TypeScript, the Next-compatible Vinext runtime, and a Cloudflare Worker. Structured data lives in D1 (SQLite). Hosting-specific authentication is isolated in `lib/server/auth.ts` and `lib/server/runtime.ts`. Dependencies are locked.
 
-For this environment, Sites provides the authenticated gateway and provisions D1 from `.openai/hosting.json`. Read [deployment notes](docs/deployment.md) before moving to a different host. A raw Worker that trusts visitor-supplied identity headers is **not** a supported deployment.
+For this environment, Sites provides the legacy reviewer gateway; Firebase supplies ordinary user accounts. Sites and provisions D1 from `.openai/hosting.json`. Read [deployment notes](docs/deployment.md) before moving to a different host. A raw Worker that trusts visitor-supplied identity headers is **not** a supported deployment.
 
 ### Hosting
 
-The complete app is published at `https://rmt-hub.wise-elf-8473.chatgpt.site`, with its database and ChatGPT sign-in. The GitHub-connected Netlify project at `https://rmthub.netlify.app` is deployed as a small redirect entrypoint to that app. Its live redirect preserves paths and queries, and browser navigation preserves fragments. Netlify does not run a second backend. See [Netlify entrypoint](docs/netlify-entry.md) for the build command and publish directory.
+The complete app is published at `https://rmtlaunch.fun`, with its existing D1 database. The platform URL remains `https://rmt-hub.wise-elf-8473.chatgpt.site`. The GitHub-connected Netlify project at `https://rmthub.netlify.app` is deployed as a small redirect entrypoint to that app. Its live redirect preserves paths and queries, and browser navigation preserves fragments. Netlify does not run a second backend. See [Netlify entrypoint](docs/netlify-entry.md) for the build command and publish directory.
 
-`rmtlaunch.fun` and `www.rmtlaunch.fun` have active Sites domain bindings and TLS. Checks from this environment still return HTTP 403 **Site Unavailable** with `x-openai-site-blocked: true`, identifying a platform/network block rather than an RMT application error. Its precise source is unresolved, so custom-domain access for users is not established. The working platform URL remains canonical, and the app remains owner-private.
+`rmtlaunch.fun` and `www.rmtlaunch.fun` have active Sites domain bindings and TLS. Anonymous requests to the public session endpoint return 200 on both names. No DNS or hosting migration is part of the Firebase change. See [Firebase authentication](docs/firebase-authentication.md) for project details, secure account linking, and owner activation checks.
 
 ### Local database
 
@@ -77,7 +77,7 @@ One server-controlled owner assignment can be active for each project. Holding a
 
 ## Current scope
 
-The app launches external experiences. Signed-in libraries live in the hosted database; guest libraries stay on the device. Artwork uploads, third-party game hosting, payments, and public launch remain outside the current release. Reviewer authentication and digest reads are verified, and hourly review monitoring is enabled using the `America/Denver` schedule timezone. No pending work was available to verify a real alert and acknowledgement; email delivery is not configured. Custom-domain access and the intended public audience still need resolution before inviting builders. No new token or wallet is required.
+The app launches external experiences. Signed-in libraries live in the hosted database; guest libraries stay on the device. Artwork uploads, third-party game hosting, and payments remain outside the current release. Reviewer authentication and digest reads are verified, and hourly review monitoring is enabled using the `America/Denver` schedule timezone. No pending work was available to verify a real alert and acknowledgement; email delivery is not configured. Custom-domain access and the intended public audience still need resolution before inviting builders. No new token or wallet is required.
 
 See [accounts and saved information](docs/data-storage.md) for the sign-in model, private data boundaries, library limits, and hosting portability. See [notification configuration](docs/notifications.md) for delivery semantics and required server settings.
 

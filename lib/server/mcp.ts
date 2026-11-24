@@ -72,15 +72,15 @@ async function callTool(request: Request, input: unknown) {
   const definition = toolDefinitions.find(tool => tool.name === params.name);
   if (!definition) throw new RpcError(-32602, "Unknown RMT tool.");
   try {
-    const user = requireIdentity(request);
+    const user = await requireIdentity(request);
     const args = params.arguments ?? {};
     if (params.name !== "rmt_acknowledge_review_alerts" && (!object(args) || Object.keys(args as object).length)) {
       throw new InputError("This tool takes no arguments.");
     }
     let result: unknown;
-    if (params.name === "rmt_identity") result = {userId: user.userId, displayName: user.displayName, isReviewer: isAdmin(request)};
+    if (params.name === "rmt_identity") result = {userId: user.userId, displayName: user.displayName, isReviewer: await isAdmin(request)};
     else {
-      requireAdmin(request);
+      await requireAdmin(request);
       result = params.name === "rmt_review_digest"
         ? await reviewDigest(database(), user.userId, runtime())
         : await acknowledgeReviewAlerts(database(), user.userId, args);

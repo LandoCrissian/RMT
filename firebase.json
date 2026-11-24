@@ -1,0 +1,20 @@
+{
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "RMT",
+        "supportEmail": "launchrmt@gmail.com",
+        "authorizedRedirectUris": [
+          "https://rmtlaunch.fun",
+          "https://www.rmtlaunch.fun",
+          "https://rmt-hub.wise-elf-8473.chatgpt.site",
+          "https://rmt-launch-auth-20261124.firebaseapp.com/__/auth/handler",
+          "http://localhost"
+
+        ]
+      }
+    }
+  }
+}
+

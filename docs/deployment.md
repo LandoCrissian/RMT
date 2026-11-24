@@ -1,3 +1,11 @@
+# Current authentication release (November 24, 2026)
+
+The Site is now public (access revision 2), including anonymous catalog and project pages. Direct HTTP checks to `/api/session` on rmtlaunch.fun, www.rmtlaunch.fun, and the platform origin returned 200 before this release. Earlier private-audience and environment-block observations below are historical.
+
+Firebase project `rmt-launch-auth-20261124` was newly created under `launchrmt@gmail.com`. Google and email/password providers were deployed successfully; no existing Firebase project was reused. Hosting, domain records, DB binding, administrator allowlist, and monitoring schedule are preserved. No billing upgrade was requested.
+
+See [Firebase authentication](firebase-authentication.md) for session verification, owner account linking, the additive database migration, and remaining owner checks. The earlier sections below document the retained architecture and prior releases.
+
 # Deployment and ownership
 
 ## Current hosting

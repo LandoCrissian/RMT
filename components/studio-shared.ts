@@ -1,5 +1,5 @@
 export type StudioSession = {
-  authenticated: boolean;
+  authenticated: boolean; emailVerified?: boolean; provider?: string | null;
   userId: string | null;
   displayName: string | null;
   isAdmin: boolean;

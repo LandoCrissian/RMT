@@ -229,3 +229,9 @@ body.project-is-open{overflow:hidden}
 .showcase-title h2:focus{outline:none}
 .mobile-brand .mobile-rmt-word{color:var(--text)}
 .mobile-brand .mobile-rmt-word>span{color:var(--lime)}
+
+/* Consistent uncropped directory artwork; preserve each source image's proportions. */
+.project-image-button{height:auto;aspect-ratio:16/9;background:#20252a}
+.project-image-button .project-art img,.project-image-button .project-art.art-contained img{object-fit:contain;object-position:center;padding:12px;filter:none}
+.project-card:hover .project-art img,.project-image-button:hover img{transform:none}
+@media(max-width:700px){.project-image-button{height:auto;aspect-ratio:2/1}.project-card-body{padding:10px 14px 0}.project-card-body>p{margin:3px 0 10px}.project-card-footer{min-height:36px}.project-image-button .project-art.art-contained img{padding:10px}}

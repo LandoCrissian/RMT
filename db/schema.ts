@@ -113,3 +113,9 @@ export const reviewAlertReceipts = sqliteTable('review_alert_receipts', {
   primaryKey({columns: [table.reviewerId, table.eventKey]}),
   index('review_alert_receipts_reviewer_acknowledged').on(table.reviewerId, table.acknowledgedAt),
 ]);
+
+export const accountLinks = sqliteTable("account_links", {
+  firebaseUid: text("firebase_uid").primaryKey(),
+  legacyUserId: text("legacy_user_id").notNull().unique(),
+  createdAt: integer("created_at").notNull(),
+});

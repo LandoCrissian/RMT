@@ -76,6 +76,7 @@ test('library survives a reopened database and separates users without storing e
   assert.deepEqual(await api.savedLibrary(reopened, 'reader-two'), {projectIds: ['lammbs']});
   assert.deepEqual(await api.savedLibrary(reopened, 'reader-three'), {projectIds: []});
   assert.deepEqual(reopened.raw.prepare('PRAGMA table_info(saved_projects)').all().map(row => row.name), ['user_id', 'project_id', 'created_at']);
+  reopened.close();
 });
 
 test('repeated saves/removals are idempotent and never affect another account', async t => {

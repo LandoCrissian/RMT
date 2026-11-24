@@ -5,7 +5,7 @@ import { handle, json, readMutation } from "@/lib/server/http";
 export const dynamic = "force-dynamic";
 export async function POST(request: Request, context: {params: Promise<{id: string}>}) {
   return handle(async () => {
-    const user = requireAdmin(request);
+    const user = await requireAdmin(request);
     const decision = validateDecision(await readMutation(request));
     const {id} = await context.params;
     return json({submission: await reviewSubmission(database(), user.userId, id, decision)});

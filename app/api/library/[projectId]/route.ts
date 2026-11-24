@@ -7,7 +7,7 @@ type Context = {params: Promise<{projectId: string}>};
 
 export async function PUT(request: Request, context: Context) {
   return handle(async () => {
-    const user = requireIdentity(request);
+    const user = await requireIdentity(request);
     const conflict = libraryAccountConflict(request, user.userId);
     if (conflict) return conflict;
     validateLibraryMutation(await readMutation(request));
@@ -18,7 +18,7 @@ export async function PUT(request: Request, context: Context) {
 
 export async function DELETE(request: Request, context: Context) {
   return handle(async () => {
-    const user = requireIdentity(request);
+    const user = await requireIdentity(request);
     const conflict = libraryAccountConflict(request, user.userId);
     if (conflict) return conflict;
     validateLibraryMutation(await readMutation(request));
