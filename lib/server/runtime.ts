@@ -37,11 +37,13 @@ export function identity(request: Request) {
   if (!value) {value = resolveIdentity(request); identities.set(request, value);}
   return value;
 }
-export async function requireIdentity(request: Request) {
+export async function requireIdentity(request: Request, checkAccountHeader = false) {
   const user = await identity(request);
   if (!user) throw new InputError("Sign in to submit or manage a project.", 401);
   if(user.suspended)throw new InputError("Your RMT account is suspended. Contact the site owner for help.",403);
   if (!user.emailVerified) throw new InputError("Verify your email before saving or submitting projects.", 403);
+  const expected = checkAccountHeader ? request.headers.get('x-rmt-account') : null;
+  if (expected !== null && expected !== user.userId) throw new InputError('Your account changed. Reopen Builder Studio with the account that started this application.',409,'account_changed');
   return user;
 }
 export async function isAdmin(request: Request): Promise<boolean> {

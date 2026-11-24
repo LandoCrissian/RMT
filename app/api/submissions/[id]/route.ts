@@ -7,7 +7,7 @@ import { handle, json, readMutation } from "@/lib/server/http";
 export const dynamic = "force-dynamic";
 export async function PATCH(request: Request, context: {params: Promise<{id: string}>}) {
   return handle(async () => {
-    const user = await requireIdentity(request);
+    const user = await requireIdentity(request,true);
     const body = await readMutation(request);
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new InputError("Send a valid application.");
     const {expectedRevision, ...fields} = body as Record<string, unknown>;

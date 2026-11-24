@@ -20,6 +20,43 @@ const RESPONSE_HEADERS = [
   'x-frame-options', 'x-content-type-options',
 ];
 const MAX_POST_BYTES = 64 * 1024;
+const RECOVERY_URL = '/?authRecovery=handler#account';
+const RECOVERY_SCRIPT_PATH = '/__/auth/rmt-recovery.js';
+const RECOVERY_LINK = `<a href="${RECOVERY_URL}" rel="noreferrer">Return to RMT for email sign-in or help opening your browser</a>`;
+
+// The hosted Firebase widget renders a terminal error inside its own document.
+// It does not deliver that error to getRedirectResult or signInWithPopup.
+// Observe only the screen's presence. Never inspect callback parameters,
+// message text, helper storage, the opener, or the user's OAuth credentials.
+const RECOVERY_SCRIPT = `(() => {
+  const help = document.getElementById('rmt-auth-help');
+  if (!help) return;
+  function recover() {
+    observer.disconnect();
+    help.hidden = false;
+    console.info('[RMT auth] handler_recovery');
+    window.location.replace('${RECOVERY_URL}');
+  }
+  function check() {
+    if (document.getElementById('error-screen')) recover();
+  }
+  const observer = new MutationObserver(check);
+  if (!window.fireauth?.oauthhelper?.widget?.initialize || document.getElementById('error-screen')) {
+    recover();
+    return;
+  }
+  help.hidden = true;
+  observer.observe(document.body, {childList: true, subtree: true});
+  // A delayed provider remains free to complete. Give a stalled browser a
+  // manual exit even if Firebase later changes its terminal-error markup.
+  window.setTimeout(() => { help.hidden = false; }, 12000);
+})();`;
+
+function addRecoveryToHandler(html: string) {
+  const fallback = `<aside id="rmt-auth-help">${RECOVERY_LINK}</aside><script defer src="${RECOVERY_SCRIPT_PATH}"></script>`;
+  const end = html.lastIndexOf('</body>');
+  return end < 0 ? html + fallback : html.slice(0, end) + fallback + html.slice(end);
+}
 
 function privateHeaders(headers = new Headers()) {
   headers.set('cache-control', 'private, no-store, max-age=0');
@@ -36,6 +73,14 @@ function failure(status: number, message: string, head = false) {
   const headers = privateHeaders();
   headers.set('content-type', 'text/plain; charset=utf-8');
   return new Response(head ? null : message, {status, headers});
+}
+
+function helperFailure(path: string, status: number, message: string, head = false) {
+  if (path !== '/__/auth/handler') return failure(status, message, head);
+  const headers = privateHeaders();
+  headers.set('content-type', 'text/html; charset=utf-8');
+  const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RMT sign-in help</title><main><h1>Google sign-in could not finish</h1><p>${message}</p><p>${RECOVERY_LINK}</p></main></html>`;
+  return new Response(head ? null : html, {status, headers});
 }
 
 async function readPostBody(request: Request): Promise<ArrayBuffer | null> {
@@ -61,13 +106,13 @@ async function readPostBody(request: Request): Promise<ArrayBuffer | null> {
 async function forwardHelper(request: Request, url: URL, upstreamFetch: typeof fetch): Promise<Response> {
   const head = request.method === 'HEAD';
   if (!['GET', 'HEAD', 'POST'].includes(request.method)) {
-    const response = failure(405, 'This sign-in helper does not support that request.');
+    const response = helperFailure(url.pathname, 405, 'This sign-in helper does not support that request.');
     response.headers.set('allow', 'GET, HEAD, POST');
     return response;
   }
   try {
     const body = request.method === 'POST' ? await readPostBody(request) : undefined;
-    if (body === null) return failure(413, 'This sign-in request is too large.');
+    if (body === null) return helperFailure(url.pathname, 413, 'This sign-in request is too large.');
     // Build a fresh request. App sessions, authorization, forwarding metadata,
     // and Sites identity headers must never leave RMT through this proxy.
     const headers = new Headers();
@@ -88,25 +133,41 @@ async function forwardHelper(request: Request, url: URL, upstreamFetch: typeof f
     // redirect with OAuth state or a POST body, or expose an upstream error body.
     if (!upstream.ok) {
       await upstream.body?.cancel();
-      return failure(502, 'Google sign-in is temporarily unavailable. Return to RMT and try again.', head);
+      return helperFailure(url.pathname, 502, 'Google sign-in is temporarily unavailable.', head);
     }
     const responseHeaders = new Headers();
     for (const name of RESPONSE_HEADERS) {
       const value = upstream.headers.get(name);
       if (value !== null) responseHeaders.set(name, value);
     }
-    return new Response(head ? null : upstream.body, {
+    const handlerDocument = url.pathname === '/__/auth/handler';
+    if (handlerDocument && !head && (!upstream.body || !/^text\/html\b/i.test(responseHeaders.get('content-type') || ''))) {
+      await upstream.body?.cancel();
+      return helperFailure(url.pathname, 502, 'The sign-in page could not load.');
+    }
+    const responseBody = head ? null : handlerDocument ? addRecoveryToHandler(await upstream.text()) : upstream.body;
+    return new Response(responseBody, {
       status: upstream.status, headers: privateHeaders(responseHeaders),
     });
   } catch {
     // Do not log upstream errors: they may include authorization codes/state.
-    return failure(502, 'Google sign-in is temporarily unavailable. Return to RMT and try again.', head);
+    return helperFailure(url.pathname, 502, 'Google sign-in is temporarily unavailable.', head);
   }
 }
 
 /** Returns null for ordinary app routes; no route can choose another upstream. */
 export function proxyFirebaseAuth(request: Request, upstreamFetch: typeof fetch = fetch): Promise<Response> | null {
   const url = new URL(request.url);
+  if (url.pathname === RECOVERY_SCRIPT_PATH) {
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      const response = failure(405, 'This sign-in helper does not support that request.');
+      response.headers.set('allow', 'GET, HEAD');
+      return Promise.resolve(response);
+    }
+    const headers = privateHeaders();
+    headers.set('content-type', 'application/javascript; charset=utf-8');
+    return Promise.resolve(new Response(request.method === 'HEAD' ? null : RECOVERY_SCRIPT, {headers}));
+  }
   if (url.pathname === '/__/firebase/init.json') {
     if (!['GET', 'HEAD'].includes(request.method)) {
       const response = failure(405, 'This sign-in configuration does not support that request.');

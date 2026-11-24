@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   return handle(async () => {
-    const user = await requireIdentity(request);
+    const user = await requireIdentity(request,true);
     const input = validateSubmission(await readMutation(request));
     const db = database();
     await requireCommunityIntake(db,'submissions');

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
+import {runInNewContext} from 'node:vm';
 import {build} from 'esbuild';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -25,7 +26,10 @@ test('Firebase helper preserves the exact query at its fixed upstream and strips
   for (const name of ['cookie', 'authorization', 'oai-authenticated-user-id', 'oai-authenticated-user-email', 'x-forwarded-host', 'referer', 'host']) assert.equal(call.init.headers.get(name), null, name);
   assert.equal(call.init.headers.get('accept'), 'text/html');
   assert.equal(call.init.headers.get('accept-language'), 'en-US');
-  assert.equal(await result.text(), '<html>helper</html>');
+  const html = await result.text();
+  assert.match(html, /<html>helper<\/html>/);
+  assert.match(html, /href="\/\?authRecovery=handler#account"/);
+  assert.doesNotMatch(html, /evil\.example|private-token|state=/);
 });
 
 test('Firebase callback forwards POST bytes and form content type without rewriting OAuth data', async () => {
@@ -43,10 +47,66 @@ test('Firebase callback forwards POST bytes and form content type without rewrit
   assert.equal(result.status, 200);
 });
 
+test('Recovery is added only to the handler document, without replacing SDK initialization or encoded POST data', async () => {
+  const sdk = '<script src="handler.js"></script><script nonce="firebase-auth-helper">var POST_BODY = "example\\u0026value";fireauth.oauthhelper.widget.initialize();</script>';
+  const original = '<html><head>' + sdk + '</head><body></body></html>';
+  for (const path of ['handler','iframe','links','handler.js']) {
+    const response = await proxyFirebaseAuth(new Request(base+'/__/auth/'+path), async () => new Response(original, {headers:{'content-type':'text/html'}}));
+    const body = await response.text();
+    if (path === 'handler') {
+      assert.ok(body.includes(sdk));
+      assert.match(body, /\/__\/auth\/rmt-recovery\.js/);
+      assert.match(body, /id="rmt-auth-help"/);
+    } else assert.equal(body, original);
+  }
+});
+
+test('Handler recovery waits for a terminal screen, never reads callback data, and leaves slow or successful flows alone', async () => {
+  const upstream = async () => {throw new Error('Recovery script must be local');};
+  const scriptUrl = base + '/__/auth/rmt-recovery.js';
+  const result = await proxyFirebaseAuth(new Request(scriptUrl), upstream);
+  assert.equal(result.status, 200);
+  assert.match(result.headers.get('content-type'), /javascript/);
+  const script = await result.text();
+  for (const outcome of ['success', 'slow', 'early-error', 'later-error', 'script-failed']) {
+    let observed, disconnected = false, delayed, redirected;
+    const help = {hidden:false};
+    let terminal = outcome === 'early-error';
+    const diagnostics = [];
+    const window = {
+      fireauth:outcome === 'script-failed' ? undefined : {oauthhelper:{widget:{initialize() {}}}},
+      location:{replace: url => {redirected=url;}},
+      setTimeout: fn => {delayed=fn;},
+    };
+    const document = {body:{}, getElementById: id => id === 'rmt-auth-help' ? help : (terminal ? {} : null)};
+    class MutationObserver {
+      constructor(fn) { this.fn=fn; }
+      observe() {observed=this.fn;}
+      disconnect() {disconnected=true;}
+    }
+    runInNewContext(script, {document,window,MutationObserver,console:{info:message => diagnostics.push(message)}});
+    if (outcome === 'later-error') {terminal=true;observed();}
+    if (outcome === 'success' || outcome === 'slow') {
+      observed();
+      assert.equal(redirected, undefined);
+      assert.equal(help.hidden, true);
+      if (outcome === 'slow') {delayed();assert.equal(help.hidden, false);assert.equal(redirected, undefined);}
+      assert.deepEqual(diagnostics, []);
+    } else {
+      assert.equal(redirected, '/?authRecovery=handler#account');
+      assert.equal(disconnected, true);
+      assert.equal(help.hidden, false);
+      assert.deepEqual(diagnostics, ['[RMT auth] handler_recovery']);
+    }
+  }
+  assert.equal(await (await proxyFirebaseAuth(new Request(scriptUrl,{method:'HEAD'}),upstream)).text(),'');
+  assert.equal((await proxyFirebaseAuth(new Request(scriptUrl,{method:'POST'}),upstream)).status,405);
+});
+
 test('Only the documented helper routes are proxied, and unsupported verbs never reach Firebase', async () => {
   const paths = ['handler', 'handler.js', 'experiments.js', 'iframe', 'iframe.js', 'links', 'links.js'];
   let calls = 0;
-  const upstream = async () => {calls++; return new Response('helper');};
+  const upstream = async () => {calls++; return new Response('helper',{headers:{'content-type':'text/html'}});};
   for (const name of paths) assert.equal((await proxyFirebaseAuth(new Request(base + '/__/auth/' + name), upstream)).status, 200);
   assert.equal((await proxyFirebaseAuth(new Request(base + '/__/firebase/init.json'), upstream)).status, 200);
   assert.equal(calls, 7);
@@ -114,17 +174,26 @@ test('Unexpected redirects and upstream failures disclose neither code/state nor
     });
     assert.equal(response.status, 502);
     assert.equal(response.headers.get('location'), null);
-    assert.doesNotMatch(await response.text(), /secret-code|diagnostics|evil\.example/);
+    const html = await response.text();
+    assert.doesNotMatch(html, /secret-code|diagnostics|evil\.example/);
+    assert.match(html, /href="\/\?authRecovery=handler#account"/);
     assert.match(response.headers.get('cache-control'), /no-store/);
   }
   const response = await proxyFirebaseAuth(new Request(base + '/__/auth/handler'), async () => {throw new Error('code=secret-code');});
   assert.equal(response.status, 502);
   assert.doesNotMatch(await response.text(), /secret-code/);
+  for (const upstream of [new Response('private upstream diagnostics'), new Response(null,{status:204})]) {
+    const error = await proxyFirebaseAuth(new Request(base + '/__/auth/handler'), async () => upstream);
+    const html = await error.text();
+    assert.equal(error.status, 502);
+    assert.match(html, /Return to RMT for email sign-in/);
+    assert.doesNotMatch(html, /private upstream diagnostics/);
+  }
 });
 
 test('Oversized POST bodies are rejected before forwarding, including without Content-Length', async () => {
   let calls = 0;
-  const upstream = async () => {calls++; return new Response('helper');};
+  const upstream = async () => {calls++; return new Response('helper',{headers:{'content-type':'text/html'}});};
   const oversized = 'x'.repeat(65_537);
   for (const headers of [{}, {'content-length': String(oversized.length)}]) {
     const response = await proxyFirebaseAuth(new Request(base + '/__/auth/handler', {method: 'POST', body: oversized, headers}), upstream);

@@ -60,6 +60,14 @@ test('session creation requires same-origin proof and uses a secure HttpOnly exp
  disabled=false;
  assert.match((await api.logout(request('/api/auth/session',{}, {method:'DELETE'}))).headers.get('set-cookie'),/Max-Age=0/);
 });
+test('a resumed submission is bound to the verified account that started the draft',async()=>{
+ const idToken=await token();
+ const mutation=request('/api/submissions',{}, {cookie:idToken});
+ mutation.headers.set('x-rmt-account','firebase:different-member');
+ await assert.rejects(api.requireIdentity(mutation,true),e=>e.status===409&&e.code==='account_changed');
+ mutation.headers.set('x-rmt-account','firebase:new-owner');
+ assert.equal((await api.requireIdentity(mutation,true)).userId,'firebase:new-owner');
+});
 test('linking cannot orphan a Firebase profile, artwork, update draft, or directly assigned project ownership',async()=>{
  const idToken=await token(),userId='firebase:new-owner';
  const fixtures={

@@ -66,7 +66,8 @@ test('auth problems distinguish cancellation, lost state, networking, configurat
   const session = api.firebaseAuthProblem({code: 'rmt/session-unavailable'});
   assert.equal(cancelled.retryOnSamePage, false);
   assert.equal(blocked.retryOnSamePage, true);
-  assert.equal(lost.retryOnSamePage, true);
+  assert.equal(lost.retryOnSamePage, false);
+  assert.equal(lost.needsBrowser,true);
   assert.match(network.message, /connection/);
   assert.match(configuration.message, /this address/);
   assert.equal(session.reconnect, true);

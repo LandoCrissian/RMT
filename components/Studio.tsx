@@ -3,6 +3,7 @@ import ProjectLinkInput from "./ProjectLinkInput";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { signInHref, studioSectionFromSearch } from "@/lib/account-navigation";
+import {forgetSubmissionDraft, restoreSubmissionDraft, saveSubmissionDraft, type SubmissionForm} from "@/lib/submission-draft";
 import { ArrowRight, Check, CheckCircle2, Clock3, Copy, ExternalLink, LoaderCircle, Plus, ShieldCheck, FolderKanban, KeyRound, Sprout } from "lucide-react";
 import "./studio.css";
 
@@ -11,19 +12,6 @@ import { MyClaims } from "./ClaimProject";
 import { FormFieldError, formattedDate, readApiResponse, statusLabel, stageLabel, type StudioProps, type Submission, type ProjectStage } from "./studio-shared";
 export { formattedDate, readApiResponse, statusLabel } from "./studio-shared";
 export type { StudioProps, StudioSession, Submission } from "./studio-shared";
-
-type SubmissionForm = {
-  name: string;
-  summary: string;
-  category: Submission["category"];
-  stage: ProjectStage;
-  website: string;
-  launchUrl: string;
-  xProfile: string;
-  contactEmail: string;
-  ownershipEvidence: string;
-  companyFax: string;
-};
 
 const emptyForm: SubmissionForm = { name: "", summary: "", category: "Games", stage: "building", website: "", launchUrl: "", xProfile: "", contactEmail: "", ownershipEvidence: "", companyFax: "" };
 
@@ -38,7 +26,13 @@ export default function Studio({ session, onToast }: StudioProps) {
   const [fieldError, setFieldError] = useState<FormFieldError | null>(null);
   const [listError, setListError] = useState("");
   const [received, setReceived] = useState<Submission | null>(null);
-  const [editing, setEditing] = useState<Submission | null>(null);
+  const [editing, setEditing] = useState<Pick<Submission,'id'|'revision'|'reviewNote'|'reviewerNote'> | null>(null);
+  const [needsSignIn, setNeedsSignIn] = useState(false);
+  useEffect(() => {
+    if (!session.authenticated || !session.userId) return;
+    const saved = restoreSubmissionDraft(session.userId);
+    if (saved) {setForm(saved.form); setEditing(saved.edit);}
+  }, [session.authenticated,session.userId]);
 
   const loadSubmissions = useCallback(async () => {
     if (!session.authenticated) return;
@@ -55,7 +49,9 @@ export default function Studio({ session, onToast }: StudioProps) {
 
   const change = (key: keyof SubmissionForm, value: string) => {
     if (fieldError?.field === key) setFieldError(null);
-    setForm(previous => ({ ...previous, [key]: value }));
+    const next = {...form,[key]:value};
+    setForm(next);
+    if (session.authenticated && session.userId) saveSubmissionDraft(session.userId,next,editing);
   };
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -70,14 +66,17 @@ export default function Studio({ session, onToast }: StudioProps) {
     }
     setBusy(true);
     try {
-      const data = await readApiResponse(await fetch(editing ? `/api/submissions/${encodeURIComponent(editing.id)}` : "/api/submissions", {
+      const response = await fetch(editing ? `/api/submissions/${encodeURIComponent(editing.id)}` : "/api/submissions", {
         method: editing ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-RMT-Account":session.userId ?? '' },
         body: JSON.stringify(editing ? { ...form, expectedRevision: editing.revision } : form),
-      }));
+      });
+      setNeedsSignIn(response.status === 401);
+      const data = await readApiResponse(response);
       const submission = data.submission as Submission | undefined;
       if (!submission?.id) throw new Error("We couldn’t confirm your application. Please check your applications before trying again.");
       setReceived(submission);
+      forgetSubmissionDraft();
       setForm(emptyForm);
       setEditing(null);
       onToast("Application received. Your project is in review.");
@@ -141,7 +140,7 @@ export default function Studio({ session, onToast }: StudioProps) {
           ) : (
             <form className="st-panel st-form" id="st-application" aria-busy={busy} onSubmit={submit}>
               <div className="st-section-heading"><div><span className="st-step">01</span><h2>{editing ? "Update your application" : "Tell us what you’re building"}</h2></div><span>Required unless marked optional</span></div>
-              {editing && <div className="st-information">Your edits will go back into review. {editing.reviewNote || editing.reviewerNote || "Check the feedback on your application below."}<button type="button" onClick={() => { setEditing(null); setForm(emptyForm); }}>Cancel editing</button></div>}
+              {editing && <div className="st-information">Your edits will go back into review. {editing.reviewNote || editing.reviewerNote || "Check the feedback on your application below."}<button type="button" onClick={() => { forgetSubmissionDraft(); setEditing(null); setForm(emptyForm); }}>Cancel editing</button></div>}
               <div className="st-fields-two">
                 <label className="st-field">Project name<input name="name" aria-invalid={fieldError?.field === "name" || undefined} aria-describedby={fieldError?.field === "name" ? "submission-field-error" : undefined} autoComplete="organization" placeholder="Your project’s name" minLength={3} maxLength={70} required value={form.name} onChange={event => change("name", event.target.value)} />{fieldError?.field === "name" && <span id="submission-field-error" className="st-error" role="alert">{fieldError.message}</span>}</label>
                 <label className="st-field">Category<select name="category" value={form.category} onChange={event => change("category", event.target.value)}><option>Games</option><option>Music</option><option>Tools</option><option>Community</option></select></label>
@@ -157,6 +156,7 @@ export default function Studio({ session, onToast }: StudioProps) {
               <label className="st-field">How can we confirm you represent this project?<textarea name="ownershipEvidence" aria-invalid={fieldError?.field === "ownershipEvidence" || undefined} aria-describedby={fieldError?.field === "ownershipEvidence" ? "submission-field-error" : undefined} placeholder="Share a team page, a post from the project’s account, or tell us how you can show you’re the person building it." minLength={20} maxLength={1000} rows={4} required value={form.ownershipEvidence} onChange={event => change("ownershipEvidence", event.target.value)} /><span className="st-hint">Only you and the RMT review team can see this. Never include passwords or wallet recovery phrases.</span>{fieldError?.field === "ownershipEvidence" && <span id="submission-field-error" className="st-error" role="alert">{fieldError.message}</span>}</label>
               <div className="st-honeypot" aria-hidden="true"><label>Company fax<input name="companyFax" tabIndex={-1} autoComplete="off" value={form.companyFax} onChange={event => change("companyFax", event.target.value)} /></label></div>
               {error && <p className="st-error" role="alert">{error}</p>}
+              {needsSignIn && <div className="st-information"><p>Keep this tab open to keep your entries. Sign in to the same account in a new tab, then return here and submit.</p><a className="st-button st-secondary" href={signInHref('/#studio')} target="_blank" rel="noopener noreferrer">Sign in again to continue this application</a></div>}
               <div className="st-submit-row"><p><ShieldCheck size={17} /><span>Nothing goes live until it’s approved.<br /><strong>Joining RMT is free.</strong></span></p><button type="submit" className="st-button st-primary" disabled={busy}>{busy ? <><LoaderCircle size={17} className="st-spin" /> Sending…</> : <>{editing ? "Resubmit for review" : "Submit for review"} <ArrowRight size={17} /></>}</button></div>
             </form>
           )}

@@ -4,7 +4,18 @@ export type FirebaseAuthEnvironment = {
   origin: string;
   userAgent: string;
   maxTouchPoints?: number;
+  framed?: boolean;
+  sessionWritable?: boolean;
+  localWritable?: boolean;
+  cookiesEnabled?: boolean;
 };
+
+export function googleRestriction(environment: FirebaseAuthEnvironment) {
+  if (environment.framed || isKnownEmbeddedAuthBrowser(environment.userAgent)) return 'embedded';
+  if (environment.cookiesEnabled === false) return 'cookies';
+  if (environment.sessionWritable === false) return 'session-storage';
+  return null;
+}
 
 export function isMobileAuthBrowser({userAgent, maxTouchPoints = 0}: FirebaseAuthEnvironment) {
   return /Android|iPhone|iPad|iPod/i.test(userAgent)
@@ -21,7 +32,7 @@ export function googleSignInFlow(environment: FirebaseAuthEnvironment, requestSa
 export function isKnownEmbeddedAuthBrowser(userAgent: string) {
   // Safari and SFSafariViewController do not imply an unsupported embedded
   // browser. Show guidance only for a known app UA or a reported auth error.
-  return /FBAN|FBAV|Instagram|MicroMessenger|\bLine\/|TikTok|Bytedance|\bTwitter|Snapchat|LinkedInApp|\bChatGPT\//i.test(userAgent);
+  return /FBAN|FBAV|Instagram|MicroMessenger|\bLine\/|TikTok|Bytedance|\bTwitter|Snapchat|LinkedInApp|\bChatGPT\/|MetaMaskMobile|MetaMask\/|CoinbaseWallet|TrustWallet|;\s*wv\)/i.test(userAgent);
 }
 
 export type FirebaseAuthProblem = {
@@ -38,12 +49,15 @@ export function firebaseAuthProblem(error: unknown): FirebaseAuthProblem {
   const problem = (message: string, extra: Partial<FirebaseAuthProblem> = {}): FirebaseAuthProblem => ({message, retryOnSamePage: false, needsBrowser: false, reconnect: false, ...extra});
 
   if (code === 'rmt/session-unavailable') return problem('Your sign-in succeeded, but RMT could not connect your account. Try reconnecting below.', {reconnect: true});
+  if (code === 'rmt/cookie-session') return problem('Your browser did not keep the RMT session. Reconnect here or open the sign-in link in your regular browser.', {needsBrowser:true,reconnect:true});
   if (code === 'auth/popup-blocked') return problem('This browser did not open the Google sign-in window. Try again or use email below.', {retryOnSamePage: true});
   if (code === 'auth/popup-closed-by-user') return problem('Google sign-in was closed before it finished. You can try again or use email below.');
   if (code === 'auth/cancelled-popup-request') return problem('Another sign-in attempt replaced this one. Finish the most recent attempt, or try again.');
   if (code === 'auth/redirect-cancelled-by-user') return problem('Google sign-in was cancelled. You can try again or use email below.');
   if (code === 'auth/operation-not-supported-in-this-environment' || /disallowed_useragent/i.test(message)) return problem('Google cannot finish sign-in inside this app. Open this RMT page in Safari or Chrome, or use email below.', {needsBrowser: true});
-  if (/missing initial state|sessionStorage|storage.*(?:inaccessible|unavailable|partition)/i.test(message) || ['auth/web-storage-unsupported', 'auth/missing-initial-state'].includes(code)) return problem('Google sign-in could not recover this browser session. Start a fresh sign-in or use email below.', {retryOnSamePage: true});
+  if (code === 'rmt/cookies') return problem('This browser is blocking the cookies RMT needs to keep you signed in. Open the link in your regular browser.', {needsBrowser:true});
+  if (code === 'rmt/embedded') return problem('Open RMT in your regular browser to continue with Google, or sign in with email here.', {needsBrowser:true});
+  if (/missing initial state|sessionStorage|storage.*(?:inaccessible|unavailable|partition)/i.test(message) || ['auth/web-storage-unsupported', 'auth/missing-initial-state','rmt/session-storage','rmt/recovery'].includes(code)) return problem('Google sign-in could not recover this browser session. Open RMT in your regular browser or sign in with email below.', {needsBrowser: true});
   if (['auth/unauthorized-domain', 'auth/operation-not-allowed', 'auth/invalid-api-key', 'auth/app-not-authorized', 'auth/invalid-oauth-client-id', 'auth/invalid-oauth-provider'].includes(code) || /redirect_uri_mismatch|origin_mismatch/i.test(message)) return problem('Google sign-in is not available on this address right now. You can sign in with email below.');
   if (code === 'auth/network-request-failed') return problem('The sign-in service could not be reached. Check your connection and try again.');
   if (code === 'auth/account-exists-with-different-credential') return problem('This email already uses another sign-in method. Sign in with that method to keep your existing account.');

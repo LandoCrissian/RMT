@@ -1,5 +1,7 @@
 # Firebase authentication and account migration
 
+Release 20 covers same-origin callback recovery, storage checks, private draft recovery, diagnostics and the browser verification boundary. [Authentication reliability](authentication-reliability.md)
+
 ## Google sign-in repair
 
 The November 24 Google helper-state repair is documented in

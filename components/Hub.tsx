@@ -17,6 +17,7 @@ import thumbnails from '@/lib/project-thumbnails.json';
 import dynamic from 'next/dynamic';
 import experienceArtwork from '@/lib/experience-artwork.json';
 import { FirebaseSessionBridge } from './FirebaseAccount';
+import {observeRmtSession} from '@/lib/firebase-client';
 import Account, { LibrarySyncStatus, signInHref } from './Account';
 import { useProjectLibrary, type SessionStatus } from './use-project-library';
 import { DestinationDialog, type DestinationLink, LinkOptions, ManualCopyDialog } from './LinkOptions';
@@ -220,6 +221,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
       if ((value.email!==undefined&&value.email!==null&&(typeof value.email!=='string'||value.email.length>254)) || (value.signInMethod!==undefined&&value.signInMethod!==null&&!['google','email','chatgpt','firebase'].includes(value.signInMethod))) throw new Error('Invalid account identity');
       if ((value.controlRole!==undefined && value.controlRole!==null && !['owner','admin','moderator','member'].includes(value.controlRole)) || (value.controlCapabilities!==undefined && (!Array.isArray(value.controlCapabilities)||value.controlCapabilities.some(item=>typeof item!=='string'))) || typeof value.authenticated !== 'boolean' || typeof value.isAdmin !== 'boolean' || (value.authenticated && (typeof value.userId !== 'string' || !value.userId.trim())) || (value.displayName !== null && typeof value.displayName !== 'string')) throw new Error('Invalid account response');
       if (controller.signal.aborted) return;
+      observeRmtSession(value.authenticated,value.provider);
       setSession(value); setSessionStatus('ready');
     } catch {
       if (!controller.signal.aborted) { setSession(emptySession); setSessionStatus('error'); }

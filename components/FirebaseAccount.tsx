@@ -2,7 +2,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { createUserWithEmailAndPassword, onIdTokenChanged, reload, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
 import {firebaseAuth, firebaseAuthEnvironment, syncFirebaseSession, startGoogleSignIn, completeFirebaseRedirect, reportFirebaseAuthProblem, clearFirebaseAuthProblem, subscribeFirebaseAuthFlow, getFirebaseAuthFlowStatus, getFirebaseAuthFlowServerStatus} from '@/lib/firebase-client';
-import {firebaseAuthProblem, isKnownEmbeddedAuthBrowser, type FirebaseAuthEnvironment} from '@/lib/firebase-auth-flow';
+import {firebaseAuthProblem, googleRestriction, type FirebaseAuthEnvironment} from '@/lib/firebase-auth-flow';
+import {externalAuthLink, handlerRecovery, readAttempt} from '@/lib/auth-attempt';
 import {supportsSameOriginFirebaseAuth} from '@/lib/firebase-config';
 
 export function FirebaseSessionBridge({onChange}: {onChange: () => void}) {
@@ -20,8 +21,14 @@ export function FirebaseSessionBridge({onChange}: {onChange: () => void}) {
       void completeFirebaseRedirect().then(result => {if (result && active) onChange();}).catch(() => {if (active) onChange();});
       const refresh = () => {if (auth.currentUser) void auth.currentUser.getIdToken(true).catch(failed);};
       const timer = setInterval(refresh, 50 * 60 * 1000);
+      // A back/forward-cache restoration also restores the unresolved redirect
+      // promise and React's busy flag. Re-enter RMT once to consume the result.
+      const resume = (event:PageTransitionEvent) => {
+        if (event.persisted && readAttempt()?.phase === 'redirect') window.location.reload();
+      };
+      window.addEventListener('pageshow',resume);
       window.addEventListener('focus', refresh);
-      return () => {active = false; stop(); clearInterval(timer); window.removeEventListener('focus', refresh);};
+      return () => {active = false; stop(); clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('pageshow',resume);};
     } catch (error) {
       reportFirebaseAuthProblem(error);
       onChange();
@@ -40,9 +47,19 @@ export default function FirebaseAccount({authenticated, emailVerified, allowAcco
   const [noticeError, setNoticeError] = useState(false);
   const [notice, setNotice] = useState('');
   const [environment, setEnvironment] = useState<FirebaseAuthEnvironment>({origin: '', userAgent: ''});
+  const [copyFallback, setCopyFallback] = useState('');
+  const [copyStatus, setCopyStatus] = useState('');
   const flow = useSyncExternalStore(subscribeFirebaseAuthFlow, getFirebaseAuthFlowStatus, getFirebaseAuthFlowServerStatus);
   useEffect(() => {setEnvironment(firebaseAuthEnvironment());}, []);
-  const controlsBusy = busy || flow.checkingRedirect;
+  const controlsBusy = busy;
+  const restriction = googleRestriction(environment);
+  const recovery = Boolean(flow.problem?.needsBrowser || (environment.origin && (handlerRecovery(window.location.search) || readAttempt()?.phase === 'recovery')));
+  const showHelp = Boolean(recovery || restriction);
+  async function copySignInLink() {
+    const link = externalAuthLink();
+    try {await navigator.clipboard.writeText(link); setCopyStatus('Sign-in link copied.');}
+    catch {setCopyFallback(link); setCopyStatus('Select and copy this link.');}
+  }
   const displayedNotice = notice || flow.problem?.message;
   async function run(operation: () => Promise<void>) {
     setBusy(true); setNoticeError(false); setNotice(''); clearFirebaseAuthProblem();
@@ -65,11 +82,20 @@ export default function FirebaseAccount({authenticated, emailVerified, allowAcco
     </> : <>
       <header className="auth-intro"><h2>{mode === 'register' ? 'Create your free RMT account' : mode === 'reset' ? 'Recover your password' : 'Sign in to RMT'}</h2><p>Save your library across devices and manage your projects.</p></header>
       <div className="auth-controls">
-      {mode !== 'reset' && <button className="button button-outline" disabled={controlsBusy} onClick={() => void run(() => startGoogleSignIn())}>{flow.checkingRedirect ? 'Finishing sign-in…' : 'Continue with Google'}</button>}
-      {mode !== 'reset' && isKnownEmbeddedAuthBrowser(environment.userAgent) && !flow.problem?.needsBrowser && <p className="inline-notice">Google may not finish sign-in inside this app. Open this RMT page in Safari or Chrome, or use email below.</p>}
+      {mode !== 'reset' && !showHelp && <button className="button button-outline" disabled={controlsBusy || flow.checkingRedirect || !environment.origin} onClick={() => void run(() => startGoogleSignIn())}>{flow.checkingRedirect ? 'Finishing sign-in…' : 'Continue with Google'}</button>}
+      {showHelp && <section className="inline-notice" aria-label="Sign-in recovery">
+        <h3>Continue in your browser</h3>
+        <p>Use this app’s menu to open RMT in your regular browser, or copy the sign-in link and paste it there.</p>
+        <p>{restriction === 'cookies' ? 'RMT needs first-party cookies to keep you signed in.' : 'You can also sign in with email and password below.'}</p>
+        <button type="button" className="button button-outline" onClick={() => void copySignInLink()}>Copy sign-in link</button>
+        {copyStatus && <p role="status">{copyStatus}</p>}
+        {copyFallback && <input aria-label="Sign-in link to copy" readOnly value={copyFallback} onFocus={event=>event.target.select()}/>}
+        {!restriction && recovery && <button type="button" className="button button-outline" disabled={busy} onClick={()=>void run(()=>startGoogleSignIn(false,true))}>Try Google in a new window</button>}
+      </section>}
       <form aria-busy={controlsBusy} onSubmit={event => {event.preventDefault(); void run(async () => {
         const auth = firebaseAuth();
         if (mode === 'reset') {await sendPasswordResetEmail(auth, email); setNotice('If an account uses this email, a recovery link will arrive shortly.'); return;}
+        if (firebaseAuthEnvironment().cookiesEnabled === false) throw Object.assign(new Error(),{code:'rmt/cookies'});
         const result = mode === 'register' ? await createUserWithEmailAndPassword(auth, email, password) : await signInWithEmailAndPassword(auth, email, password);
         if (mode === 'register') {await sendEmailVerification(result.user); setNotice('Account created. Check your email to verify your address.');}
         setPassword(''); await connect();
@@ -82,7 +108,7 @@ export default function FirebaseAccount({authenticated, emailVerified, allowAcco
       </div><p className="auth-guest-note">Registration and listings are free. Browse as a guest anytime.</p>
     </>}
     {displayedNotice && <p role={(notice ? noticeError : flow.problem) ? "alert" : "status"} className="auth-feedback">{displayedNotice}</p>}
-    {flow.problem?.retryOnSamePage && supportsSameOriginFirebaseAuth(environment.origin) && <button type="button" disabled={controlsBusy} className="button button-outline" onClick={() => void run(() => startGoogleSignIn(true))}>Continue with Google in this tab</button>}
+    {!showHelp && flow.problem?.retryOnSamePage && supportsSameOriginFirebaseAuth(environment.origin) && <button type="button" disabled={controlsBusy} className="button button-outline" onClick={() => void run(() => startGoogleSignIn(true))}>Continue with Google in this tab</button>}
     {flow.problem?.reconnect && <button type="button" disabled={controlsBusy} className="button button-outline" onClick={() => void run(connect)}>Reconnect account</button>}
   </section>;
 }

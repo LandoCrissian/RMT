@@ -36,7 +36,8 @@ async function setup(t, {origin = 'https://rmtlaunch.fun', userAgent = 'Desktop 
   state.redirect = async () => {};
   state.redirectResult = async () => null;
   state.fetch = async () => new Response('{}', {status: 200});
-  globalThis.window = {location: {origin, href}, navigator: {userAgent, maxTouchPoints}};
+  const store = () => {const values = new Map(); return {getItem:key=>values.get(key) ?? null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};};
+  globalThis.window = {location: {origin, href, search:new URL(href).search}, navigator: {userAgent, maxTouchPoints, cookieEnabled:true}, sessionStorage:store(), localStorage:store()};
   globalThis.__RMT_FIREBASE_CLIENT_TEST__ = state;
   globalThis.fetch = async (url, options) => {state.requests.push({url, ...options}); return state.fetch(url, options);};
   const api = await import(moduleUrl + '#test-' + (++moduleNumber));
@@ -97,6 +98,34 @@ test('unknown mobile origins stay popup-only and do not consume a redirect resul
   assert.equal(state.apps[0].options.authDomain, 'rmt-launch-auth-20261124.firebaseapp.com');
 });
 
+test('embedded, framed and session-storage-blocked clients never launch Google', async t => {
+  const {api,state}=await setup(t,{userAgent:'Twitter for iPhone'});
+  await assert.rejects(api.startGoogleSignIn(),{code:'rmt/embedded'});
+  window.navigator.userAgent='Desktop Chrome'; window.top={};
+  await assert.rejects(api.startGoogleSignIn(true),{code:'rmt/embedded'});
+  delete window.top; window.sessionStorage.setItem=()=>{throw Error('denied');};
+  await assert.rejects(api.startGoogleSignIn(),{code:'rmt/session-storage'});
+  assert.deepEqual(state.calls,[]); assert.deepEqual(state.requests,[]);
+});
+
+test('a null redirect result after a started mobile flow gives recovery, never another redirect', async t => {
+  const {api,state}=await setup(t,{userAgent:'iPhone'});
+  await api.startGoogleSignIn();
+  await assert.rejects(api.completeFirebaseRedirect(),{code:'rmt/recovery'});
+  await assert.rejects(api.startGoogleSignIn(true),{code:'rmt/recovery'});
+  assert.deepEqual(state.calls,['redirect','complete-redirect']);
+  await api.startGoogleSignIn(false,true);
+  assert.deepEqual(state.calls,['redirect','complete-redirect','popup']);
+});
+
+test('a handler recovery visit offers help without processing OAuth a second time', async t => {
+  const {api,state}=await setup(t,{href:'https://rmtlaunch.fun/?authRecovery=handler#account'});
+  assert.equal(await api.completeFirebaseRedirect(),null);
+  assert.equal(api.getFirebaseAuthFlowStatus().problem.needsBrowser,true);
+  await assert.rejects(api.startGoogleSignIn(),{code:'rmt/recovery'});
+  assert.deepEqual(state.calls,[]);
+});
+
 test('redirect completion is consumed once across concurrent callers and repeated mounts', async t => {
   const {api, state} = await setup(t);
   const waiting = deferred();
@@ -155,6 +184,17 @@ test('concurrent bridge and callback writes for the same token share one session
   gate.resolve(new Response('{}', {status: 200}));
   await Promise.all([first, second]);
   assert.equal(state.requests.length, 1);
+});
+
+test('a discarded session cookie after a successful token exchange offers recovery',async t=>{
+  const {api,state}=await setup(t);
+  state.auth.currentUser=state.user;
+  await api.syncFirebaseSession('test');
+  api.observeRmtSession(false,null);
+  assert.equal(api.getFirebaseAuthFlowStatus().problem.needsBrowser,true);
+  assert.equal(api.getFirebaseAuthFlowStatus().problem.reconnect,true);
+  api.observeRmtSession(true,'firebase');
+  assert.equal(api.getFirebaseAuthFlowStatus().problem,null);
 });
 
 test('queued tokens from a previous user are skipped and sign-out deletion remains ordered', async t => {

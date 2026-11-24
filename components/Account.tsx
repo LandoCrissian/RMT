@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowRight, ArrowUpRight, Check, Cloud, Copy, Database, KeyRound, Library, LoaderCircle, LogOut, RefreshCw, ShieldCheck, Smartphone, Terminal, UserRound } from 'lucide-react';
-import { continuationFromSearch, signInHref, type AccountContinuation } from '@/lib/account-navigation';
-import {signOutRmt} from '@/lib/firebase-client';
+import { signInHref, type AccountContinuation } from '@/lib/account-navigation';
+import {authContinuation, clearAttempt, handlerRecovery, readAttempt} from '@/lib/auth-attempt';
+import {clearFirebaseAuthProblem, signOutRmt} from '@/lib/firebase-client';
 import type { StudioSession } from './studio-shared';
 import type { ProjectLibrary, SessionStatus } from './use-project-library';
 import './account.css';
@@ -29,11 +30,21 @@ export default function Account({ session, sessionStatus, library, onRetrySessio
   const [signingOut,setSigningOut]=useState(false);
   const [signOutError,setSignOutError]=useState('');
   useEffect(() => {
-    const update = () => setContinuation(continuationFromSearch(window.location.search));
+    const update = () => {
+      const search = window.location.search;
+      const target = authContinuation(search);
+      if (sessionStatus === 'ready' && session.authenticated && session.provider === 'firebase' && (handlerRecovery(search) || readAttempt()?.phase === 'recovery')) {
+        window.history.replaceState(window.history.state,'',signInHref(target?.href));
+        clearAttempt(); clearFirebaseAuthProblem();
+      } else if (handlerRecovery(search) && target && !new URLSearchParams(search).has('continue')) {
+        window.history.replaceState(window.history.state,'','/?authRecovery=handler&continue='+encodeURIComponent(target.href)+'#account');
+      }
+      setContinuation(target);
+    };
     update();
     window.addEventListener('popstate', update); window.addEventListener('hashchange', update);
     return () => { window.removeEventListener('popstate', update); window.removeEventListener('hashchange', update); };
-  }, []);
+  }, [session.authenticated,session.provider,sessionStatus]);
   const initials = (session.displayName || 'RMT').split(/\s+/).map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
   const signInMethod=session.signInMethod==='google'?'Google':session.signInMethod==='email'?'email and password':session.signInMethod==='chatgpt'||session.provider==='legacy'?'ChatGPT':'Firebase';
   async function endSession(){
