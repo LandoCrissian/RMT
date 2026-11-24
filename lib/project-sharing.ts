@@ -53,7 +53,7 @@ export function projectXIntentUrl(project: Pick<Project, 'slug' | 'name' | 'offi
       // Older catalog records can contain a social destination other than a profile.
     }
   }
-  const query = new URLSearchParams({text: `Explore ${project.name}${mention} on RMT.`, url: projectShareUrl(project)});
+  const query = new URLSearchParams({text: `Explore ${project.name}${mention} on @RMTLaunch.`, url: projectShareUrl(project)});
   return 'https://x.com/intent/post?' + query.toString();
 }
 

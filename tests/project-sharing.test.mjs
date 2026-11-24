@@ -71,7 +71,7 @@ test('share URLs use the canonical host and X composer keeps names and URL separ
   const intent = new URL(api.projectXIntentUrl(project));
   assert.equal(intent.origin, 'https://x.com');
   assert.equal(intent.pathname, '/intent/post');
-  assert.equal(intent.searchParams.get('text'), 'Explore Example & Co #1 on RMT.');
+  assert.equal(intent.searchParams.get('text'), 'Explore Example & Co #1 on @RMTLaunch.');
   assert.equal(intent.searchParams.get('url'), api.projectShareUrl(project));
   assert.equal([...intent.searchParams].length, 2);
 });
@@ -115,14 +115,14 @@ test('all served social images are actual 1200×630 JPEGs below 5 MB', async () 
     assert.ok(bytes.length < 5_000_000, path);
   }
 });
-test('X drafts mention only the reviewed project profile and keep the editable canonical link', () => {
+test('X drafts mention RMT and the reviewed project profile when available', () => {
   const text = project => new URL(api.projectXIntentUrl(project)).searchParams.get('text');
   const flagship = api.seedProjects.find(project => project.id === 'vamps');
-  assert.equal(text(flagship), 'Explore VAMPS (@VampsOnChain) on RMT.');
+  assert.equal(text(flagship), 'Explore VAMPS (@VampsOnChain) on @RMTLaunch.');
   const creatorOnly = api.seedProjects.find(project => project.id === 'stray-cucks');
-  assert.doesNotMatch(text(creatorOnly), /@/);
+  assert.equal(text(creatorOnly), `Explore ${creatorOnly.name} on @RMTLaunch.`);
   for (const url of ['', 'https://x.com/intent/post', 'https://x.com/example/status/123', 'https://elsewhere.dev/example']) {
-    assert.doesNotMatch(text({...flagship, officialXProfile: url}), /@/);
+    assert.equal(text({...flagship, officialXProfile: url}), 'Explore VAMPS on @RMTLaunch.');
   }
   assert.match(text({...flagship, officialXProfile: 'https://twitter.com/Approved_Name'}), /\(@Approved_Name\)/);
 });
