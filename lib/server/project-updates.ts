@@ -25,6 +25,9 @@ function publicGuard(alias: string) {
 function ownershipGuard(alias: string) {
   return `EXISTS(SELECT 1 FROM project_owners o WHERE o.project_id=${alias}.project_id AND o.user_id=${alias}.user_id AND o.status='active' AND o.revision=${alias}.ownership_revision)`;
 }
+// Reused by the ecosystem feed so archiving, revoked ownership, and hidden
+// projects have identical public visibility rules across both surfaces.
+export { publicGuard as publicUpdateProjectGuard, ownershipGuard as publicUpdateOwnershipGuard };
 const rowEligibility = `${ownershipGuard('project_updates')} AND ${publicGuard('project_updates')}`;
 const projection = `project_updates.*, CASE WHEN ${rowEligibility} THEN 1 ELSE 0 END AS can_manage`;
 function content(row: UpdateRow) {return {kind: row.kind, title: row.title, body: row.body, linkLabel: row.link_label, linkUrl: row.link_url};}

@@ -161,3 +161,37 @@ export const projectUpdateEvents = sqliteTable('project_update_events', {
   index('update_events_update_created').on(table.updateId, table.createdAt),
   index('update_events_actor_action_created').on(table.actorId, table.action, table.createdAt),
 ]);
+
+export const profiles = sqliteTable('profiles', {
+  userId: text('user_id').primaryKey(), handle: text('handle'), displayName: text('display_name').notNull().default(''),
+  bio: text('bio').notNull().default(''), visibility: text('visibility').notNull().default('private'),
+  showManagedProjects: integer('show_managed_projects').notNull().default(0),
+  avatarAssetId: text('avatar_asset_id'), bannerAssetId: text('banner_asset_id'), linksJson: text('links_json').notNull().default('[]'),
+  lastMutationId: text('last_mutation_id').notNull().default(''),
+  revision: integer('revision').notNull().default(1), firstPublishedAt: integer('first_published_at'),
+  createdAt: integer('created_at').notNull(), updatedAt: integer('updated_at').notNull(),
+},table=>[
+  uniqueIndex('profiles_unique_handle').on(table.handle),
+  check('profiles_valid_visibility',sql`${table.visibility} IN ('private','public')`),
+  check('profiles_valid_project_optin',sql`${table.showManagedProjects} IN (0,1)`),
+  check('profiles_lowercase_handle',sql`${table.handle} IS NULL OR ${table.handle} = lower(${table.handle})`),
+  check('profiles_public_identity',sql`${table.visibility} = 'private' OR (${table.handle} IS NOT NULL AND length(${table.displayName}) >= 2 AND ${table.firstPublishedAt} IS NOT NULL)`),
+]);
+export const profileEvents = sqliteTable('profile_events', {
+  id: text('id').primaryKey(), userId: text('user_id').notNull().references(()=>profiles.userId),
+  revision: integer('revision').notNull(), visibility: text('visibility').notNull(), createdAt: integer('created_at').notNull(),
+},table=>[
+  uniqueIndex('profile_events_revision').on(table.userId,table.revision),
+  index('profile_events_user_created').on(table.userId,table.createdAt),
+]);
+export const profileArtwork = sqliteTable('profile_artwork', {
+  id: text('id').primaryKey(), userId: text('user_id').notNull(), kind: text('kind').notNull(), objectKey: text('object_key').notNull(),
+  mime: text('mime').notNull(), width: integer('width').notNull(), height: integer('height').notNull(), byteSize: integer('byte_size').notNull(),
+  digest: text('digest').notNull(), status: text('status').notNull().default('uploading'), createdAt: integer('created_at').notNull(),
+},table=>[
+  uniqueIndex('profile_artwork_object_key').on(table.objectKey),
+  index('profile_artwork_user_created').on(table.userId,table.createdAt),
+  check('profile_artwork_valid_kind',sql`${table.kind} IN ('avatar','banner')`),
+  check('profile_artwork_valid_mime',sql`${table.mime} = 'image/png'`),
+  check('profile_artwork_valid_status',sql`${table.status} IN ('uploading','ready','failed')`),
+]);

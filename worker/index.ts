@@ -28,7 +28,18 @@ const worker = {
         },
       };
     }
-    return runWithConnectorBinding(binding, () => handler.fetch(request, env, ctx));
+    return runWithConnectorBinding(binding, async () => {
+      const response = await handler.fetch(request, env, ctx);
+      // A member can hide a profile at any time. Never retain profile HTML/RSC
+      // or a missing-profile result in a browser or edge cache.
+      if (!new URL(request.url).pathname.startsWith('/u/')) return response;
+      const headers = new Headers(response.headers);
+      headers.set('Cache-Control', 'no-store');
+      headers.set('CDN-Cache-Control', 'no-store');
+      headers.set('Cloudflare-CDN-Cache-Control', 'no-store');
+      headers.set('X-Robots-Tag', 'noindex, noarchive');
+      return new Response(response.body, {status: response.status, statusText: response.statusText, headers});
+    });
   },
 };
 

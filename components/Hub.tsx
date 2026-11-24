@@ -5,7 +5,7 @@ import {
   ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, Bookmark, Check, ChevronRight,
   Compass, Gamepad2, Grid2X2, LayoutGrid, Library, ListFilter, Menu,
   Music2, Plus, Search, ShieldCheck, Sparkles, Terminal, Wrench, X, Copy, Share2, Layers3,
-  UserRound, Cloud, LoaderCircle, RefreshCw, AlertCircle, List, ChevronLeft, ChevronDown, Megaphone,
+  UserRound, Cloud, LoaderCircle, RefreshCw, AlertCircle, List, ChevronLeft, ChevronDown, Megaphone, Radio,
 } from 'lucide-react';
 import { seedProjects, type Project } from '@/lib/catalog';
 import { normalizeProjectQuery, searchProjects } from '@/lib/project-search';
@@ -19,10 +19,16 @@ import Account, { LibrarySyncStatus, signInHref } from './Account';
 import { useProjectLibrary, type SessionStatus } from './use-project-library';
 import { LinkOptions, ManualCopyDialog } from './LinkOptions';
 import ProjectUpdates from './ProjectUpdates';
+import ActivityFeed from './ActivityFeed';
+import ProfileEditor from './ProfileEditor';
+import PublicProfilePage from './PublicProfilePage';
+import ProjectBuilders from './ProjectBuilders';
+import {PROFILE_HANDLE_PATTERN, type PublicProfile} from '@/lib/profiles';
 import { stageLabel } from './studio-shared';
 import './discovery.css';
+import './navigation.css';
 
-type Section = 'discover' | 'library' | 'games' | 'music' | 'tools' | 'studio' | 'review' | 'claim' | 'account';
+type Section = 'discover' | 'activity' | 'library' | 'games' | 'music' | 'tools' | 'studio' | 'review' | 'claim' | 'account' | 'profile' | 'member';
 type Session = { authenticated: boolean; emailVerified?: boolean; provider?: string | null; userId: string | null; displayName: string | null; isAdmin: boolean };
 const emptySession: Session = { authenticated: false, userId: null, displayName: null, isAdmin: false };
 const categories = ['All projects', 'Games', 'Music', 'Tools', 'Community'];
@@ -30,9 +36,11 @@ const sectionTitles: Record<Section, string> = {
   discover: 'RMT — Your ecosystem. All together.',
   library: 'My library | RMT', games: 'Games | RMT', music: 'Music | RMT', tools: 'Tools | RMT',
   studio: 'Builder Studio | RMT', review: 'Review queue | RMT', claim: 'Claim a project | RMT', account: 'My account | RMT',
+  activity: 'Activity | RMT', profile: 'My profile | RMT', member: 'Member profile | RMT',
 };
 const navItems = [
   { id: 'discover' as Section, label: 'Discover', icon: Compass },
+  { id: 'activity' as Section, label: 'Activity', icon: Radio },
   { id: 'library' as Section, label: 'My library', icon: Library },
   { id: 'games' as Section, label: 'Games', icon: Gamepad2 },
   { id: 'music' as Section, label: 'Music', icon: Music2 },
@@ -66,8 +74,10 @@ function ProjectLogo({project}: {project: Project}) {
   return <img className="approved-project-logo" src={source} alt="" width="58" height="58" loading="lazy" decoding="async" onError={() => setFailed(true)} />;
 }
 
-export default function Hub({ initialProjectId, initialProjects = seedProjects }: { initialProjectId?: string; initialProjects?: Project[] } = {}) {
-  const [section, setSection] = useState<Section>('discover');
+export default function Hub({ initialProjectId, initialProjects = seedProjects, initialProfileHandle, initialPublicProfile }: { initialProjectId?: string; initialProjects?: Project[]; initialProfileHandle?: string; initialPublicProfile?: PublicProfile } = {}) {
+  const [section, setSection] = useState<Section>(initialProfileHandle ? 'member' : 'discover');
+  const [memberHandle, setMemberHandle] = useState(initialProfileHandle ?? '');
+  const [profileSeed, setProfileSeed] = useState(initialPublicProfile);
   const [category, setCategory] = useState('All projects');
   const [query, setQuery] = useState('');
   const [directoryView, setDirectoryView] = useState<'grid' | 'list'>('grid');
@@ -97,6 +107,10 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects }
   const copyRequest = useRef(0);
   const library = useProjectLibrary(session, sessionStatus, () => { notify('Your account changed. Reconnecting your library.'); void refreshSession(); });
   const saved = library.saved;
+
+  // Use the request-fresh SSR profile once. Returning through browser history
+  // must fetch again instead of resurrecting a profile its owner has hidden.
+  useEffect(() => {setProfileSeed(undefined);}, []);
 
   useEffect(() => {
     try {
@@ -131,7 +145,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects }
   }
 
   function go(next: Section) {
-    setSection(next); setQuery(''); setCategory('All projects'); setDirectoryPaging({ key: '', page: 1 }); setMobileMenu(false); setSelected(null); setClaimProject(null);
+    setSection(next); setMemberHandle(''); setQuery(''); setCategory('All projects'); setDirectoryPaging({ key: '', page: 1 }); setMobileMenu(false); setSelected(null); setClaimProject(null);
     window.history.pushState(null, '', '/#' + next);
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
@@ -209,6 +223,15 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects }
       };
       const hash = window.location.hash.slice(1);
       const pathMatch = window.location.pathname.match(/^\/projects\/([^/]+)\/?$/);
+      const profilePath = window.location.pathname.match(/^\/u\/([^/]+)\/?$/);
+      if (profilePath) {
+        let handle: string;
+        try {handle = decodeURIComponent(profilePath[1]).toLowerCase();} catch {handle = '';}
+        if (PROFILE_HANDLE_PATTERN.test(handle)) {
+          setMemberHandle(handle); setSection('member'); setSelected(null); setClaimProject(null);
+          return;
+        }
+      }
       const match = hash.match(/^(project|claim)\/(.+)$/);
       const legacyClaim = new URLSearchParams(window.location.search).get('claim');
       if (pathMatch || match || (hash === 'claim' && legacyClaim)) {
@@ -231,7 +254,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects }
         }
         return;
       }
-      if (['discover', 'library', 'games', 'music', 'tools', 'studio', 'review', 'account'].includes(hash)) {
+      if (['discover', 'activity', 'library', 'games', 'music', 'tools', 'studio', 'review', 'account', 'profile'].includes(hash)) {
         setSection(hash as Section); setSelected(null); setClaimProject(null);
       } else if (!hash) {
         setSection('discover'); setSelected(null); setClaimProject(null);
@@ -246,7 +269,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects }
     // tab title in step with in-app history navigation as well.
     document.title = selected ? `${selected.name} | RMT`
       : claimProject ? `Claim ${claimProject.name} | RMT`
-      : normalizeProjectQuery(query) && !['studio', 'review', 'claim', 'account'].includes(section) ? 'Search results | RMT'
+      : normalizeProjectQuery(query) && !['studio', 'review', 'claim', 'account', 'activity', 'profile', 'member'].includes(section) ? 'Search results | RMT'
       : sectionTitles[section];
   }, [selected, claimProject, section, query]);
 
@@ -254,6 +277,15 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects }
     setSelected(project); setClaimProject(null);
     setShowcaseChoice({projectId: project.id, tab: 'overview'});
     window.history.pushState(null, '', projectPath(project));
+  }
+
+  function openActivityProject(projectId: string, updates: boolean) {
+    const project = projects.find(item => item.id === projectId);
+    if (!project) return false;
+    setSelected(project); setClaimProject(null);
+    setShowcaseChoice({projectId, tab: updates ? 'updates' : 'overview'});
+    window.history.pushState(null, '', projectPath(project) + (updates ? '#updates' : ''));
+    return true;
   }
 
   function chooseShowcaseTab(tab: 'overview' | 'updates') {
@@ -269,7 +301,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects }
 
   function closeProject() {
     setSelected(null);
-    window.history.replaceState(null, '', '/#' + (section === 'claim' ? 'discover' : section));
+    window.history.replaceState(null, '', section === 'member' && memberHandle ? '/u/' + encodeURIComponent(memberHandle) : '/#' + (section === 'claim' ? 'discover' : section));
   }
 
   function startClaim(project: Project) {
@@ -372,11 +404,11 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects }
   const isSearchScoped = section === 'library' || activeCategory !== 'All projects';
   const searchScope = section === 'library' ? (activeCategory === 'All projects' ? 'your library' : activeCategory.toLowerCase() + ' in your library') : activeCategory.toLowerCase();
   const matchesOutsideScope = hasSearch && isSearchScoped ? searchProjects(projects, { query }).length - page.total : 0;
-  const isDirectory = !['studio', 'review', 'claim', 'account'].includes(section);
+  const isDirectory = !['studio', 'review', 'claim', 'account', 'activity', 'profile', 'member'].includes(section);
   const feature = projects.find(project => project.id === 'vamps') || projects[0];
   const savedProjects = saved.map(id => projects.find(project => project.id === id)).filter(Boolean) as Project[];
   const unavailableSaved = saved.filter(id => !projects.some(project => project.id === id));
-  const returnTo = selected ? projectPath(selected) : '/#' + (claimProject ? 'claim/' + encodeURIComponent(claimProject.id) : section);
+  const returnTo = selected ? projectPath(selected) + (showcaseTab === 'updates' ? '#updates' : '') : section === 'member' && memberHandle ? '/u/' + encodeURIComponent(memberHandle) : '/#' + (claimProject ? 'claim/' + encodeURIComponent(claimProject.id) : section);
   const selectedExperiences = selected?.links.filter(link => /game|creative|software|tool|wallet|app directory|music|audio/i.test(link.type ?? '')) ?? [];
   const selectedCommunity = selected?.links.filter(link => !selectedExperiences.includes(link)) ?? [];
   const relatedProjects = selected ? projects.filter(project => project.id !== selected.id).sort((a, b) => Number(b.category === selected.category) - Number(a.category === selected.category) || a.name.localeCompare(b.name)).slice(0, 3) : [];
@@ -409,7 +441,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects }
           <Icon size={19} strokeWidth={1.8} /><span>{label}</span>
           {id === 'library' && savedProjects.length > 0 && <span className="nav-count">{savedProjects.length}</span>}
         </button>)}
-        <button className={'nav-item ' + (section === 'account' ? 'nav-active' : '')} onClick={() => go('account')} aria-current={section === 'account' ? 'page' : undefined}><UserRound size={19} strokeWidth={1.8} /><span>My account</span></button>
+        <button className={'nav-item ' + (section === 'account' || section === 'profile' ? 'nav-active' : '')} onClick={() => go('account')} aria-current={section === 'account' || section === 'profile' ? 'page' : undefined}><UserRound size={19} strokeWidth={1.8} /><span>My account</span></button>
       </nav>
       <div className="nav-divider" />
       <div className="nav-caption">FOR BUILDERS</div>
@@ -476,15 +508,17 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects }
           </section>
           {section === 'discover' && <section className="community-banner"><div className="community-banner-icon"><LayoutGrid size={26} /></div><div><h3>Your community built it. Let people find it.</h3><p>Games, creative tools, and projects deserve more than a buried link.</p></div><button className="button button-outline" onClick={() => go('studio')}>Join the directory <ArrowUpRight size={16} /></button></section>}
           <footer className="content-footer"><span>RMT is an independent directory. Listings don’t imply a partnership.</span><button onClick={() => go('studio')}>Built something? Let’s see it. <ArrowUpRight size={12} /></button></footer>
-        </> : section === 'account' ? <Account session={sessionStatus === 'ready' ? session : emptySession} sessionStatus={sessionStatus} library={library} onRetrySession={() => void refreshSession()} onToast={notify} onLibrary={() => go('library')} onStudio={() => go('studio')} onReview={() => go('review')} /> : <>
+        </> : section === 'activity' ? <ActivityFeed onProject={openActivityProject} onBuilder={openProjectManagement} onProfile={() => go('profile')} />
+        : section === 'member' && memberHandle ? <PublicProfilePage key={memberHandle} handle={memberHandle} initialProfile={profileSeed} onHome={() => go('discover')} onCopy={copyLink} />
+        : section === 'account' ? <Account session={sessionStatus === 'ready' ? session : emptySession} sessionStatus={sessionStatus} library={library} onRetrySession={() => void refreshSession()} onToast={notify} onLibrary={() => go('library')} onStudio={() => go('studio')} onReview={() => go('review')} onProfile={() => go('profile')} /> : <>
           {sessionStatus !== 'ready' && <div className={'library-load-state ' + (sessionStatus === 'error' ? 'library-load-error' : '')} role="status">{sessionStatus === 'loading' ? <LoaderCircle className="rmt-spin" size={18} /> : <AlertCircle size={18} />}<div><strong>{sessionStatus === 'loading' ? 'Checking your account…' : 'Your account needs a reconnect.'}</strong><p>Your private workspace opens after your account is checked.</p></div>{sessionStatus === 'error' && <button className="button button-outline" onClick={() => void refreshSession()}><RefreshCw size={14} /> Try again</button>}</div>}
-          <div className="private-workspace" key={session.userId || 'guest'} hidden={sessionStatus !== 'ready'} inert={sessionStatus !== 'ready'}>{section === 'studio' ? <Studio session={session} onToast={notify} /> : section === 'claim' && claimProject ? <ClaimProject key={claimProject.id} project={claimProject} session={session} onToast={notify} onClose={() => { go('discover'); openProject(claimProject); }} /> : <ReviewQueue session={session} onToast={notify} />}</div>
+          <div className="private-workspace" key={session.userId || 'guest'} hidden={sessionStatus !== 'ready'} inert={sessionStatus !== 'ready'}>{section === 'profile' ? <ProfileEditor session={session} onToast={notify} onRetrySession={() => void refreshSession()} /> : section === 'studio' ? <Studio session={session} onToast={notify} /> : section === 'claim' && claimProject ? <ClaimProject key={claimProject.id} project={claimProject} session={session} onToast={notify} onClose={() => { go('discover'); openProject(claimProject); }} /> : <ReviewQueue session={session} onToast={notify} />}</div>
         </>}
 
       </main>
     </div>
     <nav className="mobile-bottom" aria-label="Mobile navigation">
-      {[navItems[0], navItems[1], navItems[2], { id: 'studio' as Section, label: 'Build', icon: Terminal }].map(({ id, label, icon: Icon }) => <button key={id} className={section === id ? 'active' : ''} onClick={() => go(id)}><Icon size={20} /><span>{label}</span></button>)}
+      {[navItems[0], navItems[1], navItems[2], { id: 'studio' as Section, label: 'Build', icon: Terminal }, {id: 'account' as Section, label: 'Account', icon: UserRound}].map(({ id, label, icon: Icon }) => <button key={id} className={section === id || (id === 'account' && section === 'profile') ? 'active' : ''} onClick={() => go(id)}><Icon size={20} /><span>{label}</span></button>)}
     </nav>
     <dialog ref={dialogRef} className="project-dialog showcase-dialog" aria-labelledby="project-title" onCancel={closeProject} onClick={event => { if (event.target === event.currentTarget) closeProject(); }}>
       {selected && <div className="detail-inner" style={{ '--project-accent': selected.accent } as React.CSSProperties}>
@@ -526,6 +560,7 @@ export default function Hub({ initialProjectId, initialProjects = seedProjects }
               </div>
             </div>
             <aside className="showcase-sidebar" aria-label="Share this project">
+              <ProjectBuilders key={selected.id} projectId={selected.id} />
               <section className="showcase-share-card">
                 <div className="share-card-heading"><span>PASS IT ON</span><Share2 size={15} /></div>
                 <h3>A find worth sharing.</h3>
