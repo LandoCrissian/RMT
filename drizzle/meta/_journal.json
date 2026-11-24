@@ -15,6 +15,13 @@
       "when": 1795493233477,
       "tag": "0001_chief_impossible_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1795497023194,
+      "tag": "0002_eager_hulk",
+      "breakpoints": true
     }
   ]
 }

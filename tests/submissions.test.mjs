@@ -7,7 +7,7 @@ import { build } from 'esbuild';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const compiled = await build({
-  stdin: {contents: `export * from './lib/submission-validation'; export * from './lib/server/auth'; export * from './lib/server/http'; export * from './lib/server/repository';`, resolveDir: root, loader: 'ts'},
+  stdin: {contents: `export * from './lib/submission-validation'; export * from './lib/server/auth'; export * from './lib/server/http'; export * from './lib/server/repository'; export * from './lib/server/claims'; export * from './lib/server/project-edits'; export * from './lib/server/outbox-events'; export {getSeedProjects} from './lib/catalog';`, resolveDir: root, loader: 'ts'},
   absWorkingDir: root, bundle: true, write: false, platform: 'node', format: 'esm', target: 'node24',
 });
 const api = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
@@ -27,12 +27,17 @@ function database() {
       async run() { const result = sqlite.prepare(sql).run(...values); return {success: true, results: [], meta: {changes: Number(result.changes)}}; },
     };
   }
+  let batches = Promise.resolve();
   return {
     prepare,
-    async batch(statements) {
-      sqlite.exec('BEGIN');
-      try { const results = []; for (const statement of statements) results.push(await statement.run()); sqlite.exec('COMMIT'); return results; }
-      catch (error) { sqlite.exec('ROLLBACK'); throw error; }
+    batch(statements) {
+      const result = batches.then(async () => {
+        sqlite.exec('BEGIN');
+        try { const results = []; for (const statement of statements) results.push(await statement.run()); sqlite.exec('COMMIT'); return results; }
+        catch (error) { sqlite.exec('ROLLBACK'); throw error; }
+      });
+      batches = result.catch(() => {});
+      return result;
     },
     raw: sqlite,
     close() { sqlite.close(); },
@@ -122,6 +127,7 @@ test('account quota accepts exactly three unique applications per 24 hours', asy
   const failure = results.find(result => result.status === 'rejected');
   assert.equal(failure.reason.status, 429);
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM submissions').get().count, 3);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count, 6);
 });
 
 test('duplicate name and canonical website are rejected across different accounts', async t => {
@@ -233,4 +239,288 @@ test('launch destinations preserve hash routing while website identity remains h
   assert.equal(application.launchUrl, 'https://hashgame.rmt.dev/#/play?mode=solo');
   assert.equal(application.website, 'https://www.hashgame.rmt.dev/#home');
   assert.equal(application.normalizedHost, 'hashgame.rmt.dev');
+});
+
+
+test('early builders can start with a website or an X profile and keep their actual stage', async t => {
+  const db = database(); t.after(() => db.close());
+  const social = input('social', {website:'', launchUrl:'', xProfile:'https://x.com/EarlyCreator', stage:'starting'});
+  assert.equal(social.launchUrl, 'https://x.com/EarlyCreator');
+  assert.equal(social.normalizedHost, 'x.com/earlycreator');
+  const created = await api.createSubmission(db, user, social);
+  assert.equal(created.website, '');
+  assert.equal(created.stage, 'starting');
+  const website = input('webonly', {xProfile:'', launchUrl:'', stage:'building'});
+  assert.equal(website.launchUrl, website.website);
+  assert.equal(website.xProfile, '');
+  await api.createSubmission(db, user, website);
+  assert.throws(() => input('none', {website:'',xProfile:'',launchUrl:'https://other.rmt.dev'}), rejection(400));
+  assert.throws(() => input('badstage', {stage:'profitable'}), rejection(400));
+});
+
+test('separate collection-only projects and separate X-only projects do not collapse into a shared host', async t => {
+  const db = database(); t.after(() => db.close());
+  const first = input('collectionone', {website:'https://opensea.io/collection/backend-test-one', xProfile:'', launchUrl:''});
+  const second = input('collectiontwo', {website:'https://opensea.io/collection/backend-test-two', xProfile:'', launchUrl:''});
+  await api.createSubmission(db, user, first);
+  await api.createSubmission(db, user, second);
+  assert.notEqual(first.normalizedHost,second.normalizedHost);
+  const other={...user,userId:'second-builder'};
+  await api.createSubmission(db,other,input('socialone',{website:'',launchUrl:'',xProfile:'https://x.com/CreatorOne'}));
+  await api.createSubmission(db,other,input('socialtwo',{website:'',launchUrl:'',xProfile:'https://x.com/CreatorTwo'}));
+  await assert.rejects(api.createSubmission(db,{...user,userId:'duplicate'},input('differentname',{website:'',xProfile:'https://twitter.com/CREATORONE',launchUrl:''})),rejection(409));
+});
+
+function claimDecision(action,revision,extra={}) {
+  return api.validateClaimDecision({action,expectedRevision:revision,note:'Reviewed the challenge on the official project channel.',confirmedOwnership:true,...extra});
+}
+async function submittedClaim(db, claimant=user, projectId='vamps',method='website') {
+  const claim=await api.createClaim(db,claimant,{projectId,method});
+  const proofUrl=method==='website'?new URL('/rmt-verification.txt',claim.officialChannelUrl).toString():claim.officialChannelUrl;
+  return api.submitClaim(db,claimant,claim.id,api.validateClaimProof({proofUrl,note:'The code is on our official page.',expectedRevision:claim.revision}));
+}
+async function approvedOwner(db,claimant=user,projectId='vamps') {
+  const claim=await submittedClaim(db,claimant,projectId);
+  return api.reviewClaim(db,'admin',claim.id,claimDecision('approve',claim.revision));
+}
+function projectEdit(projectId='vamps',baseRevision=0,extra={}) {
+  return api.validateProjectEdit({projectId,baseRevision,summary:'Our updated browser experiences and tools are ready to explore.',category:'Games',stage:'building',
+    website:'https://vamps.wtf/',launchUrl:'https://games.vamps.wtf/#/play',xProfile:'https://x.com/VampsOnChain',
+    links:[{label:'Our games',url:'https://games.vamps.wtf/#/play',type:'Game'}],...extra});
+}
+function editDecision(action,revision,extra={}) {
+  return api.validateEditDecision({action,expectedRevision:revision,note:'Checked the proposed destinations against official project channels.',checkedLinks:true,...extra});
+}
+
+test('claim options only expose actual official channels, including collection fallback', async t => {
+  const db=database();t.after(()=>db.close());
+  const options=await api.claimOptions(db,'lammbs');
+  assert.ok(options.methods.some(channel=>channel.method==='website'));
+  const collection=options.methods.find(channel=>channel.method==='opensea');
+  assert.ok(collection);
+  assert.match(collection.channelUrl,/opensea.io\/collection\//);
+  const fakeProject={...api.getSeedProjects()[0],website:'',links:[],collections:[{name:'Only collection',url:'https://opensea.io/collection/only-collection'}],launchUrl:'https://opensea.io/collection/only-collection'};
+  assert.deepEqual(api.projectClaimMethods(fakeProject).map(channel=>channel.method),['opensea']);
+  await assert.rejects(api.claimOptions(db,'missing'),rejection(404));
+});
+
+test('draft challenges are random, seven days long, private, and do not send review notifications yet', async t => {
+  const db=database();t.after(()=>db.close());
+  const claim=await api.createClaim(db,user,{projectId:'vamps',method:'website'});
+  assert.equal(claim.status,'draft');
+  assert.equal(claim.revision,1);
+  assert.equal(claim.expiresAt-claim.createdAt,7*86_400_000);
+  assert.match(claim.verificationCode,/^rmt-claim-/);
+  assert.deepEqual(await api.ownClaims(db,'other-owner'),[]);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count,0);
+  const directory=await api.catalog(db);
+  assert.equal(directory.projects.find(project=>project.id==='vamps').claimed,false);
+  assert.equal(JSON.stringify(directory).includes(claim.verificationCode),false);
+  assert.equal(JSON.stringify(directory).includes(user.email),false);
+});
+
+test('claim drafts are rate limited and duplicate own active challenges are rejected', async t => {
+  const db=database();t.after(()=>db.close());
+  await api.createClaim(db,user,{projectId:'vamps',method:'website'});
+  await assert.rejects(api.createClaim(db,user,{projectId:'vamps',method:'website'}),rejection(409));
+  await api.createClaim(db,user,{projectId:'lammbs',method:'website'});
+  await api.createClaim(db,user,{projectId:'suited-apes',method:'website'});
+  db.raw.prepare("UPDATE project_claims SET expires_at=? WHERE project_id='vamps'").run(Date.now()-1);
+  await assert.rejects(api.createClaim(db,user,{projectId:'vamps',method:'website'}),rejection(429));
+});
+
+test('claim proof must match official channel and be submitted by its owner before expiry', async t => {
+  const db=database();t.after(()=>db.close());
+  const draft=await api.createClaim(db,user,{projectId:'vamps',method:'website'});
+  await assert.rejects(api.submitClaim(db,{...user,userId:'attacker'},draft.id,{proofUrl:'https://vamps.wtf/proof',note:'',expectedRevision:1}),rejection(404));
+  await assert.rejects(api.submitClaim(db,user,draft.id,{proofUrl:'https://evil.rmt.dev/proof',note:'',expectedRevision:1}),rejection(400));
+  db.raw.prepare('UPDATE project_claims SET expires_at=? WHERE id=?').run(Date.now()-1,draft.id);
+  await assert.rejects(api.submitClaim(db,user,draft.id,{proofUrl:'https://vamps.wtf/proof',note:'',expectedRevision:1}),rejection(409));
+  assert.equal((await api.ownClaims(db,user.userId))[0].status,'expired');
+  assert.equal(api.proofMatchesChannel('x','https://x.com/realproject','https://x.com/fakeproject/status/123'),false);
+  assert.equal(api.proofMatchesChannel('x','https://x.com/realproject','https://twitter.com/RealProject/status/123'),true);
+  assert.equal(api.proofMatchesChannel('opensea','https://opensea.io/collection/real','https://opensea.io/collection/fake'),false);
+});
+
+test('submitting proof queues exactly one event per channel without automatically approving ownership', async t => {
+  const db=database();t.after(()=>db.close());
+  const claim=await submittedClaim(db);
+  assert.equal(claim.status,'pending');
+  assert.equal((await api.catalog(db)).projects.find(project=>project.id==='vamps').claimed,false);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count,2);
+  await assert.rejects(api.submitClaim(db,user,claim.id,{proofUrl:claim.proofUrl,note:'',expectedRevision:1}),rejection(409));
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count,2);
+  assert.throws(()=>claimDecision('approve',claim.revision,{confirmedOwnership:false}),rejection(400));
+});
+
+test('competing claims may be reviewed but only one owner can be approved atomically', async t => {
+  const db=database();t.after(()=>db.close());
+  const first=await submittedClaim(db);
+  const secondUser={...user,userId:'other-builder',email:'other@rmt.dev'};
+  const second=await submittedClaim(db,secondUser);
+  const results=await Promise.allSettled([api.reviewClaim(db,'reviewer-one',first.id,claimDecision('approve',first.revision)),api.reviewClaim(db,'reviewer-two',second.id,claimDecision('approve',second.revision))]);
+  assert.equal(results.filter(result=>result.status==='fulfilled').length,1);
+  assert.equal(results.find(result=>result.status==='rejected').reason.status,409);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS count FROM project_owners WHERE status='active'").get().count,1);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM claim_review_events').get().count,1);
+  assert.equal((await api.catalog(db)).projects.find(project=>project.id==='vamps').claimed,true);
+});
+
+test('expired pending claims cannot be approved and stale decisions cannot overwrite approval', async t => {
+  const db=database();t.after(()=>db.close());
+  const claim=await submittedClaim(db);
+  db.raw.prepare('UPDATE project_claims SET expires_at=? WHERE id=?').run(Date.now()-1,claim.id);
+  await assert.rejects(api.reviewClaim(db,'admin',claim.id,claimDecision('approve',claim.revision)),rejection(409));
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM project_owners').get().count,0);
+  db.raw.prepare('UPDATE project_claims SET expires_at=? WHERE id=?').run(Date.now()+86_400_000,claim.id);
+  await api.reviewClaim(db,'admin',claim.id,claimDecision('approve',claim.revision));
+  await assert.rejects(api.reviewClaim(db,'admin',claim.id,claimDecision('reject',claim.revision)),rejection(409));
+});
+
+test('only the approved owner can submit edits; approved community submissions also grant management', async t => {
+  const db=database();t.after(()=>db.close());
+  await approvedOwner(db);
+  await assert.rejects(api.createProjectEdit(db,{...user,userId:'outsider'},projectEdit()),rejection(404));
+  assert.equal((await api.ownedProjects(db,'outsider')).projects.length,0);
+  assert.equal((await api.ownedProjects(db,user.userId)).projects[0].project.id,'vamps');
+  const submission=await api.createSubmission(db,user,input('newbuilder'));
+  await api.reviewSubmission(db,'admin',submission.id,decision('approve',submission.revision));
+  assert.ok((await api.ownedProjects(db,user.userId)).projects.some(row=>row.project.id===`community-${submission.id}`));
+});
+
+test('pending owner edits do not alter public project data and never leak through catalog', async t => {
+  const db=database();t.after(()=>db.close());
+  await approvedOwner(db);
+  const before=(await api.catalog(db)).projects.find(project=>project.id==='vamps');
+  const edit=await api.createProjectEdit(db,user,projectEdit());
+  const after=(await api.catalog(db)).projects.find(project=>project.id==='vamps');
+  assert.deepEqual(after,before);
+  assert.equal(edit.status,'pending');
+  assert.equal((await api.ownProjectEdits(db,'outsider')).length,0);
+  assert.equal(db.raw.prepare("SELECT COUNT(*) AS count FROM notification_outbox WHERE kind='edit'").get().count,2);
+  await assert.rejects(api.createProjectEdit(db,user,projectEdit()),rejection(409));
+  assert.throws(()=>api.validateProjectEdit({...projectEdit(),name:'Impersonated project'}),rejection(400));
+  assert.throws(()=>api.validateProjectEdit({...projectEdit(),links:[{label:'Unsafe',url:'javascript:alert(1)'}]}),rejection(400));
+});
+
+test('approved edits apply public fields while preserving project identity and collection relationships', async t => {
+  const db=database();t.after(()=>db.close());
+  await approvedOwner(db);
+  const before=(await api.catalog(db)).projects.find(project=>project.id==='vamps');
+  const edit=await api.createProjectEdit(db,user,projectEdit());
+  assert.throws(()=>editDecision('approve',edit.revision,{checkedLinks:false}),rejection(400));
+  await api.reviewProjectEdit(db,'admin',edit.id,editDecision('approve',edit.revision));
+  const after=(await api.catalog(db)).projects.find(project=>project.id==='vamps');
+  assert.equal(after.description,edit.summary);
+  assert.equal(after.launchUrl,edit.launchUrl);
+  assert.equal(after.name,before.name);
+  assert.equal(after.slug,before.slug);
+  assert.deepEqual(after.collections,before.collections);
+  assert.equal((await api.ownedProjects(db,user.userId)).projects[0].revision,1);
+  for(const key of ['userId','proofUrl','verificationCode','reviewNote','payloadJson'])assert.equal(key in after,false);
+  await assert.rejects(api.createProjectEdit(db,user,projectEdit('vamps',0)),rejection(409));
+  const next=await api.createProjectEdit(db,user,projectEdit('vamps',1,{summary:'A second reviewed revision keeps our destinations current for the community.'}));
+  await api.reviewProjectEdit(db,'admin',next.id,editDecision('approve',next.revision));
+  assert.equal((await api.ownedProjects(db,user.userId)).projects[0].revision,2);
+});
+
+test('revoking ownership immediately removes edit access and rejects its outstanding edits', async t => {
+  const db=database();t.after(()=>db.close());
+  const owner=await approvedOwner(db);
+  const edit=await api.createProjectEdit(db,user,projectEdit());
+  await api.reviewClaim(db,'admin',owner.id,claimDecision('revoke',owner.revision));
+  assert.equal((await api.catalog(db)).projects.find(project=>project.id==='vamps').claimed,false);
+  assert.equal((await api.ownedProjects(db,user.userId)).projects.length,0);
+  assert.equal((await api.ownProjectEdits(db,user.userId))[0].status,'rejected');
+  await assert.rejects(api.reviewProjectEdit(db,'admin',edit.id,editDecision('approve',edit.revision)),rejection(409));
+  await assert.rejects(api.createProjectEdit(db,user,projectEdit()),rejection(404));
+  const nextUser={...user,userId:'replacement-builder'};
+  const next=await submittedClaim(db,nextUser);
+  await api.reviewClaim(db,'admin',next.id,claimDecision('approve',next.revision));
+  const nextEdit=await api.createProjectEdit(db,nextUser,projectEdit());
+  assert.equal(nextEdit.status,'pending');
+});
+
+test('a stale owner grant cannot publish an edit even if its edit record still says pending', async t => {
+  const db=database();t.after(()=>db.close());
+  await approvedOwner(db);
+  const edit=await api.createProjectEdit(db,user,projectEdit());
+  // Simulate a concurrent ownership change immediately before review.
+  db.raw.prepare("UPDATE project_owners SET user_id='new-owner',revision=revision+1 WHERE project_id='vamps'").run();
+  await assert.rejects(api.reviewProjectEdit(db,'admin',edit.id,editDecision('approve',edit.revision)),rejection(409));
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM project_overrides').get().count,0);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM edit_review_events').get().count,0);
+});
+
+test('review notifications are transactional and idempotent per event and channel', async t => {
+  const db=database();t.after(()=>db.close());
+  const application=await api.createSubmission(db,user,input('notify'));
+  await db.batch(api.pendingNotifications(db,{kind:'submission',id:application.id,projectName:application.name,revision:1,now:Date.now()}));
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count,2);
+  const requested=await api.reviewSubmission(db,'admin',application.id,decision('request_changes',1));
+  await api.resubmit(db,user,application.id,input('notify'),requested.revision);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM notification_outbox').get().count,4);
+});
+
+
+test('approved X-profile edits are reflected in public destinations even without an extra link row', async t => {
+  const db=database();t.after(()=>db.close());
+  await approvedOwner(db);
+  const edit=await api.createProjectEdit(db,user,projectEdit('vamps',0,{xProfile:'https://x.com/NewVampsHandle',links:[]}));
+  await api.reviewProjectEdit(db,'admin',edit.id,editDecision('approve',edit.revision));
+  const project=(await api.catalog(db)).projects.find(value=>value.id==='vamps');
+  assert.ok(project.links.some(link=>link.url==='https://x.com/NewVampsHandle'));
+  assert.ok(project.links.some(link=>link.url==='https://vamps.wtf/'));
+});
+
+test('known curated collection destinations cannot be duplicated under a different name', async t => {
+  const db=database();t.after(()=>db.close());
+  const project=api.getSeedProjects().find(value=>value.id==='lammbs');
+  const collection=api.projectClaimMethods(project).find(value=>value.method==='opensea');
+  await assert.rejects(api.createSubmission(db,user,input('impersonator',{website:collection.channelUrl,xProfile:'',launchUrl:''})),rejection(409));
+});
+
+
+test('a claimed collection-only CannaCats listing can update its description without inventing a website or X', async t => {
+  const db=database();t.after(()=>db.close());
+  const seed=api.getSeedProjects().find(project=>project.id==='cannacats-v2');
+  assert.equal(seed.website,'');
+  const claim=await submittedClaim(db,user,'cannacats-v2','opensea');
+  await api.reviewClaim(db,'admin',claim.id,claimDecision('approve',claim.revision));
+  const proposed=projectEdit('cannacats-v2',0,{summary:'An updated introduction to our CannaCats art and community experiences.',category:'Community',website:'',xProfile:'',launchUrl:'',links:[]});
+  const edit=await api.createProjectEdit(db,user,proposed);
+  assert.equal(edit.launchUrl,seed.collections[0].url);
+  assert.equal(edit.website,'');
+  assert.equal(edit.xProfile,'');
+  await api.reviewProjectEdit(db,'admin',edit.id,editDecision('approve',edit.revision));
+  const published=(await api.catalog(db)).projects.find(project=>project.id==='cannacats-v2');
+  assert.equal(published.description,proposed.summary);
+  assert.equal(published.launchUrl,seed.collections[0].url);
+  assert.deepEqual(published.collections,seed.collections);
+  // A new community builder cannot create this exception by adding a collection link.
+  const application=await api.createSubmission(db,user,input('without-anchor'));
+  await api.reviewSubmission(db,'admin',application.id,decision('approve',application.revision));
+  const attempted=projectEdit(`community-${application.id}`,0,{website:'',xProfile:'',launchUrl:'https://opensea.io/collection/arbitrary',links:[{label:'Claimed collection',url:'https://opensea.io/collection/arbitrary'}]});
+  await assert.rejects(api.createProjectEdit(db,user,attempted),rejection(400));
+  assert.throws(()=>input('still-required',{website:'',xProfile:'',launchUrl:''}),rejection(400));
+});
+
+test('twelve custom owner links survive reopening and a second review alongside automatic website and X links', async t => {
+  const db=database();t.after(()=>db.close());
+  await approvedOwner(db);
+  const original=(await api.ownedProjects(db,user.userId)).projects[0];
+  assert.deepEqual(original.editableLinks,original.project.links);
+  const customLinks=Array.from({length:12},(_,index)=>({label:`Custom experience ${index+1}`,url:`https://games.vamps.wtf/experience/${index+1}`,type:'Experience'}));
+  const first=await api.createProjectEdit(db,user,projectEdit('vamps',0,{links:customLinks}));
+  await api.reviewProjectEdit(db,'admin',first.id,editDecision('approve',first.revision));
+  const reopened=(await api.ownedProjects(db,user.userId)).projects[0];
+  assert.equal(reopened.project.links.length,14);
+  assert.equal(reopened.editableLinks.length,12);
+  assert.deepEqual(reopened.editableLinks,customLinks);
+  const second=await api.createProjectEdit(db,user,projectEdit('vamps',reopened.revision,{links:reopened.editableLinks,summary:'Our description changed while every custom destination stayed intact.'}));
+  await api.reviewProjectEdit(db,'admin',second.id,editDecision('approve',second.revision));
+  const final=(await api.ownedProjects(db,user.userId)).projects[0];
+  assert.deepEqual(final.editableLinks,customLinks);
+  assert.equal(final.project.links.length,14);
+  assert.equal(final.project.links.at(-1).label,'Custom experience 12');
 });

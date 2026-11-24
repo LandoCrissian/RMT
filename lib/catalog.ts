@@ -1,3 +1,5 @@
+import { additionalProjects } from './curated-projects';
+
 export type Category = 'Games' | 'Music' | 'Tools' | 'Community';
 
 export type Project = {
@@ -11,9 +13,13 @@ export type Project = {
   launchUrl: string;
   launchLabel: string;
   links: { label: string; url: string; type?: string }[];
+  collections?: { name: string; url: string; chain?: string; relationship?: string }[];
+  stage?: 'starting' | 'building' | 'live';
+  sourceStatus?: 'confirmed' | 'details-pending';
   initials: string;
   accent: string;
   cover: string;
+  coverFit?: 'cover' | 'contain';
   claimed: boolean;
   source: 'curated' | 'community';
 };
@@ -62,6 +68,7 @@ export const seedProjects: Project[] = [
     ],
     initials: 'SA', accent: '#ffcd86', cover: '/projects/fight-club.jpg', claimed: false, source: 'curated',
   },
+  ...additionalProjects,
 ];
 
 export function getSeedProjects(): Project[] { return seedProjects; }

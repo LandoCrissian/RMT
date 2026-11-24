@@ -1,0 +1,692 @@
+[
+  {
+    "id": "ccff00",
+    "collectionUrl": "https://opensea.io/collection/ccff00-161927574",
+    "description": "HoodStreet’s founding membership collection, with token-bound wallets accessible through My Neon.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/ccff00-161927574",
+        "finding": "Primary collection page confirms the display name and Robinhood Chain."
+      },
+      {
+        "url": "https://opensea.io/collection/ccff00-161927574/overview",
+        "finding": "Creator description identifies HoodStreet, links its homepage, names My Neon, and describes token-bound wallet functionality."
+      },
+      {
+        "url": "https://opensea.io/collection/ccff00-161927574",
+        "finding": "Primary HTML collectionBySlug metadata confirms identity and the additional official channels recorded here."
+      }
+    ],
+    "originalArtwork": {
+      "logoUrl": "https://raw2.seadn.io/collection/ccff00-161927574/image_type_logo/f9bf23b1788dfecaee5bd4efd18377/17f9bf23b1788dfecaee5bd4efd18377.svg",
+      "coverUrl": "https://i2c.seadn.io/collection/ccff00-161927574/image_type_hero_desktop/9f75e958c4cf351e22f2b5d34261a9/c69f75e958c4cf351e22f2b5d34261a9.png?w=2000",
+      "origin": "https://opensea.io/collection/ccff00-161927574"
+    },
+    "additionalPrimaryMetadata": {
+      "name": "CCFF00",
+      "externalUrl": "https://hoodstreet.capital/ccff00",
+      "twitterUsername": "CCFF00club",
+      "instagramUsername": "",
+      "discordUrl": "https://discord.gg/24Z3vzE35q",
+      "imageUrl": "https://raw2.seadn.io/collection/ccff00-161927574/image_type_logo/f9bf23b1788dfecaee5bd4efd18377/17f9bf23b1788dfecaee5bd4efd18377.svg",
+      "chain": {
+        "identifier": "robinhood",
+        "__typename": "Chain",
+        "name": "Robinhood Chain",
+        "arch": "EVM"
+      },
+      "bannerImageUrl": null
+    },
+    "collections": [
+      {
+        "name": "CCFF00",
+        "url": "https://opensea.io/collection/ccff00-161927574",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      }
+    ],
+    "notes": [
+      "Primary collection identity, chain, artwork, and creator-linked channels confirmed from the collection HTML. Experiences are not an end-to-end gameplay, wallet, or transaction audit."
+    ]
+  },
+  {
+    "id": "hood-vandalz",
+    "collectionUrl": "https://opensea.io/collection/hoodvandalz",
+    "description": "Masked pixel-art characters inspired by graffiti culture, with a connected Hood Syndicate collection.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/hoodvandalz",
+        "finding": "Primary collection page confirms the display name and Robinhood Chain."
+      },
+      {
+        "url": "https://www.hoodvandalz.xyz/",
+        "finding": "Direct HTTPS HTML retrieved successfully. Title and metadata describe masked pixel-art characters inspired by graffiti culture. Anchors explicitly link the exact Hood Vandalz collection, @HoodVandalz, Discord invite, and /syndicate/."
+      },
+      {
+        "url": "https://www.hoodvandalz.xyz/syndicate/",
+        "finding": "Direct HTTPS HTML retrieved successfully. Describes Hood Syndicate as an extension of Hood Vandalz and links its collection."
+      },
+      {
+        "url": "https://opensea.io/HoodVandalz/created",
+        "finding": "Official creator profile lists Hood Vandalz and Hood Syndicate."
+      },
+      {
+        "url": "https://opensea.io/collection/hoodvandalz",
+        "finding": "Primary HTML collectionBySlug metadata confirms identity and the additional official channels recorded here."
+      }
+    ],
+    "originalArtwork": {
+      "logoUrl": "https://i2c.seadn.io/collection/hood-vandalz-833262719/image_type_logo/abe6ab8e4195e35a03379172ac9d3b/42abe6ab8e4195e35a03379172ac9d3b.jpeg?h=250&w=250",
+      "coverUrl": "https://i2c.seadn.io/collection/hoodvandalz/image_type_hero_desktop/466f1793074c91ff41171da79b4e51/d1466f1793074c91ff41171da79b4e51.png?w=2000",
+      "origin": "https://opensea.io/collection/hoodvandalz",
+      "officialOgUrl": "https://www.hoodvandalz.xyz/og.jpg"
+    },
+    "additionalPrimaryMetadata": {
+      "name": "Hood Vandalz",
+      "externalUrl": "https://hoodvandalz.xyz",
+      "twitterUsername": "HoodVandalz",
+      "instagramUsername": "",
+      "discordUrl": "https://discord.gg/JpTEbw4hy2",
+      "imageUrl": "https://i2c.seadn.io/collection/hood-vandalz-833262719/image_type_logo/abe6ab8e4195e35a03379172ac9d3b/42abe6ab8e4195e35a03379172ac9d3b.jpeg",
+      "chain": {
+        "identifier": "robinhood",
+        "__typename": "Chain",
+        "name": "Robinhood Chain",
+        "arch": "EVM"
+      },
+      "bannerImageUrl": null
+    },
+    "collections": [
+      {
+        "name": "Hood Vandalz",
+        "url": "https://opensea.io/collection/hoodvandalz",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      },
+      {
+        "name": "Hood Syndicate",
+        "url": "https://opensea.io/collection/hoodsyndicate/overview",
+        "chain": "Robinhood Chain",
+        "relationship": "Official extension of Hood Vandalz"
+      }
+    ],
+    "notes": [
+      "Primary collection identity, chain, artwork, and creator-linked channels confirmed from the collection HTML. Experiences are not an end-to-end gameplay, wallet, or transaction audit."
+    ]
+  },
+  {
+    "id": "pixel-hood-arcade",
+    "collectionUrl": "https://opensea.io/collection/pixelhoodarcade",
+    "description": "Retro arcade-machine collectibles by Pixelord, with hidden games playable directly on OpenSea.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/pixelhoodarcade",
+        "finding": "Primary collection page confirms the display name and Robinhood Chain."
+      },
+      {
+        "url": "https://opensea.io/collection/pixelhoodarcade/overview",
+        "finding": "Description confirms retro arcade-machine collectibles with hidden games playable in OpenSea."
+      },
+      {
+        "url": "https://opensea.io/Pixelord/created",
+        "finding": "Creator profile lists Pixel Hood Minis and PIXEL HOOD CLAN."
+      },
+      {
+        "url": "https://opensea.io/collection/pixelhoodclan",
+        "finding": "Exact related collection name, Robinhood Chain, and creator Pixelord."
+      },
+      {
+        "url": "https://opensea.io/collection/pixelhoodminis",
+        "finding": "Exact related collection name, Robinhood Chain, and creator Pixelord."
+      },
+      {
+        "url": "https://opensea.io/collection/pixelhoodarcade",
+        "finding": "Primary HTML collectionBySlug metadata confirms identity and the additional official channels recorded here."
+      }
+    ],
+    "originalArtwork": {
+      "logoUrl": "https://i2c.seadn.io/collection/pixel-hood-arcade/image_type_logo/069001541267fa125d755df3e07295/ff069001541267fa125d755df3e07295.png?h=250&w=250",
+      "coverUrl": "https://i2c.seadn.io/collection/pixelhoodarcade/image_type_hero_desktop/c0d0c976372354705133ee2c31f67f/08c0d0c976372354705133ee2c31f67f.png?w=2000",
+      "origin": "https://opensea.io/collection/pixelhoodarcade"
+    },
+    "additionalPrimaryMetadata": {
+      "name": "Pixel Hood Arcade",
+      "externalUrl": "https://linktr.ee/pixelord",
+      "twitterUsername": "pixelord",
+      "instagramUsername": "",
+      "discordUrl": "",
+      "imageUrl": "https://i2c.seadn.io/collection/pixel-hood-arcade/image_type_logo/069001541267fa125d755df3e07295/ff069001541267fa125d755df3e07295.png",
+      "chain": {
+        "identifier": "robinhood",
+        "__typename": "Chain",
+        "name": "Robinhood Chain",
+        "arch": "EVM"
+      },
+      "bannerImageUrl": null
+    },
+    "collections": [
+      {
+        "name": "Pixel Hood Arcade",
+        "url": "https://opensea.io/collection/pixelhoodarcade",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      },
+      {
+        "name": "Pixel Hood Minis",
+        "url": "https://opensea.io/collection/pixelhoodminis",
+        "chain": "Robinhood Chain",
+        "relationship": "Related collection by Pixelord"
+      },
+      {
+        "name": "PIXEL HOOD CLAN",
+        "url": "https://opensea.io/collection/pixelhoodclan",
+        "chain": "Robinhood Chain",
+        "relationship": "Related collection by Pixelord"
+      }
+    ],
+    "notes": [
+      "Primary collection identity, chain, artwork, and creator-linked channels confirmed from the collection HTML. Experiences are not an end-to-end gameplay, wallet, or transaction audit."
+    ]
+  },
+  {
+    "id": "cannacats-v2",
+    "collectionUrl": "https://opensea.io/collection/cannacats-v2",
+    "description": "A collection of evolving CannaCats artwork, alongside the original CannaCats collection on Robinhood Chain.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/cannacats-v2",
+        "finding": "Primary collection page confirms the display name and Robinhood Chain."
+      },
+      {
+        "url": "https://opensea.io/CannaCat/created",
+        "finding": "Official creator profile lists both original CannaCats and CannaCats V2."
+      },
+      {
+        "url": "https://opensea.io/collection/cannacats",
+        "finding": "Primary original collection page confirms CannaCats by CannaCat on Robinhood Chain."
+      },
+      {
+        "url": "https://opensea.io/collection/cannacats-v2",
+        "finding": "Primary HTML collectionBySlug metadata confirms identity and the additional official channels recorded here."
+      }
+    ],
+    "originalArtwork": {
+      "logoUrl": "https://i2c.seadn.io/collection/cannacats-v2/image_type_logo/0eaee47560315fe4dd6073405bed70/ca0eaee47560315fe4dd6073405bed70.png?h=250&w=250",
+      "coverUrl": "https://i2c.seadn.io/collection/cannacats-v2/image_type_hero_desktop/2f2384e79c5e6a8709d69926f48756/a82f2384e79c5e6a8709d69926f48756.png?w=2000",
+      "origin": "https://opensea.io/collection/cannacats-v2"
+    },
+    "additionalPrimaryMetadata": {
+      "name": "CannaCats V2",
+      "externalUrl": "",
+      "twitterUsername": null,
+      "instagramUsername": "",
+      "discordUrl": "",
+      "imageUrl": "https://i2c.seadn.io/collection/cannacats-v2/image_type_logo/0eaee47560315fe4dd6073405bed70/ca0eaee47560315fe4dd6073405bed70.png",
+      "chain": {
+        "identifier": "robinhood",
+        "__typename": "Chain",
+        "name": "Robinhood Chain",
+        "arch": "EVM"
+      },
+      "bannerImageUrl": null
+    },
+    "collections": [
+      {
+        "name": "CannaCats V2",
+        "url": "https://opensea.io/collection/cannacats-v2",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      },
+      {
+        "name": "CannaCats",
+        "url": "https://opensea.io/collection/cannacats",
+        "chain": "Robinhood Chain",
+        "relationship": "Original collection from the same creator"
+      }
+    ],
+    "notes": [
+      "Primary collection identity, chain, artwork, and creator-linked channels confirmed from the collection HTML. Experiences are not an end-to-end gameplay, wallet, or transaction audit."
+    ]
+  },
+  {
+    "id": "robin-rabbits",
+    "collectionUrl": "https://opensea.io/collection/robin-rabbits-834193084",
+    "description": "Explore the Moon Court: pixel-art rabbits whose traits are inspired by natal charts, moon phases, and the night sky. Visit the creator’s site or browse the collection.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/robin-rabbits-834193084",
+        "finding": "Primary collection page confirms the display name and Robinhood Chain."
+      },
+      {
+        "url": "https://opensea.io/collection/robin-rabbits-834193084",
+        "finding": "Primary HTML collectionBySlug metadata confirms identity and the additional official channels recorded here."
+      }
+    ],
+    "originalArtwork": {
+      "logoUrl": "https://i2c.seadn.io/collection/robin-rabbits-834193084/image_type_logo/846e070de8cf4e5311365492b35451/ed846e070de8cf4e5311365492b35451.gif?h=250&w=250",
+      "coverUrl": "https://i2c.seadn.io/collection/robin-rabbits-834193084/image_type_hero_desktop/0abb0173d2b02bee0970a3413da722/fb0abb0173d2b02bee0970a3413da722.png?w=2000",
+      "origin": "https://opensea.io/collection/robin-rabbits-834193084"
+    },
+    "additionalPrimaryMetadata": {
+      "name": "Robin Rabbits",
+      "externalUrl": "https://robinrabbits.com/",
+      "twitterUsername": "BrookeGanster",
+      "instagramUsername": "",
+      "discordUrl": "",
+      "imageUrl": "https://i2c.seadn.io/collection/robin-rabbits-834193084/image_type_logo/846e070de8cf4e5311365492b35451/ed846e070de8cf4e5311365492b35451.gif",
+      "chain": {
+        "identifier": "robinhood",
+        "__typename": "Chain",
+        "name": "Robinhood Chain",
+        "arch": "EVM"
+      },
+      "bannerImageUrl": null
+    },
+    "collections": [
+      {
+        "name": "Robin Rabbits",
+        "url": "https://opensea.io/collection/robin-rabbits-834193084",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      }
+    ],
+    "notes": [
+      "Primary collection identity, chain, artwork, and creator-linked channels confirmed from the collection HTML. Experiences are not an end-to-end gameplay, wallet, or transaction audit."
+    ]
+  },
+  {
+    "id": "1kiss",
+    "collectionUrl": "https://opensea.io/collection/1kiss",
+    "description": "Jessica Yatrofsky’s collection of analogue lip impressions transformed into digital artworks.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/1kiss",
+        "finding": "Primary collection page confirms the display name and Robinhood Chain."
+      },
+      {
+        "url": "https://opensea.io/collection/1kiss/overview",
+        "finding": "Creator-authored overview identifies Jessica Yatrofsky and describes original analogue lip impressions made into digital works."
+      },
+      {
+        "url": "https://opensea.io/collection/1kiss",
+        "finding": "Primary HTML collectionBySlug metadata confirms identity and the additional official channels recorded here."
+      }
+    ],
+    "originalArtwork": {
+      "logoUrl": "https://i2c.seadn.io/collection/1kissrh/image_type_logo/d0c07339e768d6224d28b56f01ccea/1fd0c07339e768d6224d28b56f01ccea.png?h=250&w=250",
+      "coverUrl": "https://i2c.seadn.io/collection/1kissrh/image_type_hero_desktop/ef9faf66ace46151327eab453081e1/a5ef9faf66ace46151327eab453081e1.png?w=2000",
+      "origin": "https://opensea.io/collection/1kiss"
+    },
+    "additionalPrimaryMetadata": {
+      "name": "1KiSS",
+      "externalUrl": "https://www.jessicayatrofsky.com/1kiss",
+      "twitterUsername": "1KiSSHL",
+      "instagramUsername": "",
+      "discordUrl": "https://discord.gg/zjn4jCtQr8",
+      "imageUrl": "https://i2c.seadn.io/collection/1kissrh/image_type_logo/d0c07339e768d6224d28b56f01ccea/1fd0c07339e768d6224d28b56f01ccea.png",
+      "chain": {
+        "identifier": "robinhood",
+        "__typename": "Chain",
+        "name": "Robinhood Chain",
+        "arch": "EVM"
+      },
+      "bannerImageUrl": null
+    },
+    "collections": [
+      {
+        "name": "1KiSS",
+        "url": "https://opensea.io/collection/1kiss",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      }
+    ],
+    "notes": [
+      "Primary collection identity, chain, artwork, and creator-linked channels confirmed from the collection HTML. Experiences are not an end-to-end gameplay, wallet, or transaction audit."
+    ]
+  },
+  {
+    "id": "synchronized-mindz",
+    "collectionUrl": "https://opensea.io/collection/synchronized-mindz-genesis-the-original-88",
+    "description": "A community connecting creators and collectors through art, music, fashion, and technology. Genesis — The Original 88 marks its first collection on Robinhood Chain.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/synchronized-mindz-genesis-the-original-88",
+        "finding": "User-supplied URL. Primary retrieval failed; do not imply verified details."
+      },
+      {
+        "url": "https://teapawt.org/syncmindz",
+        "finding": "Third-party mirror repeats an OpenSea preview title matching Synchronized Mindz: Genesis - The Original 88 and creator posts. Used only as a lead; not the basis for verified outside links."
+      },
+      {
+        "url": "https://opensea.io/collection/synchronized-mindz-genesis-the-original-88",
+        "finding": "Primary HTML collectionBySlug metadata confirms identity and the additional official channels recorded here."
+      }
+    ],
+    "originalArtwork": {
+      "logoUrl": null,
+      "coverUrl": null,
+      "origin": "https://opensea.io/collection/synchronized-mindz-genesis-the-original-88"
+    },
+    "additionalPrimaryMetadata": {
+      "name": "Synchronized Mindz: Genesis - The Original 88",
+      "externalUrl": "https://www.instagram.com/synchronizedmindz",
+      "twitterUsername": "SyncMindz",
+      "instagramUsername": "",
+      "discordUrl": "",
+      "imageUrl": "https://i2c.seadn.io/collection/synchronized-mindz-genesis-the-original-88/image_type_logo/12624e9aef82c6a4c1146538038ae4/6112624e9aef82c6a4c1146538038ae4.png",
+      "chain": {
+        "identifier": "robinhood",
+        "__typename": "Chain",
+        "name": "Robinhood Chain",
+        "arch": "EVM"
+      },
+      "bannerImageUrl": null
+    },
+    "collections": [
+      {
+        "name": "Synchronized Mindz: Genesis - The Original 88",
+        "url": "https://opensea.io/collection/synchronized-mindz-genesis-the-original-88",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      }
+    ],
+    "notes": [
+      "Primary collection identity, chain, artwork, and creator-linked channels confirmed from the collection HTML. Experiences are not an end-to-end gameplay, wallet, or transaction audit."
+    ]
+  },
+  {
+    "id": "cash-grab-rh",
+    "collectionUrl": "https://opensea.io/collection/cash-grab-rh",
+    "description": "Cash Grab’s Vortex Run is an interactive NFT reveal experience presented by Street Hood Media.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/cash-grab-rh",
+        "kind": "collection primary",
+        "retrievedWith": "raw HTTP 200 + embedded collection metadata"
+      },
+      {
+        "url": "https://streethood.media/cashgrab/",
+        "kind": "creator-linked primary website",
+        "retrievedWith": "raw HTTP 200"
+      }
+    ],
+    "originalArtwork": {
+      "avatarUrl": "https://i2c.seadn.io/collection/cash-grab-rh/image_type_logo/70d93efa349139913fa275774f5630/a270d93efa349139913fa275774f5630.jpeg",
+      "coverUrl": "https://i2c.seadn.io/collection/cash-grab-rh/image_type_hero_desktop/5b98847a3412cc146faf4f34397f9f/bb5b98847a3412cc146faf4f34397f9f.png?fit=inside",
+      "localCoverSource": "https://i2c.seadn.io/collection/cash-grab-rh/image_type_hero_desktop/5b98847a3412cc146faf4f34397f9f/bb5b98847a3412cc146faf4f34397f9f.png?fit=inside"
+    },
+    "additionalPrimaryMetadata": null,
+    "collections": [
+      {
+        "name": "Cash Grab",
+        "url": "https://opensea.io/collection/cash-grab-rh",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      }
+    ],
+    "notes": [
+      "Do not infer formal RMT partnership.",
+      "Primary page title is CASH GRAB — Vortex Run. Collection creator attribution on OpenSea is PutThePixelOn.",
+      "The collection description alone is very sparse; launchable-game description is supported by the official site itself."
+    ]
+  },
+  {
+    "id": "abstract-workers2",
+    "collectionUrl": "https://opensea.io/collection/abstract-workers2",
+    "description": "Explore generative pixel art inspired by six trades and working shifts in the Abstract Workers gallery.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/abstract-workers2",
+        "kind": "collection primary",
+        "retrievedWith": "raw HTTP 200 + embedded collection metadata"
+      },
+      {
+        "url": "https://abstractworkers.com/",
+        "kind": "creator-linked primary website",
+        "retrievedWith": "raw HTTP 200"
+      }
+    ],
+    "originalArtwork": {
+      "avatarUrl": "https://i2c.seadn.io/collection/abstract-workers2/image_type_logo/e25dd9cba1dbe47a3218005363732e/bde25dd9cba1dbe47a3218005363732e.gif",
+      "coverUrl": "https://i2c.seadn.io/collection/abstract-workers2/image_type_hero_desktop/0ceda2e5dc4909a5aa653897d78616/a50ceda2e5dc4909a5aa653897d78616.gif?fit=inside",
+      "localCoverSource": "https://abstractworkers.com/art/144.png"
+    },
+    "additionalPrimaryMetadata": null,
+    "collections": [
+      {
+        "name": "Abstract Workers",
+        "url": "https://opensea.io/collection/abstract-workers2",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      }
+    ],
+    "notes": [
+      "The supplied slug abstract-workers2 is the current user-specified listing; do not substitute similarly named scam copies.",
+      "Official site describes a completed migration to a second contract edition; do not list the older contract as a new live experience.",
+      "Website artwork claims are not an independent on-chain audit."
+    ]
+  },
+  {
+    "id": "animal-pharm-71884901",
+    "collectionUrl": "https://opensea.io/collection/animal-pharm-71884901",
+    "description": "Hand-made pixel animals by InfamousScratch. Eligible holders can remix artwork in the Trait Mixer; explore the artist’s connected collections below. New Pharm Creations submissions are currently closed.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/animal-pharm-71884901",
+        "kind": "collection primary",
+        "retrievedWith": "raw HTTP 200 + embedded collection metadata"
+      },
+      {
+        "url": "https://animalpharm.xyz/",
+        "kind": "creator-linked primary website",
+        "retrievedWith": "raw HTTP 200"
+      }
+    ],
+    "originalArtwork": {
+      "avatarUrl": "https://i2c.seadn.io/collection/animal-pharm-71884901/image_type_logo/fdd235c05d4331af1142a2d700f78e/f1fdd235c05d4331af1142a2d700f78e.png",
+      "coverUrl": "https://i2c.seadn.io/collection/animal-pharm-71884901/image_type_hero_desktop/3b48d8f3354d7712aedc0d401a31cb/353b48d8f3354d7712aedc0d401a31cb.gif?fit=inside",
+      "localCoverSource": "https://i2c.seadn.io/collection/animal-pharm-71884901/image_type_hero_desktop/3b48d8f3354d7712aedc0d401a31cb/353b48d8f3354d7712aedc0d401a31cb.gif?fit=inside"
+    },
+    "additionalPrimaryMetadata": null,
+    "collections": [
+      {
+        "name": "Animal Pharm",
+        "url": "https://opensea.io/collection/animal-pharm-71884901",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      },
+      {
+        "name": "Pharm Creations",
+        "url": "https://opensea.io/collection/pharm-creations",
+        "chain": "Robinhood Chain",
+        "relationship": "Holder-created collection made with the Animal Pharm mixer."
+      },
+      {
+        "name": "Cats On Rugs",
+        "url": "https://opensea.io/collection/cats-on-rugs",
+        "chain": "Robinhood Chain",
+        "relationship": "Linked directly in the official Animal Pharm website’s From the pharm section."
+      },
+      {
+        "name": "Pixel Cats on Drugs",
+        "url": "https://opensea.io/collection/pixel-cats-on-drugs",
+        "chain": "Robinhood Chain",
+        "relationship": "Earlier collection from the same artist; Animal Pharm links pixelsondrugs.xyz, which links this collection."
+      }
+    ],
+    "notes": [
+      "Do not reuse stale mint dates from the website metadata in RMT.",
+      "Name of earlier collection on OpenSea is Pixel Cats on Drugs; website also calls it Pixelated Cats on Drugs.",
+      "No creator-linked Discord listed in OpenSea metadata."
+    ]
+  },
+  {
+    "id": "pricedout",
+    "collectionUrl": "https://opensea.io/collection/pricedout",
+    "description": "A Robinhood Chain collection built around missed mints and the feeling of being priced out.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/pricedout",
+        "kind": "collection primary",
+        "retrievedWith": "raw HTTP 200 + embedded collection metadata"
+      }
+    ],
+    "originalArtwork": {
+      "avatarUrl": "https://i2c.seadn.io/collection/pricedout/image_type_logo/78effb1741b9812a074d3511d26f5b/9578effb1741b9812a074d3511d26f5b.png",
+      "coverUrl": "https://i2c.seadn.io/collection/pricedout/image_type_hero_desktop/37baa54b65c6e879e0e0abfa31e298/3237baa54b65c6e879e0e0abfa31e298.png?fit=inside",
+      "localCoverSource": "https://i2c.seadn.io/collection/pricedout/image_type_hero_desktop/37baa54b65c6e879e0e0abfa31e298/3237baa54b65c6e879e0e0abfa31e298.png?fit=inside"
+    },
+    "additionalPrimaryMetadata": null,
+    "collections": [
+      {
+        "name": "PRICED OUT",
+        "url": "https://opensea.io/collection/pricedout",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      }
+    ],
+    "notes": [
+      "OpenSea’s creator-linked website and Discord fields are empty.",
+      "Official X profile comes directly from OpenSea metadata: PRICEDOUT26.",
+      "No dedicated app, game or creator website was verified; keep collection/X only. Do not fill this gap with assumed features."
+    ]
+  },
+  {
+    "id": "companions-by-wfit",
+    "collectionUrl": "https://opensea.io/collection/companions-by-wfit",
+    "description": "Meet the Companions collection and explore WFit’s activity and adventure ecosystem. Visit WFit for current access and feature availability.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/companions-by-wfit",
+        "kind": "collection primary",
+        "retrievedWith": "raw HTTP 200 + embedded collection metadata"
+      },
+      {
+        "url": "https://wfitapp.xyz/",
+        "kind": "creator-linked primary website",
+        "retrievedWith": "raw HTTP 200"
+      }
+    ],
+    "originalArtwork": {
+      "avatarUrl": "https://i2c.seadn.io/collection/companions-by-wfit/image_type_logo/01e250c8292a32bc20a1629a1f5d9a/9801e250c8292a32bc20a1629a1f5d9a.png",
+      "coverUrl": "https://i2c.seadn.io/collection/companions-by-wfit/image_type_hero_desktop/ee8261aef0e57844711de979386d9a/91ee8261aef0e57844711de979386d9a.png?fit=inside",
+      "localCoverSource": "https://i2c.seadn.io/collection/companions-by-wfit/image_type_hero_desktop/ee8261aef0e57844711de979386d9a/91ee8261aef0e57844711de979386d9a.png?fit=inside"
+    },
+    "additionalPrimaryMetadata": null,
+    "collections": [
+      {
+        "name": "Companions by WFit",
+        "url": "https://opensea.io/collection/companions-by-wfit",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      }
+    ],
+    "notes": [
+      "Do not claim the Labyrinth or all roadmap features are operational; no verified direct Labyrinth route found on the creator-linked homepage.",
+      "Official WFit page serves a JavaScript application; its public bundle contains navigation to https://login.wfitapp.xyz/ and https://whubapp.xyz/. These were discovered but not functionally tested.",
+      "No added related collection inferred solely from the WFit product names or public bundle."
+    ]
+  },
+  {
+    "id": "tmo-initiates",
+    "collectionUrl": "https://opensea.io/collection/tmo-initiates",
+    "description": "The Mallard Order’s Robinhood Chain collection connects to the Sanctum holder experience and a wider comics community.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/tmo-initiates",
+        "kind": "collection primary",
+        "retrievedWith": "raw HTTP 200 + embedded collection metadata"
+      },
+      {
+        "url": "https://robinhood.mallardorder.io",
+        "kind": "creator-linked primary website",
+        "retrievedWith": "raw HTTP 200"
+      }
+    ],
+    "originalArtwork": {
+      "avatarUrl": "https://i2c.seadn.io/collection/tmo-initiates-337079320/image_type_logo/9150486263fd98c3b351d058976eb1/6f9150486263fd98c3b351d058976eb1.png",
+      "coverUrl": "https://i2c.seadn.io/collection/tmo-initiates/image_type_hero_desktop/584788f75a5d92eaca7b2b46915e07/fd584788f75a5d92eaca7b2b46915e07.webp?fit=inside",
+      "localCoverSource": "https://i2c.seadn.io/collection/tmo-initiates/image_type_hero_desktop/584788f75a5d92eaca7b2b46915e07/fd584788f75a5d92eaca7b2b46915e07.webp?fit=inside"
+    },
+    "additionalPrimaryMetadata": null,
+    "collections": [
+      {
+        "name": "TMO: Initiates",
+        "url": "https://opensea.io/collection/tmo-initiates",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      },
+      {
+        "name": "The Mallard Order",
+        "url": "https://www.wayup.io/collection/the-mallard-order",
+        "chain": "Cardano",
+        "relationship": "Founding Mallard collection linked by the official project Linktree. Destination returned 403 to research fetch."
+      },
+      {
+        "name": "The Mallard Order - Invitation Letter",
+        "url": "https://www.wayup.io/collection/8b7224e18aa76248b2c3c9f9a87c6b545d58fe3923eca93598a3f50e",
+        "chain": "Cardano",
+        "relationship": "Related collection explicitly linked by official Linktree; destination returned 403."
+      },
+      {
+        "name": "The Mallard Order - Relics",
+        "url": "https://www.wayup.io/collection/6c0394ebf4b6d7ed9709cf901863c254448a40785819a57f7c39a130",
+        "chain": "Cardano",
+        "relationship": "Related collection explicitly linked by official Linktree; destination returned 403."
+      },
+      {
+        "name": "TMO Comics - Issue One",
+        "url": "https://www.wayup.io/collection/87c3a08adde0c1634e982ef6edce75dff2ac92aae34481070a59d9f2",
+        "chain": "Cardano",
+        "relationship": "Comic collection explicitly linked by official Linktree; destination returned 403."
+      },
+      {
+        "name": "The Mallard Order Ordinals",
+        "url": "https://www.satflow.com/ordinals/the-mallard-order",
+        "chain": "Bitcoin",
+        "relationship": "BTC Ordinals collection linked by the official project Linktree."
+      }
+    ],
+    "notes": [
+      "Do not describe older Cardano/Bitcoin collections as Robinhood assets.",
+      "Official home page still mixes some sealed/future roadmap wording with live portal links. RMT should link the portal without asserting every vault/reward feature is operational.",
+      "Site content establishes parent relationship; no RMT partnership or claiming status implied."
+    ]
+  },
+  {
+    "id": "rillaz-n-da-hood-apex-collection",
+    "collectionUrl": "https://opensea.io/collection/rillaz-n-da-hood-apex-collection",
+    "description": "Explore Hood HQ games, community missions and the Rillaz N Da Hood research tools.",
+    "sources": [
+      {
+        "url": "https://opensea.io/collection/rillaz-n-da-hood-apex-collection",
+        "kind": "collection primary",
+        "retrievedWith": "raw HTTP 200 + embedded collection metadata"
+      },
+      {
+        "url": "https://rillazndahood.xyz",
+        "kind": "creator-linked primary website",
+        "retrievedWith": "raw HTTP 200"
+      }
+    ],
+    "originalArtwork": {
+      "avatarUrl": "https://i2c.seadn.io/collection/rillaz-n-da-hood-apex-collection/image_type_logo/4559b43f003877221b354ae9d6ebbb/604559b43f003877221b354ae9d6ebbb.png",
+      "coverUrl": "https://i2c.seadn.io/collection/rillaz-n-da-hood-apex-collection/image_type_hero_desktop/6a308230c19577e7a4b3a9f5dce1f8/116a308230c19577e7a4b3a9f5dce1f8.mp4?frame-time=1",
+      "localCoverSource": null
+    },
+    "additionalPrimaryMetadata": null,
+    "collections": [
+      {
+        "name": "Rillaz N Da Hood  - Apex Collection",
+        "url": "https://opensea.io/collection/rillaz-n-da-hood-apex-collection",
+        "chain": "Robinhood Chain",
+        "relationship": "Primary collection"
+      }
+    ],
+    "notes": [
+      "NFT staking is in testnet validation per official homepage; do not label production staking live.",
+      "Original music/film and some THE BLOCK experiences are listed as in development.",
+      "OpenSea collection HTML confirms exact collection name and links, although the web search parser could not render that page."
+    ]
+  }
+]
