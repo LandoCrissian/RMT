@@ -1,0 +1,23 @@
+name: Refresh RMT market intelligence
+on:
+  workflow_dispatch:
+# Add the hourly schedule only after a successful live provider coverage check.
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: rmt-market-intelligence
+  cancel-in-progress: false
+jobs:
+  refresh:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node scripts/refresh-market-intelligence.mjs
