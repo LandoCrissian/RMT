@@ -15,7 +15,9 @@ const modules=await Promise.all(['index.js',...files].map(async name=>{
   const path=join(root,name);
   return {type:'ESModule',path,contents:await readFile(path,'utf8')};
 }));
-const worker=new Miniflare({...workerOptions,host:'127.0.0.1',port:5178,modulesRoot:root,modules,
+const calendarBindings=process.argv.includes('--calendar-fixtures')
+  ? {bindings:{...workerOptions.bindings,RMT_ADMIN_USER_IDS:'taxonomy-owner-fixture'}} : {};
+const worker=new Miniflare({...workerOptions,...calendarBindings,host:'127.0.0.1',port:5178,modulesRoot:root,modules,
   d1Persist:join(state,'v3','d1'),r2Persist:join(state,'v3','r2'),cachePersist:join(state,'v3','cache')});
 console.log('Isolated release Worker ready',String(await worker.ready));
 for(const signal of ['SIGINT','SIGTERM'])process.once(signal,async()=>{await worker.dispose();process.exit(0);});

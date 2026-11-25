@@ -69,7 +69,7 @@ export default function DirectoryFilters({categories,selected,onApply,projects,q
           </label>;
         })}
       </div>
-      <footer><button type="button" className="filter-clear" disabled={!pending.length} onClick={()=>setDraft([])}>Clear</button><button type="button" className="button button-lime" onClick={()=>{onApply(pending);setOpen(false);}}>Apply <span>({matches})</span></button></footer>
+      <footer><button type="button" className="filter-clear" disabled={!pending.length} onClick={()=>setDraft([])}>Clear All</button><button type="button" className="button button-lime" onClick={()=>{onApply(pending);setOpen(false);}}>Apply <span>({matches})</span></button></footer>
     </dialog>}
   </div>;
 }

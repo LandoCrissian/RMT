@@ -65,7 +65,7 @@ try{
   await card.getByRole('button',{name:'Edit event'}).click();await page.getByLabel('Event title').fill(edited);await page.getByRole('button',{name:'Submit for review'}).click();
   const updated=page.locator('article').filter({has:page.getByRole('heading',{name:edited,exact:true})});
   await updated.getByText('pending',{exact:true}).waitFor();assert.equal((await published()).title,title);
-  await mod.goto(origin+'/#control');await mod.getByRole('button',{name:'Calendar',exact:true}).click();
+  await mod.reload();await mod.getByRole('button',{name:'Calendar',exact:true}).click();
   await mod.locator('article').filter({has:mod.getByRole('heading',{name:edited,exact:true})}).getByRole('button',{name:'Reject',exact:true}).click();await confirm('reject');
   assert.equal((await published()).title,title);
   await page.goto(origin+'/?studio=projects#studio');await page.locator('article.st-owned-card').filter({has:page.getByRole('heading',{name:'VAMPS',exact:true})}).getByRole('button',{name:'Events',exact:true}).click();

@@ -63,7 +63,7 @@ export async function management(db:D1Database,projectId:string,user:string){
 }
 export async function controlWorkspace(db:D1Database){
   const [{projects},eventTypes,rows,history,stats]=await Promise.all([catalog(db),types(db),db.prepare('SELECT * FROM calendar_events ORDER BY updated_at DESC').all<Row>(),
-    db.prepare('SELECT event_id AS eventId,action,reason,revision,created_at AS createdAt FROM calendar_history ORDER BY id DESC').all(),
+    db.prepare('SELECT event_id AS eventId,actor,action,reason,revision,created_at AS createdAt FROM calendar_history ORDER BY id DESC').all(),
     db.prepare("SELECT (SELECT COUNT(*) FROM calendar_events WHERE published IS NOT NULL AND status NOT IN ('cancelled','removed')) AS published,COUNT(*) AS saved,COALESCE(SUM(reminder),0) AS reminders FROM calendar_members").first()]);
   const map=new Map(projects.map(p=>[p.id,p]));return {events:rows.results.flatMap(r=>map.has(r.project_id)?[projectEvent(r,map.get(r.project_id)!,true)]:[]),types:eventTypes,history:history.results,stats,projects:projects.map(p=>({id:p.id,name:p.name,artworkChoices:choices(p)}))};
 }

@@ -40,7 +40,7 @@ for (const [engine,width,height] of [[webkit,320,568],[webkit,375,812],[webkit,3
     assert.equal(await count.innerText(),String(union));
     await page.getByRole('button',{name:'Remove '+first.name+' filter',exact:true}).click();
     assert.equal(await count.innerText(),String(projects.filter(project=>applies(project,second.id)).length));
-    await page.locator('.filter-trigger').click();await dialog.getByRole('button',{name:'Clear',exact:true}).click();
+    await page.locator('.filter-trigger').click();await dialog.getByRole('button',{name:'Clear All',exact:true}).click();
     await dialog.getByRole('button',{name:'Apply ('+projects.length+')',exact:true}).click();
     assert.equal(await count.innerText(),String(projects.length));
     assert.equal(await page.getByRole('group',{name:'Applied categories'}).count(),0);
@@ -52,7 +52,7 @@ for (const [engine,width,height] of [[webkit,320,568],[webkit,375,812],[webkit,3
       const chips=page.getByRole('group',{name:'Applied categories'});
       assert.equal(await chips.getByRole('button').count(),3);
       await chips.getByRole('button',{name:'View all 3 applied categories'}).click();
-      await dialog.getByRole('button',{name:'Clear',exact:true}).click();
+      await dialog.getByRole('button',{name:'Clear All',exact:true}).click();
       await dialog.getByRole('button',{name:/^Apply/}).click();
       const search=page.getByRole('searchbox');await search.fill('no-matching-project-for-filter-qa');
       await trigger.click();await option(first.name).focus();await page.keyboard.press('Space');

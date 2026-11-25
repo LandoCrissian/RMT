@@ -6,7 +6,7 @@ import {ConfirmDialog,ErrorPanel,Loading,PanelHeading,SaveNotice} from './contro
 import {EventForm,type EventType,type ManagedEvent} from './EventForm';
 import './calendar-management.css';
 
-type Workspace={events:ManagedEvent[];types:EventType[];history:{eventId:string;action:string;reason:string;createdAt:number}[];
+type Workspace={events:ManagedEvent[];types:EventType[];history:{eventId:string;actor:string;revision:number;action:string;reason:string;createdAt:number}[];
   stats:{published:number;saved:number;reminders:number};projects:{id:string;name:string;artworkChoices:string[]}[]};
 function parse(v:unknown){
   const d=v as Workspace;
@@ -51,7 +51,7 @@ export default function ControlCalendar({api}:{api:ControlApi}){
     {suggestion&&selectedProject&&<article><h4>{selectedProject.name}</h4><a href={suggestion.sourceUrl} target="_blank" rel="noreferrer">Review official source</a>
       <EventForm key={suggestions.indexOf(suggestion)} types={types} initial={suggestion} artworkChoices={selectedProject.artworkChoices} busy={mutation.busy} reviewOnly onClose={()=>setSuggestion(null)}
       onSave={async fields=>setDecision({label:'Queue event suggestion',detail:fields.title,body:{action:'suggest',projectId:selectedProject.id,sourceKey:suggestion.sourceKey,sourceUrl:suggestion.sourceUrl,fields}})}/></article>}</details>
-    <details className="cc-panel"><summary>Moderation history</summary>{data.history.length?<ol>{data.history.map((h,i)=><li key={i}><strong>{h.action}</strong> · {new Date(h.createdAt).toLocaleString()} · {data.events.find(e=>e.id===h.eventId)?.title??h.eventId}<p>{h.reason}</p></li>)}</ol>:<p>No moderation decisions yet.</p>}</details>
+    <details className="cc-panel"><summary>Moderation history</summary>{data.history.length?<ol>{data.history.map((h,i)=><li key={i}><strong>{h.action}</strong> · {new Date(h.createdAt).toLocaleString()} · {data.events.find(e=>e.id===h.eventId)?.title??h.eventId}<p>{h.reason}</p><small>Revision {h.revision} · {h.actor}</small></li>)}</ol>:<p>No moderation decisions yet.</p>}</details>
     {notice&&<p role="status">{notice}</p>}
     {decision?<ConfirmDialog title={decision.label} description={decision.detail} busy={mutation.busy} error={mutation.error} needsRefresh={mutation.needsRefresh} onReload={()=>void reload()} onCancel={()=>{setDecision(null);mutation.clear();}} onConfirm={reason=>void confirm(reason)}/>:<SaveNotice busy={mutation.busy} error={mutation.error} needsRefresh={mutation.needsRefresh} onReload={()=>void reload()}/>}
   </section>;

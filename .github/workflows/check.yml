@@ -18,7 +18,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - name: Verify guide reloads against the live isolated Worker
+      - name: Verify guide, directory and calendar workflows against the isolated Worker
         env:
           RMT_TEST_ORIGIN: http://127.0.0.1:5178
         run: |
@@ -27,7 +27,7 @@ jobs:
           "$RUNNER_TEMP/rmt-browser/node_modules/.bin/playwright" install --with-deps chromium webkit
           export PLAYWRIGHT_MODULE="$RUNNER_TEMP/rmt-browser/node_modules/playwright/index.mjs"
           state="$RUNNER_TEMP/rmt-guide-d1"
-          node tests/browser/serve-worker.mjs "$state" >"$RUNNER_TEMP/rmt-guide.log" 2>&1 &
+          node tests/browser/serve-worker.mjs "$state" --calendar-fixtures >"$RUNNER_TEMP/rmt-guide.log" 2>&1 &
           worker=$!
           trap 'kill "$worker" 2>/dev/null || true' EXIT
           for attempt in {1..60}; do
@@ -42,7 +42,9 @@ jobs:
           with sqlite3.connect(databases[0]) as db:
               for migration in sorted(pathlib.Path('drizzle').glob('*.sql')):
                   db.executescript(migration.read_text(encoding='utf-8-sig'))
+              db.execute("INSERT INTO project_owners(project_id,user_id,status,revision,created_at,updated_at) VALUES('vamps','qa-builder-vamps','active',1,1,1)")
           PY
           curl --fail --silent "$RMT_TEST_ORIGIN/api/catalog" -o /dev/null
           node tests/browser/beginner-guide.mjs
           node tests/browser/directory-filters.mjs
+          node tests/browser/calendar-management.mjs

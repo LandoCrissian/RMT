@@ -13,14 +13,29 @@ function Header(){return <header className="ec-top"><a href="/"><img src="/icons
 type MemberRow={id:string;reminder:number};
 function useCalendarAccount(){
   const [user,setUser]=useState(''),[rows,setRows]=useState<MemberRow[]>([]),[error,setError]=useState(''),[ready,setReady]=useState(false);
-  useEffect(()=>{let alive=true;async function load(){try{
-    const resp=await fetch('/api/session',{cache:'no-store'});if(!resp.ok)throw Error();
-    const session=await resp.json() as {authenticated:boolean;emailVerified:boolean;suspended:boolean;userId:string};if(!alive)return;
-    if(session.authenticated&&session.emailVerified&&!session.suspended){
-      const r=await fetch('/api/calendar/member',{headers:{'x-rmt-account':session.userId},cache:'no-store'});if(!r.ok)throw Error();const values=await r.json() as MemberRow[];
-      if(alive){setRows(values);setUser(session.userId);}
-    }if(alive)setReady(true);
-  }catch{if(alive)setError('Your saved events could not be loaded. Refresh to reconnect.');}}void load();return()=>{alive=false;};},[]);
+  useEffect(()=>{
+    let generation=0;
+    function clear(){generation++;setRows([]);setUser('');setReady(false);setError('');}
+    async function load(){
+      clear();const current=generation;
+      try{
+        const resp=await fetch('/api/session',{cache:'no-store'});if(!resp.ok)throw Error();
+        const session=await resp.json() as {authenticated:boolean;emailVerified:boolean;suspended:boolean;userId:string};
+        if(current!==generation)return;
+        if(session.authenticated&&session.emailVerified&&!session.suspended){
+          const r=await fetch('/api/calendar/member',{headers:{'x-rmt-account':session.userId},cache:'no-store'});if(!r.ok)throw Error();
+          const values=await r.json() as MemberRow[];
+          if(current!==generation)return;
+          setRows(values);setUser(session.userId);
+        }
+        setReady(true);
+      }catch{if(current===generation)setError('Your saved events could not be loaded. Refresh to reconnect.');}
+    }
+    function shown(e:PageTransitionEvent){if(e.persisted)void load();}
+    function visibility(){if(document.visibilityState==='visible')void load();else clear();}
+    void load();window.addEventListener('pagehide',clear);window.addEventListener('pageshow',shown);document.addEventListener('visibilitychange',visibility);
+    return()=>{generation++;window.removeEventListener('pagehide',clear);window.removeEventListener('pageshow',shown);document.removeEventListener('visibilitychange',visibility);};
+  },[]);
   return {user,rows,setRows,error,ready};
 }
 export function Calendar({events,projects,categories,types,initialNow}:{initialNow:number;events:CalendarEvent[];projects:Option[];categories:Option[];types:CalendarType[]}){
