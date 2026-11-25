@@ -1,7 +1,8 @@
 'use client';
 import {useState,type FormEvent} from 'react';
 
-import type {CalendarType as EventType,CalendarEvent as ManagedEvent,EventFields} from '@/lib/calendar';
+import type {CalendarType as EventType,CalendarEvent,EventFields} from '@/lib/calendar';
+type ManagedEvent=CalendarEvent&{sourceUrl?:string};
 export type {EventType,ManagedEvent,EventFields};
 export function localTime(value:number|null|undefined){
   if(!Number.isFinite(value)||value==null)return '';
