@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     if (typeof body?.idToken !== 'string' || body.idToken.length > 12000) throw new InputError('Sign in again.', 401);
     const user = await verifyFirebaseToken(body.idToken);
     if (!user.emailVerified || Date.now() / 1000 - user.authTime > 300) throw new InputError('Sign in to your verified Firebase account again before linking.', 403);
-    await checkFirebaseAccount(body.idToken, user.firebaseUid, user.authTime);
+    const firebaseCreatedAt=await checkFirebaseAccount(body.idToken, user.firebaseUid, user.authTime);
     const db = database();
     // A Firebase owner is already the canonical protected account. Linking it
     // under a legacy ID would remove the exact-ID owner grant on its next request.
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
         user.userId,user.userId,user.userId,user.userId,user.userId,user.userId,user.userId,user.userId,user.userId,user.userId,user.userId,user.userId).run();
     const saved = await db.prepare('SELECT legacy_user_id FROM account_links WHERE firebase_uid = ?').bind(user.firebaseUid).first<{legacy_user_id: string}>();
     if (saved?.legacy_user_id !== legacy.userId) throw new InputError('Account linking changed. Try again.', 409);
-    await observeMember(db,{...user,userId:legacy.userId,provider:'firebase'});
+    await observeMember(db,{...user,firebaseCreatedAt,userId:legacy.userId,provider:'firebase'});
     await mergeLinkedObservation(db,user.userId,legacy.userId);
     return json({ok: true});
   });

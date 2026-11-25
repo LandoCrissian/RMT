@@ -12,7 +12,7 @@ const bundle=await build({stdin:{contents:`
  export {reserveClaimRpc} from './lib/server/claim-budget';
 `,resolveDir:root,loader:'ts'},absWorkingDir:root,bundle:true,write:false,platform:'node',format:'esm',target:'node24',plugins:[{name:'settings-runtime',setup(builder){
  builder.onResolve({filter:/claim-chain$/},()=>({path:'chain',namespace:'fixture-chain'}));
- builder.onLoad({filter:/.*/,namespace:'fixture-chain'},()=>({contents:'export const verifyClaimAuthority=(request)=>globalThis.__RMT_CHAIN_CHECK__(request);'}));
+ builder.onLoad({filter:/.*/,namespace:'fixture-chain'},()=>({contents:'export const inspectClaimModel=()=>{throw Error("Unexpected model probe")};export const verifyClaimAuthority=(request)=>globalThis.__RMT_CHAIN_CHECK__(request);'}));
  builder.onResolve({filter:/^cloudflare:workers$/},()=>({path:'fixture-runtime',namespace:'fixture-runtime'}));
  builder.onLoad({filter:/.*/,namespace:'fixture-runtime'},()=>({contents:'export const env=globalThis.__RMT_SETTINGS_ENV__;'}));
 }}]});

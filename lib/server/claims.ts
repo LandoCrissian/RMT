@@ -1,8 +1,8 @@
 import type { Project } from '@/lib/catalog';
 import { InputError, normalizeHost, optionalXProfile, type ClaimMethod } from '@/lib/submission-validation';
 import type { PlatformIdentity } from './auth';
-import { findPublicProject } from './repository';
 import {claimContract} from '@/lib/claim-contracts';
+import {projectAssessment} from './listing-eligibility';
 import {recheckForApproval,type AuthorityEvidence,type Recheck} from './claim-recheck';
 import {publicProjectSql} from './control-visibility';
 import {activeControlMemberSql} from './control-sql';
@@ -46,10 +46,10 @@ export function projectClaimMethods(project:Project) {
   if(collection) methods.push({method:'opensea',channelUrl:collection,instructions:'Add the exact challenge code to this collection’s public description using its creator controls. Submit this collection URL. A reviewer will verify the code on the official collection.'});
   return methods;
 }
-export async function claimOptions(db:D1Database,projectId:string) {
-  const project=await findPublicProject(db,projectId);
+export async function claimOptions(db:D1Database,projectId:string,fresh=false) {
+  const {project,eligibility}=await projectAssessment(db,projectId,fresh);
   const owner=await db.prepare("SELECT * FROM project_owners WHERE project_id=? AND status='active'").bind(projectId).first<OwnerRow>();
-  return {projectId,projectName:project.name,claimed:!!owner||project.claimed,methods:projectClaimMethods(project),walletContract:claimContract(projectId)??null};
+  return {projectId,projectName:project.name,claimed:!!owner||project.claimed,methods:projectClaimMethods(project),walletContract:eligibility.contract,eligibilityReason:eligibility.reason};
 }
 
 export function proofMatchesChannel(method:ClaimMethod,channelUrl:string,proofUrl:string):boolean {

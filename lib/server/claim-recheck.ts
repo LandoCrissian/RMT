@@ -1,4 +1,4 @@
-import {claimContract} from '@/lib/claim-contracts';
+import {currentEligibility,listingRevision,listingRevisionSql} from './listing-eligibility';
 import {InputError} from '@/lib/submission-validation';
 import {verifyClaimAuthority} from './claim-chain';
 import {reserveClaimRpc} from './claim-budget';
@@ -9,7 +9,7 @@ type StoredProof = {
 };
 export type AuthorityEvidence=Awaited<ReturnType<typeof verifyClaimAuthority>>;
 export type Recheck=({outcome:'verified'} & AuthorityEvidence) | {outcome:'failed';concern:string;checkedAt:number};
-type Review = {claimId:string;revision:number;reviewer:string;checkId:string;challengeId:string;result:Recheck};
+type Review = {claimId:string;revision:number;reviewer:string;checkId:string;challengeId:string;result:Recheck;listingVersion?:string};
 
 function checkRecords(db:D1Database,review:Review){
   const {claimId,reviewer,revision,checkId,challengeId,result}=review;
@@ -17,8 +17,9 @@ function checkRecords(db:D1Database,review:Review){
   return [
     db.prepare(`INSERT INTO wallet_claim_checks(id,claim_id,challenge_id,reviewer_id,revision,result_json,checked_at)
       SELECT ?,c.id,e.challenge_id,?,?,?,? FROM project_claims c JOIN wallet_claim_evidence e ON e.claim_id=c.id
-      WHERE c.id=? AND c.proof_method='wallet' AND c.status='pending' AND c.revision=? AND e.challenge_id=?`)
-      .bind(checkId,reviewer,revision,saved,result.checkedAt,claimId,revision,challengeId),
+      WHERE c.id=? AND c.proof_method='wallet' AND c.status='pending' AND c.revision=? AND e.challenge_id=?
+      AND (? IS NULL OR ${listingRevisionSql('c.project_id')}=?)`)
+      .bind(checkId,reviewer,revision,saved,result.checkedAt,claimId,revision,challengeId,review.listingVersion??null,review.listingVersion??null),
     db.prepare(`UPDATE wallet_claim_evidence SET recheck_json=? WHERE claim_id=? AND challenge_id=?
       AND EXISTS(SELECT 1 FROM wallet_claim_checks WHERE id=? AND claim_id=wallet_claim_evidence.claim_id)`)
       .bind(saved,claimId,challengeId,checkId)
@@ -35,16 +36,18 @@ export async function recheckForApproval(db:D1Database,row:{id:string;revision:n
     WHERE c.id=? AND c.status='pending' AND c.revision=? AND c.proof_method='wallet'`).bind(row.id,row.revision).first<StoredProof>();
   if(!proof?.signature)throw new InputError('The original signed project evidence is unavailable. This claim needs manual review.',409);
   const review={claimId:row.id,revision:row.revision,reviewer,checkId,challengeId:proof.challenge_id};
+  let version:string;
   let verified:AuthorityEvidence & {source?:string;codeHash?:string};
   try{
     const original=JSON.parse(proof.evidence_json) as AuthorityEvidence & {source?:string;codeHash?:string};
-    const target=claimContract(proof.project_id);
+    version=await listingRevision(db,proof.project_id);
+    const target=(await currentEligibility(db,proof.project_id,true)).contract;
     if(!target || target.address.toLowerCase()!==proof.contract.toLowerCase() ||
       (original.codeHash!==undefined && original.codeHash!==target.codeHash) ||
       (original.source!==undefined && original.source!==target.source))
       throw new InputError('The reviewed project contract or its provenance changed. Request new evidence or use manual review.',409);
     await reserveClaimRpc(db,reviewer);
-    verified=await verifyClaimAuthority({projectId:proof.project_id,contract:proof.contract,address:proof.address,message:proof.message,signature:proof.signature});
+    verified=await verifyClaimAuthority({projectId:proof.project_id,contract:proof.contract,address:proof.address,message:proof.message,signature:proof.signature},target);
     verified={...verified,codeHash:target.codeHash,source:target.source};
     if(verified.chainId!==original.chainId || verified.contract.toLowerCase()!==original.contract.toLowerCase() ||
       verified.authority.toLowerCase()!==original.authority.toLowerCase() || verified.address.toLowerCase()!==original.address.toLowerCase() ||
@@ -56,5 +59,5 @@ export async function recheckForApproval(db:D1Database,row:{id:string;revision:n
     await db.batch(checkRecords(db,{...review,result:{outcome:'failed',concern:failure.message,checkedAt:Date.now()}}));
     throw failure;
   }
-  return checkRecords(db,{...review,result:{...verified,outcome:'verified'}});
+  return checkRecords(db,{...review,listingVersion:version,result:{...verified,outcome:'verified'}});
 }

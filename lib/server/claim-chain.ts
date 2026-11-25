@@ -1,7 +1,7 @@
 import {secp256k1} from '@noble/curves/secp256k1';
 import {keccak_256} from '@noble/hashes/sha3';
 import {bytesToHex,hexToBytes,concatBytes,utf8ToBytes} from '@noble/hashes/utils';
-import {claimContract} from '../claim-contracts';
+import {claimContract,type ClaimContract} from '../claim-contracts';
 import {InputError} from '../submission-validation';
 
 const endpoints=['https://rpc.mainnet.chain.robinhood.com','https://robinhood.rpc.pinax.network'];
@@ -86,13 +86,7 @@ async function agrees<T>(requests:Rpc[],verify:(rpc:Rpc)=>Promise<T>):Promise<T>
   return first;
 }
 
-export type ClaimProof={projectId:string;contract:string;address:string;message:string;signature:string};
-export async function verifyClaimAuthority(proof:ClaimProof) {
-  const target=claimContract(proof.projectId);
-  if(!target||typeof proof.contract!=='string'||target.address!==proof.contract.toLowerCase())throw unsupported();
-  if(!addressPattern.test(proof.address)||/^0x0{40}$/i.test(proof.address)||typeof proof.message!=='string'||
-      !proof.message||proof.message.length>4096||typeof proof.signature!=='string'||!/^0x(?:[a-f0-9]{2}){1,4096}$/i.test(proof.signature))throw invalid();
-  const address=proof.address.toLowerCase(),hash=digest(proof.message);
+async function confirmedBlock(){
   const signal=AbortSignal.timeout(12_000),providers=endpoints.map(url=>provider(url,signal));
   const tips=await Promise.all(providers.map(async rpc=>{
     if(quantity(await rpc('eth_chainId',[]))!==4663)throw unavailable();
@@ -102,6 +96,38 @@ export async function verifyClaimAuthority(proof:ClaimProof) {
   const height=Math.min(...tips)-20,tag='0x'+height.toString(16);
   const block=await agrees(providers,async rpc=>checkedBlock(await rpc('eth_getBlockByNumber',[tag,false])));
   if(block.number!==height)throw unavailable();
+  return {providers,height,tag,block};
+}
+export async function inspectClaimModel(address:string):Promise<Omit<ClaimContract,'source'>|null>{
+  if(!addressPattern.test(address))return null;
+  const {providers,tag,block}=await confirmedBlock();
+  // Only code whose precise management semantics were independently audited may qualify a new deployment.
+  const audited=claimContract('bored-traders')!;
+  const result=await agrees(providers,async rpc=>{
+    const code=await rpc('eth_getCode',[address,tag]);
+    if(typeof code!=='string'||!codePattern.test(code)||code==='0x')return null;
+    const codeHash='0x'+bytesToHex(keccak_256(hexToBytes(code.slice(2))));
+    if(codeHash!==audited.codeHash)return null;
+    const owner=await rpc('eth_call',[{to:address,data:ownerSelector},tag]);
+    if(typeof owner!=='string'||!/^0x0{24}[a-fA-F0-9]{40}$/.test(owner)||/^0x0+$/.test(owner))return null;
+    const tipOwner=await rpc('eth_call',[{to:address,data:ownerSelector},'latest']);
+    if(typeof tipOwner!=='string'||tipOwner.toLowerCase()!==owner.toLowerCase())throw unavailable();
+    return {codeHash,owner:owner.toLowerCase()};
+  });
+  if(!result)return null;
+  const final=await agrees(providers,async rpc=>checkedBlock(await rpc('eth_getBlockByNumber',[tag,false])));
+  if(block.hash!==final.hash||block.number!==final.number||block.timestamp!==final.timestamp)throw unavailable();
+  return {chainId:4663,address,codeHash:result.codeHash,model:audited.model};
+}
+
+export type ClaimProof={projectId:string;contract:string;address:string;message:string;signature:string};
+export async function verifyClaimAuthority(proof:ClaimProof,resolved?:ClaimContract) {
+  const target=resolved??claimContract(proof.projectId);
+  if(!target||typeof proof.contract!=='string'||target.address!==proof.contract.toLowerCase())throw unsupported();
+  if(!addressPattern.test(proof.address)||/^0x0{40}$/i.test(proof.address)||typeof proof.message!=='string'||
+      !proof.message||proof.message.length>4096||typeof proof.signature!=='string'||!/^0x(?:[a-f0-9]{2}){1,4096}$/i.test(proof.signature))throw invalid();
+  const address=proof.address.toLowerCase(),hash=digest(proof.message);
+  const {providers,height,tag,block}=await confirmedBlock();
   const ownerData='0x'+'0'.repeat(24)+address.slice(2);
   const signatureType=await agrees(providers,async rpc=>{
     const code=await rpc('eth_getCode',[target.address,tag]);

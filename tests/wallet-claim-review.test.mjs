@@ -9,7 +9,7 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const bundle=await build({stdin:{contents:"export * from './lib/server/claims'; export * from './lib/submission-validation';",resolveDir:root,loader:'ts'},
  absWorkingDir:root,bundle:true,format:'esm',platform:'node',write:false,plugins:[{name:'isolated-review-rpc',setup(b){
   b.onResolve({filter:/^\.\/claim-chain$/},()=>({path:'verifier',namespace:'test-verifier'}));
-  b.onLoad({filter:/.*/,namespace:'test-verifier'},()=>({contents:'export const verifyClaimAuthority=input=>globalThis.__reviewRpc(input);'}));
+  b.onLoad({filter:/.*/,namespace:'test-verifier'},()=>({contents:'export const inspectClaimModel=()=>{throw Error("Unexpected model probe")};export const verifyClaimAuthority=input=>globalThis.__reviewRpc(input);'}));
  }}]});
 const api=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
 const names=(await readdir(new URL('../drizzle/',import.meta.url))).filter(n=>/^\d.*\.sql$/.test(n)).sort();
@@ -89,5 +89,18 @@ test('changed runtime pin or canonical source requires fresh evidence before app
   await assert.rejects(api.reviewClaim(db,'administrator','claim',approve,'admin'),e=>e.status===409&&e.message.includes('provenance changed'));
  }
  assert.equal(calls,0);assert.equal((await api.claimCheckHistory(db,'claim',null)).checks.length,2);
+ assert.equal(db.raw.prepare('SELECT COUNT(*) n FROM project_owners').get().n,0);
+});
+
+test('an approved listing change during the ownership recheck leaves the claim pending',async t=>{
+ const db=fixture(t);
+ const original=globalThis.__reviewRpc;
+ globalThis.__reviewRpc=async input=>{
+   const verified=await original(input);
+   db.raw.prepare("INSERT INTO project_controls(project_id,source,visibility,revision,created_at,updated_at) VALUES('bored-traders','existing','public',1,?,?)").run(Date.now(),Date.now());
+   return verified;
+ };
+ await assert.rejects(api.reviewClaim(db,'administrator','claim',approve,'admin'),e=>e.status===409);
+ assert.equal(db.raw.prepare("SELECT status FROM project_claims WHERE id='claim'").get().status,'pending');
  assert.equal(db.raw.prepare('SELECT COUNT(*) n FROM project_owners').get().n,0);
 });

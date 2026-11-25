@@ -12,8 +12,9 @@ export function LinkOptions({ href, label, onOpen }: DestinationLink & {onOpen: 
   </button>;
 }
 
-export function DestinationDialog({ link, onClose, onCopy }: {
+export function DestinationDialog({ link, onClose, onCopy, onNavigate }: {
   link: DestinationLink | null;
+  onNavigate?: (link:DestinationLink)=>void;
   onClose: () => void;
   onCopy: (value: string, message: string) => Promise<void>;
 }) {
@@ -29,7 +30,7 @@ export function DestinationDialog({ link, onClose, onCopy }: {
       <button type="button" className="dialog-close" aria-label="Close link options" onClick={onClose}><X size={18} /></button>
       <h2 id="link-options-title">{link.label}</h2>
       <p>{link.href}</p>
-      <a className="button button-outline" href={link.href} target="_blank" rel="noopener noreferrer" onClick={onClose}><ArrowUpRight size={16} /> Open in new tab</a>
+      <a className="button button-outline" href={link.href} target="_blank" rel="noopener noreferrer" onClick={()=>{onNavigate?.(link);onClose();}}><ArrowUpRight size={16} /> Open in new tab</a>
       <button className="button button-outline" onClick={() => {onClose(); void onCopy(link.href, 'Destination link copied.');}}><Copy size={16} /> Copy link</button>
     </div>}
   </dialog>;

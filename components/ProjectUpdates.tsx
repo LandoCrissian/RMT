@@ -7,6 +7,7 @@ import type { PublicProjectUpdate, UpdatesPage } from '@/lib/project-updates';
 import { publicUpdatesPage } from '@/lib/client/project-updates';
 import { updateKindLabels } from './ProjectUpdatePreview';
 import './project-updates.css';
+import {recordSiteMetric} from '@/lib/client/site-metrics';
 
 const kindIcons = {announcement: Megaphone, progress: Hammer, release: Rocket, event: CalendarDays};
 
@@ -19,8 +20,8 @@ function UpdateCard({update}: {update: PublicProjectUpdate}) {
     <div className="pu-card-meta"><span className="pu-kind"><Icon size={13} />{updateKindLabels[update.kind]}</span><time dateTime={date.toISOString()}>{date.toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}</time></div>
     <h4 id={'update-title-' + update.id}>{update.title}</h4>
     <p id={'update-body-' + update.id} className={'pu-copy' + (long && !expanded ? ' pu-copy-collapsed' : '')}>{update.body}</p>
-    {long && <button type="button" className="pu-read-more" aria-expanded={expanded} aria-controls={'update-body-' + update.id} onClick={() => setExpanded(value => !value)}>{expanded ? 'Show less' : 'Read full update'}{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button>}
-    {update.linkUrl && <a className="pu-action" href={update.linkUrl} target="_blank" rel="noopener noreferrer">{update.linkLabel}<ArrowUpRight size={15} /><span className="sr-only"> (opens in a new tab)</span></a>}
+    {long && <button type="button" className="pu-read-more" aria-expanded={expanded} aria-controls={'update-body-' + update.id} onClick={()=>{if(!expanded)recordSiteMetric('announcement',update.projectId,update.id);setExpanded(value=>!value);}}>{expanded ? 'Show less' : 'Read full update'}{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button>}
+    {update.linkUrl && <a className="pu-action" href={update.linkUrl} onClick={()=>recordSiteMetric('announcement',update.projectId,update.id)} target="_blank" rel="noopener noreferrer">{update.linkLabel}<ArrowUpRight size={15} /><span className="sr-only"> (opens in a new tab)</span></a>}
   </article>;
 }
 

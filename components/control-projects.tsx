@@ -67,6 +67,7 @@ function ProjectDetail({api,id,onToast,onDirty,onReview,onBack,onChanged,onCreat
       <div className="cc-form-actions">{!creating&&<button className="cc-button" type="button" disabled={mutation.busy} onClick={()=>dirty?setDiscard(true):setEditing(false)}>Cancel editing</button>}<button className="cc-button cc-primary" type="submit" disabled={mutation.busy||mutation.needsRefresh||(!creating&&!dirty)}><Eye size={16}/>Review {creating?'new project':'changes'}</button></div>
     </form>:<><ProjectPreview item={saved!} content={saved!.content}/><p className="cc-footnote">Last administration change: {controlDate(saved!.updatedAt,true)} · Listing version {saved!.listingRevision}</p><button className="cc-button cc-primary" type="button" disabled={artDirty} onClick={()=>setEditing(true)}><FilePenLine size={16}/>Edit project details</button>
       <ControlArtwork key={saved!.revision} api={api} project={saved!} onSaved={async()=>{setArtDirty(false);await reload();}} onDirty={setArtDirty} onToast={onToast}/>
+      {saved!.publiclyAvailable&&<ClaimEligibilityPanel key={id+':'+saved!.revision+':'+saved!.listingRevision} projectId={id}/>}
       <section className="cc-detail-section"><h4>Public visibility</h4>{saved!.sourceStatus==='suspended'&&<div className="cc-notice"><p>This community application is suspended. Restore it in Reviews before it can become public.</p><button type="button" className="cc-text-button" onClick={onReview}>Open reviews<ArrowUpRight size={14}/></button></div>}<div className="cc-action-wrap">{saved!.visibility!=='public'&&<button className="cc-button" type="button" onClick={()=>begin('restore')}><Eye size={16}/>Restore listing</button>}{saved!.visibility!=='hidden'&&<button className="cc-button" type="button" onClick={()=>begin('hide')}><EyeOff size={16}/>Hide listing</button>}{saved!.visibility!=='archived'&&<button className="cc-button cc-danger" type="button" onClick={()=>begin('archive')}><Archive size={16}/>Archive</button>}</div></section>
       <section className="cc-detail-section"><h4>Showcase and share card</h4><button className="cc-button" type="button" disabled={artDirty} onClick={()=>setPresentationOpen(true)}><FilePenLine size={16}/>Edit presentation</button></section>
       <section className="cc-detail-section"><h4>Homepage spotlight</h4><p className="cc-muted">{isSpotlight(saved!.project)?'Included when public · order '+spotlightFor(saved!.project).position:'Excluded from the homepage spotlight.'}</p><div className="cc-action-wrap"><button className="cc-button" type="button" disabled={artDirty} onClick={()=>setSpotlightOpen(true)}><Star size={16}/>Edit spotlight</button>{saved!.featured!==null&&<button className="cc-text-button" type="button" onClick={()=>begin('auto_feature')}><RotateCcw size={14}/>Use automatic selection</button>}</div></section>
@@ -82,3 +83,22 @@ function ProjectPreview({item,content}:{item:ControlProject|null;content:Control
 function MemberPicker({api,selected,onSelect,excludeId}:{api:ControlApi;selected:ControlMember|null;onSelect:(member:ControlMember)=>void;excludeId?:string}){const [search,setSearch]=useState(''),[query,setQuery]=useState<string|null>(null);const members=useControlResource(api,query===null?null:'/api/control/members?q='+encodeURIComponent(query)+'&status=active&limit=10',membersResponse,'ownership-member-search');return <div><SearchForm value={search} onChange={setSearch} onSearch={()=>setQuery(search.trim())} placeholder="Find the owner by email or account reference"/>{members.error?<ErrorPanel message={members.error} onRetry={()=>void members.reload()}/>:members.loading&&query!==null?<Loading label="Finding members…"/>:members.data?<div className="cc-member-options">{members.data.items.filter(member=>member.id!==excludeId).map(member=><button type="button" className={selected?.id===member.id?'is-selected':''} key={member.id} onClick={()=>onSelect(member)}><UserRound size={16}/><span><strong>{member.displayName||'RMT member'}</strong><small>{member.email||member.id}</small></span>{selected?.id===member.id&&<CheckCircle2 size={17}/>}</button>)}{members.data.items.filter(member=>member.id!==excludeId).length===0&&<p className="cc-muted">No matching active members. Ask the builder to sign in to RMT first.</p>}</div>:<p className="cc-footnote">Search for an existing signed-in RMT account. A free-text name does not assign ownership.</p>}</div>;}
 
 function ProjectThumbnail({item}:{item:ControlProject}){const src=safeControlImage(item.project.artwork?.logo?.url||item.project.logo||item.project.cover),[failed,setFailed]=useState<string|null>(null);return <span className="cc-project-thumb">{src&&src!==failed?<img src={src} alt="" loading="lazy" onError={()=>setFailed(src)}/>:item.project.initials}</span>;}
+
+function ClaimEligibilityPanel({projectId}:{projectId:string}){
+  const [assessment,setAssessment]=useState<{wallet:boolean;reason:string}|null>(null);
+  useEffect(()=>{
+    const controller=new AbortController();
+    fetch('/api/claim-options?projectId='+encodeURIComponent(projectId),{signal:controller.signal,credentials:'omit',cache:'no-store'})
+      .then(async response=>{
+        if(!response.ok)throw Error();
+        const data=await response.json();
+        if(!data||typeof data!=='object'||!('eligibilityReason' in data)||!('projectId' in data)||!('walletContract' in data))throw Error();
+        if(typeof data.eligibilityReason!=='string'||data.projectId!==projectId)throw Error();
+        if(!controller.signal.aborted)setAssessment({wallet:Boolean(data.walletContract),reason:data.eligibilityReason});
+      }).catch(()=>{if(!controller.signal.aborted)setAssessment({wallet:false,reason:'The latest eligibility check is unavailable. Use manual review.'});});
+    return()=>controller.abort();
+  },[projectId]);
+  return <section className="cc-detail-section"><h4>Wallet claim eligibility</h4>
+    <p role="status">{assessment?<><strong>{assessment.wallet?'Eligible for wallet evidence':'Manual verification'}</strong> · {assessment.reason}</>:'Assessing the published contract reference…'}</p>
+  </section>;
+}

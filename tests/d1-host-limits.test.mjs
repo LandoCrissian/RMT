@@ -62,7 +62,7 @@ test('D1 compatibility gate enforces the production compound SELECT and LIKE lim
  const db=database(t);
  assert.throws(()=>db.rows('SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6'),/too many terms in compound SELECT/);
  assert.throws(()=>db.rows('SELECT ? LIKE ? AS matched',['sample','x'.repeat(51)]),/LIKE or GLOB pattern too complex/);
- assert.equal(db.rows("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")[0].n,35);
+ assert.equal(db.rows("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")[0].n,39);
  assert.equal(db.rows('SELECT COUNT(*) AS n FROM project_follows')[0].n,0);
 });
 test('sequential D1 backfill preserves old records and canonical earliest history without inventing sign-ins',t=>{

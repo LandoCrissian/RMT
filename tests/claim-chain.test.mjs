@@ -13,7 +13,7 @@ const bundle=await build({entryPoints:['lib/server/claim-chain.ts'],absWorkingDi
     b.onResolve({filter:/^\.\.\/claim-contracts$/},()=>({path:'collection',namespace:'fixture'}));
     b.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:`export const claimContract=id=>id==='bored-traders'?${JSON.stringify({address:contract,chainId:4663,model:'owner()',codeHash})}:null;`}));
   }}]});
-const {verifyClaimAuthority}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].contents).toString('base64'));
+const {verifyClaimAuthority,inspectClaimModel}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].contents).toString('base64'));
 // Ephemeral identities only. No live wallet, signature collection or transaction.
 const secret=secp256k1.utils.randomSecretKey();
 const address='0x'+bytesToHex(keccak_256(secp256k1.getPublicKey(secret,false).slice(1)).slice(-20));
@@ -70,4 +70,12 @@ test('ERC1271 proof requires digest-specific acceptance and is checked again upo
  assert.equal(evidence.signatureType,'erc1271');assert.deepEqual([...calls.values()].map(h=>h.length),[12,12]);
  current.bad1271=true;await assert.rejects(verifyClaimAuthority(proof),e=>e.status===422);
  current.permissive=true;await assert.rejects(verifyClaimAuthority(proof),e=>e.status===422);
+});
+
+test('new deployments require audited bytecode and agreeing current and confirmed owner reads',async t=>{
+ const {current,calls}=provider(t);
+ assert.deepEqual(await inspectClaimModel(contract),{address:contract,chainId:4663,codeHash,model:'owner()'});
+ assert.equal(calls.size,2);
+ current.tipOwner=contract;await assert.rejects(inspectClaimModel(contract),e=>e.status===503);delete current.tipOwner;
+ current.contractCode='0x610001';assert.equal(await inspectClaimModel(contract),null);
 });

@@ -122,7 +122,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('loading');
   const [toast, setToast] = useState('');
   const [mobileMenu, setMobileMenu] = useState(false);
-  const [destination, setDestination] = useState<DestinationLink | null>(null);
+  const [destination, setDestination] = useState<(DestinationLink & {projectId?:string}) | null>(null);
   const menuTrigger = useRef<HTMLButtonElement>(null);
   const navigation = useRef<HTMLElement>(null);
   const [installOpen, setInstallOpen] = useState(false);
@@ -388,16 +388,22 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
     }
   }
 
+  function measureShare(project:Project,method:'copy'|'native'|'x'){
+    if(sessionStatus==='ready'&&!session.isAdmin&&!maintenance)recordSiteMetric('share',project.id,method);
+  }
+
   async function shareProject(project: Project) {
     const url = projectShareUrl(project);
     if (typeof navigator.share === 'function') {
       try {
+        measureShare(project,'native');
         await navigator.share({ title: project.name + ' on RMT', text: project.tagline, url });
         return;
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') return;
       }
     }
+    measureShare(project,'copy');
     await copyLink(url, 'Project link copied. Ready to share.');
   }
 
@@ -469,6 +475,20 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   const featuredProjects = orderedSpotlights(projects);
   const publicPaused=maintenance&&!['account','control'].includes(section);
   useEffect(()=>{if(section==='control')setControlOpened(true);},[section]);
+  const visibleCardIds=page.items.map(project=>project.id).join('|');
+  useEffect(()=>{
+    if(section!=='discover'||selected||sessionStatus!=='ready'||session.isAdmin||maintenance||!('IntersectionObserver' in window))return;
+    const observer=new IntersectionObserver(entries=>{
+      for(const entry of entries){
+        if(entry.intersectionRatio<0.5||document.visibilityState!=='visible')continue;
+        const projectId=(entry.target as HTMLElement).dataset.metricProject;
+        if(projectId){recordSiteMetric('impression',projectId);observer.unobserve(entry.target);}
+      }
+    },{threshold:0.5});
+    const observe=()=>document.querySelectorAll('[data-metric-project]').forEach(el=>{observer.unobserve(el);observer.observe(el);});
+    observe();document.addEventListener('visibilitychange',observe);
+    return ()=>{observer.disconnect();document.removeEventListener('visibilitychange',observe);};
+  },[section,selected,visibleCardIds,sessionStatus,session.isAdmin,maintenance]);
   useEffect(()=>{if(sessionStatus==='ready'&&!session.isAdmin&&!maintenance)recordSiteMetric('visit');},[sessionStatus,session.isAdmin,maintenance]);
   useEffect(()=>{if(selected&&sessionStatus==='ready'&&!session.isAdmin&&!maintenance)recordSiteMetric('project_view',selected.id);},[selected?.id,sessionStatus,session.isAdmin,maintenance]);
   useEffect(()=>{if(maintenance){setSelected(null);setClaimProject(null);}},[maintenance,selected,claimProject]);
@@ -561,7 +581,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
           {section === 'library' && <>
             {!hasSearch && <section className="library-home" aria-label="Your personal launchpad">
               <div className="library-home-header"><div className="library-home-heading"><span className="library-home-icon"><Library size={25} /></span><div><h2>Quick launch</h2><p>{library.status === 'ready' ? savedProjects.length + (savedProjects.length === 1 ? ' project ready to explore.' : ' projects ready to explore.') : library.status === 'loading' ? 'Your favorites are on their way.' : 'Reconnect to see your saved projects.'}</p></div></div><div className="library-home-tools"><LibrarySyncStatus library={library} />{library.isCloud && <button className="library-refresh" disabled={library.busy || library.status === 'loading'} onClick={() => library.status === 'error' ? void refreshSession() : void library.refresh()} aria-label="Refresh your account library" title="Refresh your account library"><RefreshCw size={13} /></button>}</div></div>
-              {savedProjects.length > 0 && <div className="library-launches">{savedProjects.slice(0, 4).map(project => <div className="library-launch-entry" key={project.id}><button type="button" className="library-launch" onClick={() => openProject(project)} aria-label={'Explore ' + project.name} aria-haspopup="dialog"><div className="library-launch-art"><Cover project={project} /></div><div><strong>{project.name}</strong><small>View project · {domain(project.launchUrl)}</small></div><ArrowUpRight size={19} /></button><div className="library-launch-actions"><a className="library-direct-launch" href={project.launchUrl} target="_top" rel="noopener noreferrer" aria-label={'Launch ' + project.name + ' in this tab'}>{project.launchLabel} <ArrowUpRight size={13} /></a><LinkOptions href={project.launchUrl} label={project.name} onOpen={setDestination} /></div></div>)}</div>}
+              {savedProjects.length > 0 && <div className="library-launches">{savedProjects.slice(0, 4).map(project => <div className="library-launch-entry" key={project.id}><button type="button" className="library-launch" onClick={() => openProject(project)} aria-label={'Explore ' + project.name} aria-haspopup="dialog"><div className="library-launch-art"><Cover project={project} /></div><div><strong>{project.name}</strong><small>View project · {domain(project.launchUrl)}</small></div><ArrowUpRight size={19} /></button><div className="library-launch-actions"><a className="library-direct-launch" onClick={()=>{if(!session.isAdmin&&!maintenance)recordSiteMetric('outbound',project.id,new URL(project.launchUrl).hostname);}} href={project.launchUrl} target="_top" rel="noopener noreferrer" aria-label={'Launch ' + project.name + ' in this tab'}>{project.launchLabel} <ArrowUpRight size={13} /></a><LinkOptions href={project.launchUrl} label={project.name} onOpen={link=>setDestination({...link,projectId:project.id})} /></div></div>)}</div>}
               {!session.authenticated && sessionStatus === 'ready' && <div className="library-account-prompt"><p>A new phone shouldn’t mean starting over. Sign in to save your library with your account.</p><a className="text-link" href={signInHref('/#library')} target="_top">Take it with you <ArrowRight size={14} /></a></div>}
             </section>}
             {!hasSearch && followAccount && <FollowingLibrary key={followAccount} account={followAccount} projects={projects} onOpen={openProject}/>}
@@ -578,9 +598,9 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
             </div>
             {hasSearch && (section !== 'library' || library.status === 'ready') && <div className="search-feedback"><div role="status" aria-live="polite" aria-atomic="true"><p><strong>{page.total} {page.total === 1 ? 'result' : 'results'}</strong> for “{query.trim()}” in <strong>{searchScope}</strong>.</p>{matchesOutsideScope > 0 && <span>{matchesOutsideScope} more {matchesOutsideScope === 1 ? 'match is' : 'matches are'} outside this view.</span>}</div>{isSearchScoped && page.total > 0 && <button type="button" onClick={searchAllProjects}>Search all projects <ArrowRight size={14} /></button>}</div>}
             {catalogError && <p className="inline-notice" role="status">The directory could not be loaded. Your saved projects are unchanged. <button className='text-link' onClick={()=>void refreshCatalog()}>Try again</button></p>}
-            {section === 'library' && library.status !== 'ready' ? null : page.total ? <><div className={'project-grid browse-grid' + (directoryView === 'list' ? ' browse-list' : '')} data-view={directoryView}>{page.items.map(project => <article className="project-card browse-card" key={project.id}>
+            {section === 'library' && library.status !== 'ready' ? null : page.total ? <><div className={'project-grid browse-grid' + (directoryView === 'list' ? ' browse-list' : '')} data-view={directoryView}>{page.items.map(project => <article className="project-card browse-card" data-metric-project={section==='discover'?project.id:undefined} key={project.id}>
               <div className="project-image-button"><Cover project={project} className="directory-art" thumbnail={directoryView === 'list'} /></div>
-              <div className="project-card-body"><div className="browse-card-kicker"><span>{project.category}</span>{project.stage && project.stage !== 'live' && <span>{stageLabel(project.stage)}</span>}</div><div className="project-card-heading"><div className="project-name-button"><h3><button type="button" className="project-card-trigger" onClick={() => openProject(project)} aria-label={'Explore ' + project.name} aria-haspopup="dialog">{project.name}</button></h3></div></div><p>{project.tagline}</p><div className="project-card-footer"><span className="project-card-explore" aria-hidden="true">Explore <ArrowUpRight size={13} /></span><span className="browse-destinations">{destinationCount(project)} links</span><button type="button" className={'save-button ' + (saved.includes(project.id) ? 'saved' : '')} aria-label={(saved.includes(project.id) ? 'Remove ' : 'Save ') + project.name + (saved.includes(project.id) ? ' from library' : ' to library')} aria-pressed={saved.includes(project.id)} disabled={!library.canSave} onClick={() => void toggleSave(project)}><Bookmark size={17} fill={saved.includes(project.id) ? 'currentColor' : 'none'} /></button></div></div>
+              <div className="project-card-body"><div className="browse-card-kicker"><span>{project.category}</span>{project.stage && project.stage !== 'live' && <span>{stageLabel(project.stage)}</span>}</div><div className="project-card-heading"><div className="project-name-button"><h3><button type="button" className="project-card-trigger" onClick={() => {if(section==='discover'&&sessionStatus==='ready'&&!session.isAdmin&&!maintenance)recordSiteMetric('discovery_click',project.id);openProject(project);}} aria-label={'Explore ' + project.name} aria-haspopup="dialog">{project.name}</button></h3></div></div><p>{project.tagline}</p><div className="project-card-footer"><span className="project-card-explore" aria-hidden="true">Explore <ArrowUpRight size={13} /></span><span className="browse-destinations">{destinationCount(project)} links</span><button type="button" className={'save-button ' + (saved.includes(project.id) ? 'saved' : '')} aria-label={(saved.includes(project.id) ? 'Remove ' : 'Save ') + project.name + (saved.includes(project.id) ? ' from library' : ' to library')} aria-pressed={saved.includes(project.id)} disabled={!library.canSave} onClick={() => void toggleSave(project)}><Bookmark size={17} fill={saved.includes(project.id) ? 'currentColor' : 'none'} /></button></div></div>
             </article>)}</div><div className="browse-pagination"><p>{page.total > 8 ? 'A little at a time. There’s more to discover.' : 'You’re all caught up in this view.'}</p>{page.pageCount > 1 && <nav className="pagination-controls" aria-label="Project pages"><button className="pagination-direction" disabled={page.page === 1} onClick={() => changePage(page.page - 1)} aria-label="Previous project page"><ChevronLeft size={17} /><span>Previous</span></button><span className="mobile-page-summary">{page.page} / {page.pageCount}</span><div className="page-numbers">{pageNumbers.map((number, index) => <span className="page-slot" key={number}>{index > 0 && number - pageNumbers[index - 1] > 1 && <span className="page-ellipsis" aria-hidden="true">…</span>}<button className={number === page.page ? 'page-active' : ''} aria-current={number === page.page ? 'page' : undefined} aria-label={'Project page ' + number} onClick={() => changePage(number)}>{number}</button></span>)}</div><button className="pagination-direction" disabled={page.page === page.pageCount} onClick={() => changePage(page.page + 1)} aria-label="Next project page"><span>Next</span><ChevronRight size={17} /></button></nav>}</div></> : <div className="empty-state"><div className="empty-state-icon">{section === 'library' ? <Library size={29} /> : section === 'music' ? <Music2 size={29} /> : <Search size={29} />}</div><h3>{hasSearch ? (matchesOutsideScope > 0 ? 'There’s more beyond this view.' : 'No projects found.') : section === 'library' ? 'Your next favorite belongs here.' : 'The first spot could be yours.'}</h3><p>{hasSearch ? (matchesOutsideScope > 0 ? 'Your search matches projects elsewhere in the directory. Open all projects to see them without changing your search.' : isSearchScoped ? 'Try a shorter name, or search all projects to look beyond your current filters.' : 'Try a project name, part of a name, a game, or a website.') : section === 'library' ? (library.isCloud ? 'Tap the bookmark on any project to save it to your account. Your favorites will be ready here on any device.' : 'Tap the bookmark on any project to keep it here. Sign in to take your library to another device.') : 'We’re opening this part of the directory to builders. Have an experience people should discover?'}</p><button className="button button-lime" onClick={() => hasSearch ? (isSearchScoped ? searchAllProjects() : setQuery('')) : go(section === 'library' ? 'discover' : 'studio')}>{hasSearch ? (isSearchScoped ? 'Search all projects' : 'Clear search') : section === 'library' ? 'Find a project' : 'Submit your project'}<ArrowRight size={16} /></button></div>}
           </section>
           {section === 'discover' && <section className="community-banner"><div className="community-banner-icon"><LayoutGrid size={26} /></div><div><h3>Your community built it. Let people find it.</h3><p>Games, creative tools, and projects deserve more than a buried link.</p></div><button className="button button-outline" onClick={() => go('studio')}>Join the directory <ArrowUpRight size={16} /></button></section>}
@@ -600,7 +620,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
       {[navItems[0], navItems[1], navItems[2], { id: 'studio' as Section, label: 'Build', icon: Terminal }, {id: 'account' as Section, label: 'Account', icon: UserRound}].map(({ id, label, icon: Icon }) => <button key={id} aria-current={section === id || (id === 'account' && (section === 'profile' || section === 'control')) ? 'page' : undefined} className={section === id || (id === 'account' && (section === 'profile'||section==='control')) ? 'active' : ''} onClick={() => go(id)}><Icon size={20} /><span>{label}</span></button>)}
     </nav>
     <dialog ref={dialogRef} className="project-dialog showcase-dialog" aria-labelledby="project-title" onCancel={closeProject} onClick={event => { if (event.target === event.currentTarget) closeProject(); }}>
-      {selected && enrichment && !maintenance && <div className={'detail-inner' + (enhancedLayout ? ' enriched-project' : '')} onClickCapture={event=>{const anchor=(event.target as Element).closest('a[href]');if(anchor&&selected&&!session.isAdmin&&!maintenance){try{if(new URL(anchor.getAttribute('href')!,window.location.href).origin!==window.location.origin)recordSiteMetric('outbound',selected.id);}catch{}}}} style={{ '--project-accent': enrichment.accent } as React.CSSProperties}>
+      {selected && enrichment && !maintenance && <div className={'detail-inner' + (enhancedLayout ? ' enriched-project' : '')} onClickCapture={event=>{const anchor=(event.target as Element).closest<HTMLAnchorElement>('a[href]');if(anchor&&selected&&!session.isAdmin&&!maintenance){try{const target=new URL(anchor.href);if(target.origin!==window.location.origin && target.protocol==='https:' && !anchor.closest('.showcase-share-actions'))recordSiteMetric('outbound',selected.id,target.hostname);}catch{}}}} style={{ '--project-accent': enrichment.accent } as React.CSSProperties}>
         {enrichedHero ? <ShowcaseHero project={selected} enrichment={enrichment} experiences={selectedExperiences} logo={<ProjectLogo project={selected}/>} onBack={closeProject}/> : <div className="detail-cover showcase-cover">
           <Cover project={selected} priority />
           <div className="detail-cover-shade" />
@@ -644,7 +664,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
               <section className="showcase-share-card">
                 <h3>Share {selected.name}</h3>
                 <div className="project-share-preview"><img src={projectSocialImagePath(selected)} alt={selected.name + ' share card preview'} loading="lazy" />{!enhancedLayout && <div><small>RMTLAUNCH.FUN</small><strong>{selected.name} on RMT</strong></div>}</div>
-                <div className="showcase-share-actions"><button className="button button-outline" onClick={() => void copyLink(projectShareUrl(selected), 'Project link copied. Ready to share.')}><Copy size={14} /> Copy link</button><a className="button button-outline" href={projectXIntentUrl(selected)} target="_blank" rel="noopener noreferrer" aria-label={'Share ' + selected.name + ' on X'}><span className="share-x">𝕏</span> Post</a></div>
+                <div className="showcase-share-actions"><button className="button button-outline" onClick={() => {measureShare(selected,'copy');void copyLink(projectShareUrl(selected), 'Project link copied. Ready to share.');}}><Copy size={14} /> Copy link</button><a className="button button-outline" onClick={()=>measureShare(selected,'x')} href={projectXIntentUrl(selected)} target="_blank" rel="noopener noreferrer" aria-label={'Share ' + selected.name + ' on X'}><span className="share-x">𝕏</span> Post</a></div>
               </section>
             </aside>
           </div>
@@ -656,7 +676,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
       </div>}
     </dialog>
     <dialog ref={installRef} className="install-dialog" aria-labelledby="install-title" onCancel={() => setInstallOpen(false)} onClick={event => { if (event.target === event.currentTarget) setInstallOpen(false); }}><button className="dialog-close" onClick={() => setInstallOpen(false)} aria-label="Close install instructions"><X size={20} /></button><div className="install-app-icon install-app-image"><img src="/icons/rmt-mark-v5.png" alt="RMT" width="78" height="78" /></div><h2 id="install-title">Add RMT to your home screen</h2><p>Add RMT to your phone’s home screen for quick access to your library.</p><div className="install-step"><span>1</span><div><strong>On iPhone</strong><p>Open RMT in Safari. Tap Share, then “Add to Home Screen.”</p></div></div><div className="install-step"><span>2</span><div><strong>On Android</strong><p>Open RMT in Chrome. Open the browser menu and choose “Install app” or “Add to Home screen.”</p></div></div><p className="small-note">Sign in to keep your library across devices. Guest favorites stay in this browser. Games and tools open on their creators’ websites.</p><button className="button button-lime" onClick={() => setInstallOpen(false)}>Got it <Check size={16} /></button></dialog>
-    <DestinationDialog link={destination} onClose={() => setDestination(null)} onCopy={copyLink} />
+    <DestinationDialog link={destination} onNavigate={link=>{const id=destination?.projectId??selected?.id;if(id&&!session.isAdmin&&!maintenance)recordSiteMetric('outbound',id,new URL(link.href).hostname);}} onClose={() => setDestination(null)} onCopy={copyLink} />
     <ManualCopyDialog value={copyFallback} onClose={() => setCopyFallback(null)} />
     {!selected && toastNode}
   </div>;

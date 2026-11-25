@@ -5,6 +5,7 @@ import {ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, ChevronUp, Bell, Calen
 import type {ActivityItem} from '@/lib/activity';
 import {readDiscovery,saveDiscovery,type DiscoveryPage} from '@/lib/client/discovery';
 import './activity.css';
+import {recordSiteMetric} from '@/lib/client/site-metrics';
 
 type Filter = 'all' | 'listing' | 'announcement' | 'progress' | 'release' | 'event';
 const filters: {id: Filter; label: string}[] = [
@@ -32,6 +33,7 @@ function ActivityCard({item, onProject}: {item: ActivityItem; onProject: (id: st
   const long = item.body.length > 440 || item.body.split('\n').length > 6;
   const href = '/projects/' + encodeURIComponent(item.project.slug) + (item.kind === 'listing' ? '' : '#updates');
   function open(event: React.MouseEvent<HTMLAnchorElement>) {
+    if(item.updateId)recordSiteMetric('announcement',item.project.id,item.updateId);
     if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && onProject(item.project.id, item.kind !== 'listing')) event.preventDefault();
   }
   return <article className={'activity-card activity-kind-' + item.kind} aria-labelledby={'activity-title-' + item.id}>
@@ -44,8 +46,8 @@ function ActivityCard({item, onProject}: {item: ActivityItem; onProject: (id: st
       <span className="activity-kind"><KindIcon size={13} />{labels[item.kind]}</span>
       <h2 id={'activity-title-' + item.id}>{item.kind === 'listing' ? item.project.name + ' has a home here.' : item.title}</h2>
       <p id={'activity-body-' + item.id} className={'activity-copy' + (long && !expanded ? ' activity-copy-collapsed' : '')}>{item.body}</p>
-      {long && <button type="button" className="activity-read-more" aria-expanded={expanded} aria-controls={'activity-body-' + item.id} onClick={() => setExpanded(value => !value)}>{expanded ? 'Show less' : 'Read full update'}{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button>}
-      <div className="activity-card-actions"><a href={href} onClick={open}>{item.kind === 'listing' ? 'Explore project' : 'View project updates'} <ArrowRight size={15} /></a>{item.linkUrl && <a href={item.linkUrl} target="_blank" rel="noopener noreferrer">{item.linkLabel}<ArrowUpRight size={15} /><span className="sr-only"> (opens in a new tab)</span></a>}</div>
+      {long && <button type="button" className="activity-read-more" aria-expanded={expanded} aria-controls={'activity-body-' + item.id} onClick={()=>{if(!expanded&&item.updateId)recordSiteMetric('announcement',item.project.id,item.updateId);setExpanded(value=>!value);}}>{expanded ? 'Show less' : 'Read full update'}{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</button>}
+      <div className="activity-card-actions"><a href={href} onClick={open}>{item.kind === 'listing' ? 'Explore project' : 'View project updates'} <ArrowRight size={15} /></a>{item.linkUrl && <a href={item.linkUrl} onClick={()=>{if(item.updateId)recordSiteMetric('announcement',item.project.id,item.updateId);recordSiteMetric('outbound',item.project.id,new URL(item.linkUrl).hostname);}} target="_blank" rel="noopener noreferrer">{item.linkLabel}<ArrowUpRight size={15} /><span className="sr-only"> (opens in a new tab)</span></a>}</div>
     </div>
   </article>;
 }

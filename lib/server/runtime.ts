@@ -17,9 +17,9 @@ async function resolveIdentity(request: Request) {
   const token = cookieValue(request, sessionCookie);
   if (token) {
     const user = await verifyFirebaseToken(token);
-    await checkFirebaseAccount(token, user.firebaseUid, user.authTime);
+    const firebaseCreatedAt=await checkFirebaseAccount(token, user.firebaseUid, user.authTime);
     const link = await database().prepare("SELECT legacy_user_id FROM account_links WHERE firebase_uid = ?").bind(user.firebaseUid).first<{legacy_user_id: string}>();
-    const canonical={...user,userId:link?.legacy_user_id??user.userId,provider:"firebase"};
+    const canonical={...user,firebaseCreatedAt,userId:link?.legacy_user_id??user.userId,provider:"firebase"};
     await observeMember(database(),canonical);
     return {...canonical,suspended:await memberSuspended(database(),canonical.userId,runtime().RMT_ADMIN_USER_IDS)};
   }

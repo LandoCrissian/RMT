@@ -1,4 +1,4 @@
-import {claimContract} from '@/lib/claim-contracts';
+import {currentEligibility,listingRevision,listingRevisionSql} from './listing-eligibility';
 import {InputError} from '@/lib/submission-validation';
 import {claimOptions,createClaim} from './claims';
 import {reserveClaimRpc} from './claim-budget';
@@ -22,9 +22,12 @@ const validAccount=`${activeControlMemberSql('project_claims.user_id')} AND NOT 
 
 export async function issueWalletClaim(db:D1Database,user:PlatformIdentity,origin:string,browser:string,projectId:string,address:string){
   if(!/^0x[0-9a-fA-F]{40}$/.test(address)||/^0x0{40}$/i.test(address))throw new InputError('Select a valid wallet address.');
-  const target=claimContract(projectId);
-  if(!target)throw new InputError('A canonical contract and authority model have not been established for this project. Submit manual evidence.',422);
-  const options=await claimOptions(db,projectId);
+  const options=await claimOptions(db,projectId,true).catch(error=>{
+    if(error instanceof InputError&&error.status===404)throw new InputError('This listing has no verified contract.',422);
+    throw error;
+  });
+  const target=options.walletContract;
+  if(!target)throw new InputError(options.eligibilityReason,422);
   if(options.claimed)throw new InputError('This project already has a manager.',409);
   let draft=await db.prepare(`SELECT id,revision FROM project_claims WHERE user_id=? AND project_id=? AND status='draft' AND expires_at>?`)
     .bind(user.userId,projectId,Date.now()).first<{id:string;revision:number}>();
@@ -64,18 +67,23 @@ export async function verifyWalletClaim(db:D1Database,user:PlatformIdentity,orig
     .bind(now,id,now,row.claim_id,user.userId,row.revision,now).run();
   if(spent.meta.changes!==1)throw new InputError('This request expired, was used, or the claim changed. Request a new message.',409);
   try{
-    const target=claimContract(row.project_id);
+    const version=await listingRevision(db,row.project_id);
+    const target=(await currentEligibility(db,row.project_id,true)).contract;
     if(!target||target.address.toLowerCase()!==row.contract.toLowerCase())throw new InputError('The reviewed contract changed. Submit a new request.',409);
     await reserveClaimRpc(db,user.userId);
-    const evidence=await verifyClaimAuthority({projectId:row.project_id,contract:row.contract,address:row.address,message:row.message,signature});
+    const evidence=await verifyClaimAuthority({projectId:row.project_id,contract:row.contract,address:row.address,message:row.message,signature},target);
     await requireCommunityIntake(db,'claims');
     const done=Date.now(),rev=row.revision+1;
     const results=await db.batch([
       db.prepare(`INSERT INTO wallet_claim_evidence(claim_id,challenge_id,evidence_json)
         SELECT id,?,? FROM project_claims WHERE id=? AND user_id=? AND status='draft' AND revision=? AND expires_at>? AND ?>?
+        AND ${listingRevisionSql('project_claims.project_id')}=?
+        AND NOT EXISTS(SELECT 1 FROM wallet_claim_evidence other JOIN project_claims c ON c.id=other.claim_id
+          WHERE c.project_id<>project_claims.project_id AND c.status IN ('pending','approved')
+          AND lower(json_extract(other.evidence_json,'$.contract'))=?)
         AND ${validAccount} AND ${publicProjectSql('project_claims.project_id')} AND NOT EXISTS(SELECT 1 FROM project_owners o
           WHERE o.project_id=project_claims.project_id AND o.status='active')`)
-        .bind(id,JSON.stringify({...evidence,source:target.source,codeHash:target.codeHash}),row.claim_id,user.userId,row.revision,done,row.expires_at,done),
+        .bind(id,JSON.stringify({...evidence,source:target.source,codeHash:target.codeHash}),row.claim_id,user.userId,row.revision,done,row.expires_at,done,version,target.address.toLowerCase()),
       db.prepare(`UPDATE project_claims SET status='pending',proof_method='wallet',revision=revision+1,updated_at=?
         WHERE id=? AND revision=? AND status='draft' AND EXISTS(SELECT 1 FROM wallet_claim_evidence
           WHERE challenge_id=? AND claim_id=project_claims.id)`).bind(done,row.claim_id,row.revision,id),

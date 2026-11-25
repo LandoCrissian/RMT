@@ -103,6 +103,7 @@ export const savedProjects = sqliteTable('saved_projects', {
   createdAt: integer('created_at').notNull(),
 }, table => [
   primaryKey({columns: [table.userId, table.projectId]}),
+  index('saved_projects_project').on(table.projectId),
   index('saved_projects_user_created').on(table.userId, table.createdAt),
 ]);
 
@@ -202,10 +203,10 @@ export const profileArtwork = sqliteTable('profile_artwork', {
 export const controlMembers = sqliteTable('control_members', {
  userId:text('user_id').primaryKey(),email:text('email').notNull().default(''),displayName:text('display_name').notNull().default(''),
  providersJson:text('providers_json').notNull().default('[]'),emailVerified:integer('email_verified'),
- firstSeenAt:integer('first_seen_at'),lastSeenAt:integer('last_seen_at'),historicalSinceAt:integer('historical_since_at'),
+ firebaseCreatedAt:integer('firebase_created_at'),firstSeenAt:integer('first_seen_at'),lastSeenAt:integer('last_seen_at'),historicalSinceAt:integer('historical_since_at'),
  status:text('status').notNull().default('active'),statusReason:text('status_reason').notNull().default(''),revision:integer('revision').notNull().default(1),
  createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),
-},table=>[index('control_members_status_user').on(table.status,table.userId),index('control_members_seen').on(table.lastSeenAt),check('control_members_status_valid',sql`${table.status} IN ('active','suspended')`),check('control_members_verified_valid',sql`${table.emailVerified} IS NULL OR ${table.emailVerified} IN (0,1)`)]);
+},table=>[index('control_firebase_created').on(table.firebaseCreatedAt),index('control_members_status_user').on(table.status,table.userId),index('control_members_seen').on(table.lastSeenAt),check('control_members_status_valid',sql`${table.status} IN ('active','suspended')`),check('control_members_verified_valid',sql`${table.emailVerified} IS NULL OR ${table.emailVerified} IN (0,1)`)]);
 export const controlRoles=sqliteTable('control_roles',{
  userId:text('user_id').primaryKey().references(()=>controlMembers.userId),role:text('role').notNull().default('member'),revision:integer('revision').notNull().default(1),updatedAt:integer('updated_at').notNull(),updatedBy:text('updated_by').notNull(),
 },table=>[check('control_roles_valid',sql`${table.role} IN ('member','admin','moderator')`)]);
@@ -268,3 +269,18 @@ export const walletClaimChecks=sqliteTable('wallet_claim_checks',{
 export const claimRpcUsage=sqliteTable('claim_rpc_usage',{
   id:text('id').primaryKey(),userId:text('user_id').notNull(),createdAt:integer('created_at').notNull(),
 },t=>[index('claim_rpc_member_time').on(t.userId,t.createdAt),index('claim_rpc_time').on(t.createdAt)]);
+
+export const analyticsMeta=sqliteTable('analytics_meta',{
+  id:integer('id').primaryKey(),startMs:integer('start_ms').notNull(),activeDay:text('active_day').notNull(),accepted:integer('accepted').notNull().default(0),
+});
+export const analyticsDaily=sqliteTable('analytics_daily',{
+  day:text('day').notNull(),projectId:text('project_id').notNull(),kind:text('kind').notNull(),dimension:text('dimension').notNull().default(''),total:integer('total').notNull(),
+},t=>[primaryKey({columns:[t.day,t.projectId,t.kind,t.dimension]}),index('analytics_project_day').on(t.projectId,t.day)]);
+export const analyticsEvents=sqliteTable('analytics_events',{
+  id:text('id').primaryKey(),day:text('day').notNull(),projectId:text('project_id').notNull(),kind:text('kind').notNull(),
+  dimension:text('dimension').notNull(),visitor:text('visitor').notNull(),createdAt:integer('created_at').notNull(),
+},t=>[index('analytics_event_expiry').on(t.day),index('analytics_event_visitors').on(t.projectId,t.kind,t.visitor,t.day)]);
+export const claimEligibilityCache=sqliteTable('claim_eligibility_cache',{
+  projectId:text('project_id').primaryKey(),binding:text('binding').notNull(),status:text('status').notNull(),ownerToken:text('owner_token').notNull(),
+  resultJson:text('result_json').notNull(),checkedAt:integer('checked_at').notNull(),expiresAt:integer('expires_at').notNull(),
+},t=>[index('claim_eligibility_checked').on(t.checkedAt)]);

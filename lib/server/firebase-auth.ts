@@ -31,7 +31,9 @@ export async function checkFirebaseAccount(token: string, uid: string, authTime:
   const response = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + firebaseConfig.apiKey,
     {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({idToken: token}), signal: AbortSignal.timeout(8000)});
   if (!response.ok) throw new InputError('Please sign in again.', 401);
-  const data = await response.json() as {users?: Array<{localId: string; disabled?: boolean; validSince?: string}>};
+  const data = await response.json() as {users?: Array<{localId: string; disabled?: boolean; validSince?: string; createdAt?: string}>};
   const user = data.users?.find(user => user.localId === uid);
   if (!user || user.disabled || Number(user.validSince || 0) > authTime) throw new InputError('Please sign in again.', 401);
+  const created=Number(user.createdAt);
+  return Number.isSafeInteger(created)&&created>0&&created<=Date.now()?created:null;
 }

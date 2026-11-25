@@ -6,16 +6,17 @@ import {auditInsert} from './control-audit';
 import {catalog} from './repository';
 
 type MemberRow={user_id:string;email:string;display_name:string;providers_json:string;email_verified:number|null;first_seen_at:number|null;last_seen_at:number|null;historical_since_at:number|null;status:'active'|'suspended';status_reason:string;revision:number;role:ControlRole;role_revision:number;handle:string|null;profile_name:string|null;profile_visibility:'private'|'public'|null;project_count:number;submission_count:number};
-type ObservedIdentity=PlatformIdentity&{signInProvider?:string};
+type ObservedIdentity=PlatformIdentity&{signInProvider?:string;firebaseCreatedAt?:number|null};
 export async function observeMember(db:D1Database,user:ObservedIdentity,now=Date.now()):Promise<void>{
  const provider=user.provider==='legacy'?'chatgpt':user.signInProvider==='google.com'?'google':user.signInProvider==='password'?'password':user.provider==='firebase'?'firebase':'unknown';
- await db.prepare(`INSERT INTO control_members(user_id,email,display_name,providers_json,email_verified,first_seen_at,last_seen_at,status,status_reason,revision,created_at,updated_at)
- VALUES(?,?,?,?,?,?,?,'active','',1,?,?) ON CONFLICT(user_id) DO UPDATE SET email=excluded.email,display_name=excluded.display_name,email_verified=excluded.email_verified,
+ await db.prepare(`INSERT INTO control_members(user_id,email,display_name,providers_json,email_verified,first_seen_at,last_seen_at,status,status_reason,revision,created_at,updated_at,firebase_created_at)
+ VALUES(?,?,?,?,?,?,?,'active','',1,?,?,?) ON CONFLICT(user_id) DO UPDATE SET email=excluded.email,display_name=excluded.display_name,email_verified=excluded.email_verified,
+ firebase_created_at=COALESCE(control_members.firebase_created_at,excluded.firebase_created_at),
  first_seen_at=COALESCE(control_members.first_seen_at,excluded.first_seen_at),last_seen_at=MAX(COALESCE(control_members.last_seen_at,0),excluded.last_seen_at),
  providers_json=(SELECT json_group_array(value) FROM (SELECT DISTINCT value FROM json_each(control_members.providers_json) UNION SELECT value FROM json_each(excluded.providers_json)))
- WHERE control_members.last_seen_at IS NULL OR control_members.last_seen_at < ? OR control_members.email<>excluded.email OR control_members.display_name<>excluded.display_name
+ WHERE (excluded.firebase_created_at IS NOT NULL AND control_members.firebase_created_at IS NULL) OR control_members.last_seen_at IS NULL OR control_members.last_seen_at < ? OR control_members.email<>excluded.email OR control_members.display_name<>excluded.display_name
  OR control_members.email_verified IS NOT excluded.email_verified OR NOT EXISTS(SELECT 1 FROM json_each(control_members.providers_json) WHERE value=?)`)
- .bind(user.userId,user.email.slice(0,254),user.displayName.slice(0,100),JSON.stringify([provider]),user.emailVerified===undefined?null:Number(user.emailVerified),now,now,now,now,now-300_000,provider).run();
+ .bind(user.userId,user.email.slice(0,254),user.displayName.slice(0,100),JSON.stringify([provider]),user.emailVerified===undefined?null:Number(user.emailVerified),now,now,now,now,user.firebaseCreatedAt??null,now-300_000,provider).run();
 }
 /** Preserve both identities' observed history; the alias row remains historical and is excluded from canonical lists. */
 export async function mergeLinkedObservation(db:D1Database,firebaseUserId:string,canonicalUserId:string):Promise<void>{

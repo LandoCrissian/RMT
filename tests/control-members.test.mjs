@@ -5,7 +5,7 @@ import {readFile,readdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {build} from 'esbuild';
 const root=fileURLToPath(new URL('../',import.meta.url)),env={};globalThis.__RMT_CONTROL_MEMBER_ENV__=env;
-const bundle=await build({stdin:{contents:`export * from './lib/server/control-access';export * from './lib/server/control-members';export * from './lib/server/control-audit';export * from './lib/server/control-overview';export * from './lib/server/control-health';export * from './lib/server/control-exports';export * from './lib/server/control-database';export * from './lib/server/runtime';export {InputError,validateSubmission,validateDecision} from './lib/submission-validation';export {createSubmission,reviewSubmission} from './lib/server/repository';export {GET as overviewGET} from './app/api/control/overview/route';export {GET as membersGET} from './app/api/control/members/route';export {GET as memberGET,PATCH as memberPATCH} from './app/api/control/members/[id]/route';export {POST as rolePOST} from './app/api/control/roles/route';export {GET as auditGET} from './app/api/control/audit/route';export {GET as healthGET} from './app/api/control/health/route';export {GET as exportGET} from './app/api/control/exports/route';export {GET as sessionGET} from './app/api/session/route';`,resolveDir:root,loader:'ts'},absWorkingDir:root,bundle:true,write:false,platform:'node',format:'esm',target:'node24',plugins:[{name:'control-test-environment',setup(build){
+const bundle=await build({stdin:{contents:`export * from './lib/server/platform-insights';export {GET as insightsGET} from './app/api/control/insights/route';export * from './lib/server/control-access';export * from './lib/server/control-members';export * from './lib/server/control-audit';export * from './lib/server/control-overview';export * from './lib/server/control-health';export * from './lib/server/control-exports';export * from './lib/server/control-database';export * from './lib/server/runtime';export {InputError,validateSubmission,validateDecision} from './lib/submission-validation';export {createSubmission,reviewSubmission} from './lib/server/repository';export {GET as overviewGET} from './app/api/control/overview/route';export {GET as membersGET} from './app/api/control/members/route';export {GET as memberGET,PATCH as memberPATCH} from './app/api/control/members/[id]/route';export {POST as rolePOST} from './app/api/control/roles/route';export {GET as auditGET} from './app/api/control/audit/route';export {GET as healthGET} from './app/api/control/health/route';export {GET as exportGET} from './app/api/control/exports/route';export {GET as sessionGET} from './app/api/session/route';`,resolveDir:root,loader:'ts'},absWorkingDir:root,bundle:true,write:false,platform:'node',format:'esm',target:'node24',plugins:[{name:'control-test-environment',setup(build){
  build.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'env'}));build.onLoad({filter:/.*/,namespace:'env'},()=>({contents:'export const env=globalThis.__RMT_CONTROL_MEMBER_ENV__;'}));
  build.onResolve({filter:/^\.\/firebase-auth$/},()=>({path:'auth',namespace:'auth'}));build.onLoad({filter:/.*/,namespace:'auth'},()=>({contents:`export const sessionCookie='fixture-session';export function cookieValue(request,name){return request.headers.get('cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(name+'='))?.slice(name.length+1)??null;}export async function verifyFirebaseToken(token){if(token!=='verified'||!globalThis.__RMT_CONTROL_MEMBER_AUTH__)throw new Error('Invalid fixture');return globalThis.__RMT_CONTROL_MEMBER_AUTH__;}export async function checkFirebaseAccount(){}`}));
 }}]});
@@ -179,4 +179,24 @@ test('release 13 migration preserves every pre-existing row and definition while
  for(const index of indexes)assert.equal(raw.prepare('SELECT sql FROM sqlite_master WHERE name=?').get(index.name).sql,index.sql);
  const historical=raw.prepare("SELECT * FROM control_members WHERE user_id='known'").get();assert.equal(historical.historical_since_at,100);assert.equal(historical.first_seen_at,null);assert.equal(historical.last_seen_at,null);assert.equal(historical.email_verified,null);assert.equal(historical.display_name,'Known builder');assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM control_members').get().n,1);
  }finally{raw.close();}
+});
+
+test('platform insights count confirmed registration dates and known external sources without exposing private members',async t=>{
+ const db=database(t),now=Date.UTC(2026,10,25,12),day='2026-11-25',start=now-86400000;
+ await member(db,'recent',{provider:'firebase',firebaseCreatedAt:start});
+ await member(db,'old',{provider:'firebase',firebaseCreatedAt:start-45*86400000});
+ await member(db,'unknown');
+ await member(db,'recent');
+ const insert=db.raw.prepare("INSERT INTO analytics_daily(day,project_id,kind,dimension,total) VALUES(?,?,?,?,?)");
+ db.raw.prepare('INSERT INTO analytics_meta(id,start_ms,active_day,accepted) VALUES(1,?,?,?)').run(start,day,20);
+ for(const [source,n] of [['X',2],['Direct or unknown',3],['RMT',1],['Search',4],['Other referral',2]])insert.run(day,'','visit',source,n);
+ insert.run(day,'','returning','',2);insert.run(day,'vamps','project_view','Search',3);
+ const data=await api.platformInsights(db,'7',now);
+ assert.deepEqual([data.registrations,data.visits,data.returningVisits,data.outsideX,data.admitted],[1,12,2,6,20]);
+ assert.equal(data.daily.length,2);assert.equal(data.engagement[0].views,3);assert.equal(data.claimed+data.unclaimed,23);
+ assert.equal((await api.platformInsights(db,'all',now)).registrations,2);
+ assert.ok(!JSON.stringify(data).includes('PRIVATE-'));
+ assert.equal((await api.insightsGET(request('/api/control/insights',{user:'unknown'}))).status,403);
+ assert.equal((await api.insightsGET(request('/api/control/insights',{account:'other'}))).status,409);
+ assert.equal((await api.insightsGET(request('/api/control/insights?period=31'))).status,400);
 });

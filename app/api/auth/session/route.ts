@@ -11,10 +11,10 @@ export async function POST(request: Request) {
     const body = await readMutation(request) as {idToken?: unknown};
     if (typeof body?.idToken !== 'string' || body.idToken.length > 12000) throw new InputError('Sign in again.', 401);
     const user = await verifyFirebaseToken(body.idToken);
-    await checkFirebaseAccount(body.idToken, user.firebaseUid, user.authTime);
+    const firebaseCreatedAt=await checkFirebaseAccount(body.idToken, user.firebaseUid, user.authTime);
     const db=database();
     const link=await db.prepare('SELECT legacy_user_id FROM account_links WHERE firebase_uid=?').bind(user.firebaseUid).first<{legacy_user_id:string}>();
-    const canonical={...user,userId:link?.legacy_user_id??user.userId,provider:'firebase'};
+    const canonical={...user,firebaseCreatedAt,userId:link?.legacy_user_id??user.userId,provider:'firebase'};
     await observeMember(db,canonical);
     if(await memberSuspended(db,canonical.userId,runtime().RMT_ADMIN_USER_IDS))throw new InputError('Your RMT account is suspended. Contact the site owner for help.',403);
     const response = json({ok: true, emailVerified: user.emailVerified});
