@@ -1,3 +1,4 @@
+import {communitySlug} from './project-permalinks';
 import {communityCardMark, reviewedCommunityArtwork} from './reviewed-community-artwork';
 import experienceArt from './experience-artwork.json';
 import {enrichProject} from './project-enrichment';
@@ -34,7 +35,7 @@ export function shareCardPlan(project:ShareArtworkProject) {
       (!!controlImageId(url) && (url===settings?.hero || Object.values(settings?.supporting??{}).includes(url))));
   }
   const supporting=Object.values(settings?.supporting??{}).find(usable);
-  const initialCommunityCard = project.source==='community' && project.id.startsWith('community-') && project.slug==='project-'+project.id.slice(10);
+  const initialCommunityCard = project.source==='community' && project.id.startsWith('community-') && project.slug===communitySlug(project.id.slice(10));
   const art = [settings?.hero,banner?.url,project.cover??seed?.cover,logo?.url,project.logo,supporting].find(usable) ?? (initialCommunityCard ? communityCardMark : undefined);
   const title = project.name ?? seed?.name;
   const enrichedAccent=project.links && project.category && typeof project.description==='string' && typeof project.tagline==='string'

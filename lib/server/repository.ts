@@ -1,3 +1,4 @@
+import {communitySlug} from '../project-permalinks';
 import {checkActiveSelection,readTaxonomy} from './taxonomy';
 import {applyReviewedCommunityArtwork} from '@/lib/reviewed-community-artwork';
 import {currentPresentation} from '@/lib/project-presentation';
@@ -40,7 +41,7 @@ export function publicProject(row: PublicSubmissionRow): Project {
     ? new Date(row.first_approved_at) : null;
   const listedAt = approvedAt && Number.isFinite(approvedAt.getTime()) ? approvedAt.toISOString() : undefined;
   return {
-    id: `community-${row.id}`, slug: `project-${row.id}`, name: row.name,
+    id: `community-${row.id}`, slug: communitySlug(row.id), name: row.name,
     tagline: row.summary, description: row.summary, category: row.category, stage: row.stage,
     officialXProfile: row.x_profile || undefined,
     website: row.website, launchUrl: row.launch_url, launchLabel: "Open project",

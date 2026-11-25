@@ -1,3 +1,4 @@
+import {legacyProjectRedirect} from '../lib/project-permalinks';
 import handler from "vinext/server/fetch-handler";
 import { runWithConnectorBinding } from "../lib/connector-context";
 import type { ConnectorBinding } from "../lib/connector-contract.mjs";
@@ -32,6 +33,8 @@ const worker = {
     return runWithConnectorBinding(binding, async () => {
       const siteDb=(env as Cloudflare.Env & {DB?:D1Database}).DB;
       if(siteDb){const unavailable=await maintenanceResponse(request,siteDb);if(unavailable)return unavailable;}
+      const redirect=legacyProjectRedirect(request);
+      if(redirect)return redirect;
       const response = await handler.fetch(request, env, ctx);
       // A member can hide a profile at any time. Never retain profile HTML/RSC
       // or a missing-profile result in a browser or edge cache.

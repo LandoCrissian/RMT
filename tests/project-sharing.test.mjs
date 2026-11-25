@@ -8,7 +8,7 @@ import sharp from 'sharp';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const compiled = await build({
-  stdin: {contents: `export * from './lib/project-sharing'; export * from './lib/reviewed-community-artwork'; export * from './lib/server/project-showcase'; export {createSubmission, reviewSubmission} from './lib/server/repository'; export {validateSubmission, validateDecision} from './lib/submission-validation'; export {seedProjects} from './lib/catalog';`, resolveDir: root, loader: 'ts'},
+  stdin: {contents: `export * from './lib/project-permalinks'; export * from './lib/project-sharing'; export * from './lib/reviewed-community-artwork'; export * from './lib/server/project-showcase'; export {createSubmission, reviewSubmission} from './lib/server/repository'; export {validateSubmission, validateDecision} from './lib/submission-validation'; export {seedProjects} from './lib/catalog';`, resolveDir: root, loader: 'ts'},
   absWorkingDir: root, bundle: true, write: false, platform: 'node', format: 'esm', target: 'node24',
 });
 const api = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
@@ -207,4 +207,18 @@ test('APEX artwork is reviewed for this exact approved listing and yields a comp
     assert.deepEqual([info.width,info.height],[width,height]);
     assert.ok(asset.includes(createHash('sha256').update(bytes).digest('hex').slice(0,8)));
   }
+});
+
+test('APEX changes its public permalink while existing links retain their query and other project routes stay distinct',()=>{
+ const id='a03d19b5-8cb0-47b6-97a8-23ecf5e5f194';
+ assert.equal(api.communitySlug(id),'apex-rising');
+ assert.equal(api.communitySlug('other'),'project-other');
+ const old='https://rmtlaunch.fun/projects/project-'+id+'/?source=share';
+ for(const method of ['GET','HEAD']){
+  const redirect=api.legacyProjectRedirect(new Request(old,{method}));
+  assert.equal(redirect.status,308);
+  assert.equal(redirect.headers.get('location'),'https://rmtlaunch.fun/projects/apex-rising?source=share');
+ }
+ assert.equal(api.legacyProjectRedirect(new Request('https://rmtlaunch.fun/projects/apex-rising')),null);
+ assert.equal(api.legacyProjectRedirect(new Request(old,{method:'POST'})),null);
 });
