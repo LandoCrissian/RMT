@@ -16,5 +16,6 @@ export function homepageMetadata(path:string):Metadata {
   const image={url:new URL(homepageArtwork(path),url).href,width:1200,height:630,
     type:path.endsWith('.png')?'image/png':'image/jpeg',alt:path===flagship?'RMT in electric lime. One chain. Endless possibilities.':'RMT homepage share artwork'};
   return {title,description,alternates:{canonical:url},openGraph:{type:'website',siteName:'RMT',title,description,url,images:[image]},
+    verification:{google:'IlZ_vFLirErj5H0OmqHsF3q7DkRm8m5G0YYJ5v7ktos'},
     twitter:{card:'summary_large_image',title,description,images:[image]}};
 }
