@@ -8,8 +8,8 @@ function describe(row){
  if(row.shortDescription)lines.push('Description · '+row.shortDescription);
  if(row.accent)lines.push('Brand color · '+row.accent);
  for(const [url,value] of Object.entries(row.destinations??{}))lines.push([url,value.label,value.copy].filter(Boolean).join(' · '));
- for(const art of row.artworkCandidates??[])lines.push('Artwork candidate · '+(typeof art==='string'?art:JSON.stringify(art)));
- for(const category of row.categorySuggestions??[])lines.push('Suggested category · '+(typeof category==='string'?category:JSON.stringify(category)));
+ for(const art of row.artworkCandidates??[])lines.push('Artwork candidate · '+(typeof art==='string'?art:art.kind+' · '+art.url));
+ for(const category of row.categorySuggestions??[])lines.push('Suggested category · '+(typeof category==='string'?category:category.id+' · '+category.evidence));
  return lines.join('\n').slice(0,3500);
 }
 export function deliveries(calendar,metadata,reviewed){
