@@ -21,8 +21,8 @@ function activityProject(project: Project): ActivityProject {
   };
 }
 
-export async function publicActivity(db: D1Database, page: ActivityPageInput): Promise<ActivityPage> {
-  const {projects} = await catalog(db);
+export async function publicActivity(db: D1Database, page: ActivityPageInput, scope?: {projects:Project[]; inboxUser?:string}): Promise<ActivityPage> {
+  const projects = scope?.projects ?? (await catalog(db)).projects;
   const projectsById = new Map(projects.map(project => [project.id, project]));
   // Only actual first-listing dates become events. Legacy entries without a
   // known date stay discoverable without pretending they have just joined.
@@ -33,6 +33,10 @@ export async function publicActivity(db: D1Database, page: ActivityPageInput): P
   const binds: (string | number)[] = [JSON.stringify(available)];
   let where = page.kind === 'all' ? '1=1' : 'kind=?';
   if (page.kind !== 'all') binds.push(page.kind);
+  if (scope?.inboxUser) {
+    where += ' AND update_id IS NOT NULL AND EXISTS(SELECT 1 FROM project_follows f WHERE f.user_id=? AND f.project_id=events.project_id AND f.followed_at<=events.happened_at)';
+    binds.push(scope.inboxUser);
+  }
   if (page.cursor) {
     where += ' AND (happened_at<? OR (happened_at=? AND id<?))';
     binds.push(page.cursor.at, page.cursor.at, page.cursor.id);
@@ -45,7 +49,7 @@ export async function publicActivity(db: D1Database, page: ActivityPageInput): P
   const result = await db.prepare(`WITH available_projects AS (
       SELECT json_extract(value,'$.id') AS project_id,json_extract(value,'$.listedAt') AS listed_at FROM json_each(?)
     ), events AS (
-      SELECT 'update-'||u.id AS id,u.project_id,u.kind,u.published_at AS happened_at,
+      SELECT 'update-'||u.id AS id,u.project_id,CASE WHEN u.is_event=1 THEN 'event' ELSE u.kind END AS kind,u.published_at AS happened_at,
         u.title,u.body,u.link_label,u.link_url,u.id AS update_id
       FROM project_updates u JOIN available_projects p ON p.project_id=u.project_id
       WHERE u.status='approved' AND u.published_at IS NOT NULL

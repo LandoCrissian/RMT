@@ -15,7 +15,7 @@ export const UPDATE_SUBMISSIONS_PER_DAY = 5;
 const DAY = 86_400_000;
 export type UpdateRow = {
   id: string; project_id: string; project_name: string; user_id: string; ownership_revision: number;
-  kind: UpdateKind; title: string; body: string; link_label: string; link_url: string;
+  kind: UpdateKind; is_event?: number; title: string; body: string; link_label: string; link_url: string;
   status: UpdateStatus; review_note: string; revision: number; published_at: number | null;
   created_at: number; updated_at: number; can_manage?: number;
 };
@@ -29,7 +29,7 @@ export {publicUpdateControlSql as publicUpdateContentGuard};
 export { publicGuard as publicUpdateProjectGuard, ownershipGuard as publicUpdateOwnershipGuard };
 const rowEligibility = `${ownershipGuard('project_updates')} AND ${publicGuard('project_updates')}`;
 const projection = `project_updates.*, CASE WHEN ${rowEligibility} THEN 1 ELSE 0 END AS can_manage`;
-function content(row: UpdateRow) {return {kind: row.kind, title: row.title, body: row.body, linkLabel: row.link_label, linkUrl: row.link_url};}
+function content(row: UpdateRow) {return {kind: row.is_event ? 'event' as const : row.kind, title: row.title, body: row.body, linkLabel: row.link_label, linkUrl: row.link_url};}
 export function privateProjectUpdate(row: UpdateRow, admin = false): ProjectUpdate {
   return {id: row.id, projectId: row.project_id, projectName: row.project_name, ...content(row), status: row.status,
     revision: row.revision, reviewNote: row.review_note, createdAt: row.created_at, updatedAt: row.updated_at,
@@ -59,8 +59,8 @@ export async function createProjectUpdate(db: D1Database, user: PlatformIdentity
   if (!owner) throw new InputError('This project is not available in your confirmed builder account.', 404);
   const id = crypto.randomUUID(), now = Date.now();
   const result = await db.prepare(`WITH candidate(id,project_id,project_name,user_id,ownership_revision,kind,title,body,link_label,link_url,created_at) AS (SELECT ?,?,?,?,?,?,?,?,?,?,?)
-    INSERT INTO project_updates(id,project_id,project_name,user_id,ownership_revision,kind,title,body,link_label,link_url,status,review_note,revision,published_at,created_at,updated_at)
-    SELECT id,project_id,project_name,user_id,ownership_revision,kind,title,body,link_label,link_url,'draft','',1,NULL,created_at,created_at FROM candidate
+    INSERT INTO project_updates(id,project_id,project_name,user_id,ownership_revision,kind,title,body,link_label,link_url,is_event,status,review_note,revision,published_at,created_at,updated_at)
+    SELECT id,project_id,project_name,user_id,ownership_revision,CASE WHEN kind='event' THEN 'announcement' ELSE kind END,title,body,link_label,link_url,kind='event','draft','',1,NULL,created_at,created_at FROM candidate
     WHERE ${ownershipGuard('candidate')} AND ${publicGuard('candidate')}
     AND (SELECT COUNT(*) FROM project_updates u WHERE u.user_id=candidate.user_id AND u.created_at>=?)<${UPDATE_DRAFTS_PER_DAY}
     AND (SELECT COUNT(*) FROM project_updates u WHERE u.user_id=candidate.user_id AND u.status IN ('draft','rejected') AND ${ownershipGuard('u')} AND ${publicGuard('u')})<${UPDATE_OPEN_DRAFTS}`)
@@ -125,9 +125,9 @@ export async function changeProjectUpdate(db:D1Database,user:PlatformIdentity,id
   const statements:D1PreparedStatement[]=[db.prepare(`INSERT INTO project_update_events(id,update_id,actor_id,action,previous_status,next_status,note,revision,created_at)
     SELECT ?,id,?,?,status,?,'',revision+1,? FROM project_updates WHERE ${guard}${quota}`).bind(...eventArgs)];
   const next=input.action==='save'?input.content:content(row);
-  statements.push(db.prepare(`UPDATE project_updates SET kind=?,title=?,body=?,link_label=?,link_url=?,status=?,review_note=?,revision=revision+1,updated_at=?
+  statements.push(db.prepare(`UPDATE project_updates SET kind=?,is_event=?,title=?,body=?,link_label=?,link_url=?,status=?,review_note=?,revision=revision+1,updated_at=?
     WHERE ${guard} AND EXISTS(SELECT 1 FROM project_update_events e WHERE e.id=? AND e.update_id=project_updates.id AND e.revision=project_updates.revision+1)`)
-    .bind(next.kind,next.title,next.body,next.linkLabel,next.linkUrl,nextStatus,input.action==='submit'?'':row.review_note,now,id,user.userId,row.revision,row.status,eventId));
+    .bind(next.kind==='event'?'announcement':next.kind,Number(next.kind==='event'),next.title,next.body,next.linkLabel,next.linkUrl,nextStatus,input.action==='submit'?'':row.review_note,now,id,user.userId,row.revision,row.status,eventId));
   if(input.action==='submit')statements.push(...pendingNotifications(db,{kind:'update',id,projectName:row.project_name,revision:row.revision+1,now}));
   let results:D1Result[];
   try{results=await db.batch(statements);}catch(error){return translateUnique(error);}

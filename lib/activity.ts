@@ -2,7 +2,7 @@ import type { Project } from './catalog';
 import type { UpdateKind } from './project-updates';
 import { InputError } from './submission-validation';
 
-export const activityKinds = ['all', 'announcement', 'progress', 'release', 'listing'] as const;
+export const activityKinds = ['all', 'announcement', 'progress', 'release', 'event', 'listing'] as const;
 export type ActivityFilter = (typeof activityKinds)[number];
 export type ActivityKind = UpdateKind | 'listing';
 export type ActivityProject = Pick<Project, 'id' | 'slug' | 'name' | 'category' | 'initials' | 'accent' | 'cover'

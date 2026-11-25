@@ -137,6 +137,7 @@ export const projectArtwork = sqliteTable('project_artwork', {
 
 
 export const projectUpdates = sqliteTable('project_updates', {
+  isEvent: integer('is_event').notNull().default(0),
   id: text('id').primaryKey(), projectId: text('project_id').notNull(), projectName: text('project_name').notNull(),
   userId: text('user_id').notNull(), ownershipRevision: integer('ownership_revision').notNull(),
   kind: text('kind').notNull(), title: text('title').notNull(), body: text('body').notNull(),
@@ -235,3 +236,14 @@ export const projectFollows = sqliteTable('project_follows', {
   userId:text('user_id').notNull(), projectId:text('project_id').notNull(), followedAt:integer('followed_at').notNull(),
 }, t=>[primaryKey({columns:[t.userId,t.projectId]}),index('project_follow_counts').on(t.projectId,t.userId),
   index('member_follow_timeline').on(t.userId,t.followedAt,t.projectId)]);
+
+export const discoveryMembers = sqliteTable('discovery_members', {
+  userId: text('user_id').primaryKey(), interests: text('interests').notNull().default('[]'),
+  notificationsEnabled: integer('notifications_enabled').notNull().default(1), onboarding: text('onboarding'),
+});
+export const discoveryReads = sqliteTable('discovery_reads', {
+  userId: text('user_id').notNull(), updateId: text('update_id').notNull().references(()=>projectUpdates.id),
+}, t=>[primaryKey({columns:[t.userId,t.updateId]})]);
+export const discoveryConfig = sqliteTable('discovery_config', {
+  id: text('id').primaryKey(), payloadJson: text('payload_json').notNull(), revision: integer('revision').notNull(),
+});

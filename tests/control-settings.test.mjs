@@ -8,6 +8,7 @@ import {build} from 'esbuild';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const environment={};globalThis.__RMT_SETTINGS_ENV__=environment;
 const bundle=await build({stdin:{contents:`
+ export {GET as discoveryGET,PATCH as discoveryPATCH} from './app/api/control/discovery/route';
  export {GET as follows} from './app/api/following/route';
  export {GET as count,PUT as follow,DELETE as unfollow} from './app/api/following/[projectId]/route';
  export * from './lib/homepage-art'; export {POST as artPOST} from './app/api/control/homepage-art/route';
@@ -170,4 +171,39 @@ test('project follows are private, idempotent, account-bound and separate from s
  assert.equal((await change(api.unfollow,'member')).status,200);assert.equal((await change(api.unfollow,'member')).status,200);
  assert.deepEqual(await count(),{count:0});
  assert.equal((await api.count(request(path,{user:null}),{params:Promise.resolve({projectId:'missing-project'})})).status,404);
+});
+test('discovery controls expose aggregate engagement, enforce permissions, and atomically audit recommendations and lessons',async t=>{
+ const db=database(t),path='/api/control/discovery';
+ db.raw.prepare('INSERT INTO discovery_members(user_id,interests,onboarding) VALUES(?,?,?)').run('quiet-member','["Tools"]','completed');
+ seedMember(db,'reviewer','moderator');
+ for(const [user,status] of [[null,401],['regular',403],['reviewer',403]]){
+   assert.equal((await api.discoveryGET(request(path,{user}))).status,status);
+   assert.equal((await api.discoveryPATCH(request(path,{user,method:'PATCH',body:{}}))).status,status);
+ }
+ const initial=await (await api.discoveryGET(request(path))).json();
+ assert.deepEqual(initial.stats,{completed:1,skipped:0,reads:0});
+ assert.equal(initial.config.revision,0);assert.equal(initial.projects.length,23);
+ assert.ok(initial.config.lessons.length>=1);assert.ok(!JSON.stringify(initial).includes('quiet-member'));
+ const edit={lessons:[{title:'Explore RMT',body:'Browse projects and read public updates.'}],categories:['Games'],recommendedIds:['vamps'],expectedRevision:0,reason:'Highlight public game updates.'};
+ const patch=(body,user='owner')=>api.discoveryPATCH(request(path,{method:'PATCH',body,user}));
+ const csrf=request(path,{method:'PATCH',body:edit});csrf.headers.set('origin','https://elsewhere.invalid');
+ assert.equal((await api.discoveryPATCH(csrf)).status,403);
+ for(const changes of [{recommendedIds:['nonexistent']},{categories:['Made up']},{lessons:[]},{lessons:[{title:'ok',body:''}]},{recommendedIds:['vamps','vamps']},{userId:'quiet-member'}])
+   assert.equal((await patch({...edit,...changes})).status,400);
+ const [a,b]=await Promise.all([patch(edit),patch(edit)]);
+ assert.deepEqual([a.status,b.status].sort(),[200,409]);
+ assert.equal(db.raw.prepare("SELECT COUNT(*) n FROM control_audit_events WHERE action='discovery.update'").get().n,1);
+ const saved=await (await api.discoveryGET(request(path))).json();
+ assert.deepEqual(saved.config,{categories:edit.categories,lessons:edit.lessons,recommendedIds:['vamps'],revision:1});
+ seedMember(db,'editor','admin');
+ db.beforeBatch=()=>db.raw.prepare("UPDATE control_roles SET role='member',revision=2 WHERE user_id='editor'").run();
+ assert.equal((await patch({...edit,expectedRevision:1},'editor')).status,409);
+ assert.equal(db.raw.prepare("SELECT COUNT(*) n FROM control_audit_events WHERE action='discovery.update'").get().n,1);
+ db.raw.exec("INSERT INTO project_controls(project_id,visibility,created_at,updated_at) VALUES('vamps','hidden',1,1)");
+ const hidden=await (await api.discoveryGET(request(path))).json();
+ assert.ok(!hidden.projects.some(p=>p.id==='vamps'));
+ assert.deepEqual(hidden.config.recommendedIds,['vamps']);
+ assert.equal((await patch({...edit,expectedRevision:1})).status,400);
+ assert.equal((await patch({...edit,recommendedIds:[],expectedRevision:1})).status,200);
+ assert.deepEqual((await (await api.discoveryGET(request(path))).json()).config.recommendedIds,[]);
 });

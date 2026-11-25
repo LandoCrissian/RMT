@@ -25,6 +25,7 @@ import Account, { LibrarySyncStatus, signInHref } from './Account';
 import { useProjectLibrary, type SessionStatus } from './use-project-library';
 import { DestinationDialog, type DestinationLink, LinkOptions, ManualCopyDialog } from './LinkOptions';
 import ProjectUpdates from './ProjectUpdates';
+import DiscoveryEntry from './DiscoveryEntry';
 import ActivityFeed from './ActivityFeed';
 import PublicProfilePage from './PublicProfilePage';
 import ProjectBuilders from './ProjectBuilders';
@@ -554,6 +555,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
               <button className="arrivals-more" onClick={browseNewest}>Browse newest additions <ArrowRight size={14} /></button>
             </aside>
           </section>}
+          {section === 'discover' && !hasSearch && <DiscoveryEntry key={followAccount ?? 'visitor'} account={followAccount} onActivity={()=>go('activity')}/>}
           {section === 'discover' && !hasSearch && category === 'All projects' && <section className="quick-return" aria-label="Your saved projects"><span className="quick-return-label"><Bookmark size={16} />Your shortcuts</span><div className="quick-return-projects">{savedProjects.slice(0, 4).map(project => <button key={project.id} onClick={() => openProject(project)} aria-haspopup="dialog">{project.name}<ArrowUpRight size={12} /></button>)}{!savedProjects.length && <span>Save a project to keep it one tap away.</span>}</div><button className="quick-return-library" onClick={() => go('library')}>My library <ArrowRight size={14} /></button></section>}
           {section === 'library' && <>
             {!hasSearch && <section className="library-home" aria-label="Your personal launchpad">
@@ -582,7 +584,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
           </section>
           {section === 'discover' && <section className="community-banner"><div className="community-banner-icon"><LayoutGrid size={26} /></div><div><h3>Your community built it. Let people find it.</h3><p>Games, creative tools, and projects deserve more than a buried link.</p></div><button className="button button-outline" onClick={() => go('studio')}>Join the directory <ArrowUpRight size={16} /></button></section>}
           <footer className="content-footer"><span>RMT is an independent directory. Listings don’t imply a partnership.</span><button onClick={() => go('studio')}>Built something? Let’s see it. <ArrowUpRight size={12} /></button></footer>
-        </> : section === 'activity' ? <ActivityFeed onProject={openActivityProject} onBuilder={openProjectManagement} onProfile={() => go('profile')} />
+        </> : section === 'activity' ? <ActivityFeed key={followAccount ?? 'visitor'} account={followAccount} signIn={signInHref('/#activity')} onProject={openActivityProject} onBuilder={openProjectManagement} onProfile={() => go('profile')} />
         : section === 'member' && memberHandle ? <PublicProfilePage key={memberHandle} handle={memberHandle} initialProfile={profileSeed} onHome={() => go('discover')} onCopy={copyLink} />
         : section === 'account' ? <Account session={sessionStatus === 'ready' ? session : emptySession} sessionStatus={sessionStatus} library={library} onRetrySession={() => void refreshSession()} onToast={notify} onLibrary={() => go('library')} onStudio={() => go('studio')} onReview={() => go('review')} onProfile={() => go('profile')} onControl={()=>go('control')} /> : section==='control'?null:<>
           {sessionStatus !== 'ready' && <div className={'library-load-state ' + (sessionStatus === 'error' ? 'library-load-error' : '')} role="status">{sessionStatus === 'loading' ? <LoaderCircle className="rmt-spin" size={18} /> : <AlertCircle size={18} />}<div><strong>{sessionStatus === 'loading' ? 'Checking your account…' : 'Your account needs a reconnect.'}</strong><p>Your private workspace opens after your account is checked.</p></div>{sessionStatus === 'error' && <button className="button button-outline" onClick={() => void refreshSession()}><RefreshCw size={14} /> Try again</button>}</div>}

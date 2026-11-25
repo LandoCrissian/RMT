@@ -1,8 +1,8 @@
-import { ArrowUpRight, Megaphone, Rocket, Wrench } from "lucide-react";
+import { ArrowUpRight, CalendarDays, Megaphone, Rocket, Wrench } from "lucide-react";
 import type { UpdateContent, UpdateStatus } from "@/lib/project-updates";
 import { safeHttpsLink } from "./studio-shared";
 
-export const updateKindLabels = { announcement: "Announcement", progress: "Build update", release: "Release" } as const;
+export const updateKindLabels = { announcement: "Announcement", progress: "Build update", release: "Release", event: "Event" } as const;
 export const updateStatusLabels: Record<UpdateStatus, string> = { draft: "Private draft", pending: "In review", approved: "Published", rejected: "Changes needed", archived: "Archived" };
 
 export function UpdateStatusBadge({ status }: { status: UpdateStatus }) {
@@ -12,7 +12,7 @@ export function UpdateStatusBadge({ status }: { status: UpdateStatus }) {
 export default function ProjectUpdatePreview({ content, projectName, initials, caption = "Preview · visible after approval" }: {
   content: UpdateContent; projectName: string; initials?: string; caption?: string;
 }) {
-  const Icon = { announcement: Megaphone, progress: Wrench, release: Rocket }[content.kind];
+  const Icon = { announcement: Megaphone, progress: Wrench, release: Rocket, event: CalendarDays }[content.kind];
   const link = safeHttpsLink(content.linkUrl);
   return <article className="up-preview">
     <div className="up-preview-top"><span className="up-project-icon">{initials ?? projectName.slice(0, 2).toUpperCase()}</span><div><strong>{projectName}</strong><span>{caption}</span></div></div>

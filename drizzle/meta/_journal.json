@@ -85,6 +85,13 @@
       "when": 1795568662069,
       "tag": "0011_project_following",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1795569474120,
+      "tag": "0012_personalized_discovery",
+      "breakpoints": true
     }
   ]
 }

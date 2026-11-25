@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, ArrowUpRight, BellRing, ChevronDown, ChevronUp, CircleAlert, Hammer, Megaphone, RefreshCw, Rocket, Terminal } from 'lucide-react';
+import { CalendarDays, ArrowLeft, ArrowRight, ArrowUpRight, BellRing, ChevronDown, ChevronUp, CircleAlert, Hammer, Megaphone, RefreshCw, Rocket, Terminal } from 'lucide-react';
 import type { Project } from '@/lib/catalog';
 import type { PublicProjectUpdate, UpdatesPage } from '@/lib/project-updates';
 import { publicUpdatesPage } from '@/lib/client/project-updates';
 import { updateKindLabels } from './ProjectUpdatePreview';
 import './project-updates.css';
 
-const kindIcons = {announcement: Megaphone, progress: Hammer, release: Rocket};
+const kindIcons = {announcement: Megaphone, progress: Hammer, release: Rocket, event: CalendarDays};
 
 function UpdateCard({update}: {update: PublicProjectUpdate}) {
   const [expanded, setExpanded] = useState(false);

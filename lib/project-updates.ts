@@ -1,6 +1,6 @@
 import { InputError, expectedRevision, field, publicHttpsUrl } from './submission-validation';
 
-export const updateKinds = ['announcement', 'progress', 'release'] as const;
+export const updateKinds = ['announcement', 'progress', 'release', 'event'] as const;
 export type UpdateKind = (typeof updateKinds)[number];
 export type UpdateStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'archived';
 export type UpdateContent = {kind: UpdateKind; title: string; body: string; linkLabel: string; linkUrl: string};
@@ -37,7 +37,7 @@ export function validateUpdateId(value: unknown): string {
 }
 export function validateUpdateContent(value: unknown, complete = false): UpdateContent {
   const input = object(value, contentFields);
-  if (!updateKinds.includes(input.kind as UpdateKind)) throw new InputError('Choose an announcement, progress update, or release.');
+  if (!updateKinds.includes(input.kind as UpdateKind)) throw new InputError('Choose an announcement, progress update, event, or release.');
   const title = field(input, 'title', complete ? 5 : 0, 100, 'Title');
   if (/[\r\n\t]/.test(title)) throw new InputError('Keep the title on one line.');
   const body = field(input, 'body', complete ? 20 : 0, 2400, 'Update');

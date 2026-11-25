@@ -9,7 +9,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const environment = {};
 globalThis.__RMT_ACTIVITY_TEST_ENV__ = environment;
 const bundle = await build({stdin: {contents: `
-  export * from './lib/activity'; export * from './lib/server/activity';
+  export * from './lib/server/discovery'; export {GET as discover,POST as modify} from './app/api/discovery/route'; export * from './lib/activity'; export * from './lib/server/activity';
   export * from './lib/client/activity'; export {getSeedProjects} from './lib/catalog';
   export {InputError} from './lib/submission-validation';
   export {GET} from './app/api/activity/route';
@@ -171,4 +171,49 @@ test('activity endpoint stays public and no-store, rejects malformed queries and
   environment.DB = {prepare() {throw new Error('Unavailable database');}};
   const unavailable = await api.GET(request(''));
   assert.equal(unavailable.status, 503); assert.equal('items' in await unavailable.json(), false);
+});
+
+test('discovery personalizes only eligible public items and isolates preferences and read receipts',async t=>{
+  const db=database(t);owner(db);update(db,'before',{published_at:at-1});
+  update(db,'event',{kind:'announcement',is_event:1});update(db,'pending',{status:'pending'});
+  insert(db,'project_follows',{project_id:'vamps',user_id:'alice',followed_at:at});
+  const load=(view,user=null)=>api.discovery(db,new URL('https://rmt.dev/api/discovery?view='+view),user);
+  const inbox=await load('notifications','alice');
+  assert.deepEqual(inbox.items.map(i=>[i.updateId,i.kind]),[['event','event']]);assert.equal(inbox.unreadCount,1);
+  assert.deepEqual((await load('notifications','bob')).items,[]);
+  await assert.rejects(api.changeDiscovery(db,'bob',{action:'read',id:'event'}),e=>e.status===404);
+  await api.changeDiscovery(db,'alice',{action:'read',id:'event'});
+  const read=await load('notifications','alice');assert.equal(read.unreadCount,0);assert.deepEqual(read.readIds,['event']);
+  const following=await load('following','alice');assert.deepEqual(following.items.map(i=>i.updateId),['event','before']);
+  assert.deepEqual((await load('for-you','alice')).items.map(i=>i.updateId),['event','before']);
+  await api.changeDiscovery(db,'alice',{action:'interests',interests:['Games']});
+  assert.deepEqual((await load('guide','alice')).interests,['Games']);assert.deepEqual((await load('guide','bob')).interests,[]);
+  assert.deepEqual((await load('guide')).interests,[]);
+  await api.changeDiscovery(db,'alice',{action:'interests',interests:[]});
+  await api.changeDiscovery(db,'alice',{action:'notifications',enabled:false});
+  const paused=await load('notifications','alice');assert.equal(paused.unreadCount,0);assert.deepEqual(paused.items,[]);
+  await api.changeDiscovery(db,'alice',{action:'notifications',enabled:true});
+  db.raw.exec("UPDATE project_updates SET status='archived' WHERE id='event'");
+  assert.deepEqual((await load('notifications','alice')).items,[]);
+  await assert.rejects(api.changeDiscovery(db,'alice',{action:'read',id:'event'}),e=>e.status===404);
+  await assert.rejects(load('following'),e=>e.status===401);
+  assert.equal((await api.discover(new Request('https://rmt.dev/api/discovery?view=notifications'))).status,401);
+  assert.equal((await api.modify(new Request('https://rmt.dev/api/discovery',{method:'POST'}))).status,401);
+  await assert.rejects(api.changeDiscovery(db,'alice',{action:'interests',interests:['secret category']}),e=>e.status===400);
+});
+
+test('discovery changes require same-origin authenticated requests for the current member',async t=>{
+  const db=database(t),url='https://rmt.dev/api/discovery';
+  function mutate(account,origin='https://rmt.dev',extra={}){
+    return api.modify(new Request(url,{method:'POST',headers:{origin,'content-type':'application/json',
+      'oai-authenticated-user-id':'alice','oai-authenticated-user-email':'alice@example.test','x-rmt-account':account},
+      body:JSON.stringify({action:'onboarding',outcome:'completed',...extra})}));
+  }
+  assert.equal((await mutate('bob')).status,409);
+  assert.equal((await mutate('alice','https://unrelated.example')).status,403);
+  assert.equal((await mutate('alice',undefined,{userId:'bob'})).status,400);
+  assert.equal((await mutate('alice')).status,200);
+  assert.deepEqual(db.raw.prepare('SELECT user_id FROM discovery_members').all().map(r=>r.user_id),['alice']);
+  db.raw.exec("UPDATE control_members SET status='suspended' WHERE user_id='alice'");
+  assert.equal((await mutate('alice')).status,403);
 });

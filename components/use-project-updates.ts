@@ -15,7 +15,7 @@ function isUpdate(value: unknown): value is ProjectUpdate {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
   return ["id", "projectId", "projectName", "title", "body", "linkLabel", "linkUrl", "reviewNote"].every(key => typeof row[key] === "string")
-    && ["announcement", "progress", "release"].includes(String(row.kind))
+    && ["announcement", "progress", "release", "event"].includes(String(row.kind))
     && ["draft", "pending", "approved", "rejected", "archived"].includes(String(row.status))
     && Number.isSafeInteger(row.revision) && Number(row.revision) > 0
     && typeof row.canManage === "boolean" && typeof row.createdAt === "number" && typeof row.updatedAt === "number"

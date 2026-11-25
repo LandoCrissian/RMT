@@ -4,6 +4,7 @@ import {Activity,ArrowUpRight,BarChart3,Bell,CheckCircle2,ChevronRight,Clipboard
 import {overviewResponse,type ControlCapability,type ControlOverview} from '@/lib/client/control';
 import {useControlApi,useControlResource} from '@/lib/client/use-control';
 import type {StudioSession} from './studio-shared';
+import ControlDiscovery from './control-discovery';
 import ControlMembers from './control-members';
 import ControlProjects from './control-projects';
 import {ControlContent,ControlHistory} from './control-content';
@@ -11,7 +12,7 @@ import {ControlAnalytics,ControlAppearance,ControlSystem} from './control-site';
 import {ConfirmDialog,ErrorPanel,Loading,PanelHeading,RefreshButton,RoleBadge,StatCard,controlDate} from './control-primitives';
 import './control-center.css';
 
-type Section='overview'|'members'|'projects'|'content'|'analytics'|'settings'|'roles'|'audit'|'health';
+type Section='overview'|'members'|'projects'|'content'|'analytics'|'settings'|'discovery'|'roles'|'audit'|'health';
 type Props={spotlights:{id:string;name:string}[];session:StudioSession;onToast:(message:string)=>void;onRetrySession?:()=>void;onReview:()=>void;onProject?:(id:string)=>void};
 const sections:{id:Section;label:string;capability:ControlCapability;icon:typeof Users}[]=[
   {id:'overview',label:'Overview',capability:'overview',icon:LayoutDashboard},
@@ -19,6 +20,7 @@ const sections:{id:Section;label:string;capability:ControlCapability;icon:typeof
   {id:'projects',label:'Projects',capability:'projects',icon:FolderKanban},
   {id:'content',label:'Content',capability:'content',icon:ClipboardCheck},
   {id:'analytics',label:'Insights',capability:'health',icon:BarChart3},
+  {id:'discovery',label:'Discovery',capability:'settings',icon:Radio},
   {id:'settings',label:'Appearance',capability:'settings',icon:Settings2},
   {id:'roles',label:'Team access',capability:'roles',icon:ShieldCheck},
   {id:'audit',label:'History',capability:'audit',icon:History},
@@ -47,6 +49,7 @@ function ControlWorkspace({spotlights,session,onToast,onRetrySession,onReview}:P
         {section==='projects'&&capabilities.includes('projects')&&<ControlProjects spotlights={spotlights} api={api} onToast={onToast} onReview={onReview} onDirty={setDirty}/>}
         {section==='content'&&capabilities.includes('content')&&<ControlContent api={api} onToast={onToast}/>}
         {section==='analytics'&&capabilities.includes('health')&&<ControlAnalytics api={api}/>}
+        {section==='discovery'&&capabilities.includes('settings')&&<ControlDiscovery api={api} onToast={onToast} onDirty={setDirty}/>}
         {section==='settings'&&capabilities.includes('settings')&&<ControlAppearance api={api} onToast={onToast} onDirty={setDirty}/>}
         {section==='roles'&&capabilities.includes('roles')&&<ControlMembers key="permissions" api={api} onToast={onToast} onReview={onReview} permissions/>}
         {section==='audit'&&capabilities.includes('audit')&&<ControlHistory api={api}/>}

@@ -14,7 +14,7 @@ export function publicUpdatesPage(value: unknown, projectId: string): UpdatesPag
     const item = value as Record<string, unknown>;
     if (typeof item.id !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,127}$/i.test(item.id) || ids.has(item.id) ||
         item.projectId !== projectId || typeof item.projectName !== 'string' || !item.projectName ||
-        !['announcement', 'progress', 'release'].includes(String(item.kind)) ||
+        !['announcement', 'progress', 'release', 'event'].includes(String(item.kind)) ||
         typeof item.title !== 'string' || item.title.length < 5 || item.title.length > 100 ||
         typeof item.body !== 'string' || item.body.length < 20 || item.body.length > 2400 ||
         typeof item.linkLabel !== 'string' || item.linkLabel.length > 50 ||

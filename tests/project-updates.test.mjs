@@ -206,3 +206,12 @@ test('normalized Unicode links cannot exceed the public update payload limit', (
  assert.equal(normalized.linkUrl,new URL(supported).href);
  assert.ok(normalized.linkUrl.length <= 2048);
 });
+
+test('events use the confirmed builder and reviewer publication workflow',async t=>{
+  const db=database(t);seedOwner(db);
+  const initial=await draft(db,'vamps',{kind:'event'});assert.equal(initial.kind,'event');
+  const pending=await action(db,initial,'submit');assert.equal(pending.kind,'event');
+  assert.deepEqual((await api.publicProjectUpdates(db,'vamps',page)).updates,[]);
+  await decision(db,pending);
+  assert.equal((await api.publicProjectUpdates(db,'vamps',page)).updates[0].kind,'event');
+});

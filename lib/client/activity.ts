@@ -58,7 +58,7 @@ export function publicActivityPage(value: unknown): ActivityPage {
   const items: ActivityItem[] = page.items.map(value => {
     const item = record(value);
     if (typeof item.id !== 'string' || !/^(?:update|listing)-[a-z0-9][a-z0-9_-]{0,127}$/i.test(item.id) || seen.has(item.id) ||
-        !['announcement', 'progress', 'release', 'listing'].includes(String(item.kind)) ||
+        !['announcement', 'progress', 'release', 'event', 'listing'].includes(String(item.kind)) ||
         !Number.isSafeInteger(item.publishedAt) || (item.publishedAt as number) < 0 || (item.publishedAt as number) > 8_640_000_000_000_000 ||
         typeof item.title !== 'string' || item.title.length < (item.kind === 'listing' ? 1 : 5) || item.title.length > 100 ||
         typeof item.body !== 'string' || item.body.length < (item.kind === 'listing' ? 0 : 20) || item.body.length > 2400 ||
