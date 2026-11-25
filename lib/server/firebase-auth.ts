@@ -15,6 +15,9 @@ export async function verifyFirebaseToken(token: string, keySet: JWTVerifyGetKey
     if (!payload.sub || payload.sub.length > 128 || typeof payload.email !== 'string' || payload.email.length > 254 ||
       typeof payload.auth_time !== 'number' || payload.auth_time > now.getTime() / 1000 ||
       typeof payload.iat !== 'number' || payload.iat > now.getTime() / 1000) throw new Error('Invalid identity');
+    // The production session path has no accepted wallet provenance or live link lookup yet.
+    if ((payload.firebase as {sign_in_provider?:unknown} | undefined)?.sign_in_provider === 'custom'
+        || 'rmt_wallet_link' in payload || 'rmt_wallet_generation' in payload) throw new Error('Wallet pilot disabled');
     return { userId: 'firebase:' + payload.sub, firebaseUid: payload.sub, email: payload.email,
       displayName: typeof payload.name === 'string' ? payload.name.slice(0, 100) : 'RMT member',
       emailVerified: payload.email_verified === true, authTime: payload.auth_time, expiresAt: payload.exp!,

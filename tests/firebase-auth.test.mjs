@@ -136,3 +136,11 @@ test('linking requires both identities, fresh verified sign-in and preserves lib
  assert.equal((await api.link(request('/api/auth/link',{idToken},{legacy:'different-owner'}))).status,409);
  assert.equal((await api.requireAdmin(request('/',null,{legacy:'old-owner',method:'GET'}))).userId,'old-owner');
 });
+test('disabled wallet pilot rejects custom and wallet-marked sessions before cookie issuance or legacy linking',async()=>{
+ for(const claims of [{firebase:{sign_in_provider:'custom'}},{firebase:{sign_in_provider:'custom'},rmt_wallet_link:'demo',rmt_wallet_generation:1},{firebase:{sign_in_provider:'password'},rmt_wallet_generation:1}]){
+  const idToken=await token(claims);
+  assert.equal((await api.login(request('/api/auth/session',{idToken}))).status,401);
+  assert.equal((await api.link(request('/api/auth/link',{idToken},{legacy:'old-owner'}))).status,401);
+  await assert.rejects(api.requireIdentity(request('/',null,{cookie:idToken,method:'GET'})),e=>e.status===401);
+ }
+});
