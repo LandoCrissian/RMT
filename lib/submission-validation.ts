@@ -1,3 +1,4 @@
+import {validSelection} from './taxonomy';
 export const categories = ["Games", "Music", "Tools", "Community"] as const;
 export type Category = (typeof categories)[number];
 export const projectStages = ["starting", "building", "beta", "live"] as const;
@@ -5,6 +6,7 @@ export type ProjectStage = (typeof projectStages)[number];
 export type SubmissionInput = {
   name: string;
   summary: string;
+  categoryIds?:string[];
   category: Category;
   stage: ProjectStage;
   website: string;
@@ -29,7 +31,7 @@ export class InputError extends Error {
 
 const allowedFields = new Set([
   "name", "summary", "category", "website", "launchUrl", "xProfile",
-  "contactEmail", "ownershipEvidence", "companyFax", "stage",
+  "contactEmail", "ownershipEvidence", "companyFax", "stage", "categoryIds",
 ]);
 const disallowedHosts = new Set(["localhost", "local", "internal", "example.com", "example.org", "example.net"]);
 
@@ -118,7 +120,7 @@ export function field(input: Record<string, unknown>, key: string, min: number, 
   if (typeof value !== "string") throw new InputError(`${label} is required.`, 400, "field:" + key);
   const clean = value.normalize("NFKC").trim();
   if (clean.length < min || clean.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(clean)) {
-    throw new InputError(`${label} must be ${min}–${max} characters.`, 400, "field:" + key);
+    throw new InputError(`${label} must be ${min}ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…“${max} characters.`, 400, "field:" + key);
   }
   return clean;
 }
@@ -142,17 +144,18 @@ export function validateSubmission(value: unknown): SubmissionInput {
   const contactEmail = isBlank(input.contactEmail) ? "" : field(input, "contactEmail", 3, 254, "Contact email");
   if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) throw new InputError("Enter a valid contact email.", 400, "field:contactEmail");
   const ownershipEvidence = field(input, "ownershipEvidence", 20, 1000, "Ownership evidence");
-  return {name, summary, category: input.category as Category, stage: stage as ProjectStage, website, launchUrl, xProfile, contactEmail,
+  if(input.categoryIds!==undefined&&!validSelection(input.categoryIds))throw new InputError('Choose one primary category and distinct secondary categories.');
+  return {name, summary,...(input.categoryIds?{categoryIds:input.categoryIds as string[]}:{}), category: input.category as Category, stage: stage as ProjectStage, website, launchUrl, xProfile, contactEmail,
     ownershipEvidence, normalizedHost: projectIdentityKey(website, xProfile), normalizedName: normalizeName(name)};
 }
 
 export const decisionActions = ["approve", "reject", "request_changes", "suspend"] as const;
 export type DecisionAction = (typeof decisionActions)[number];
-export type DecisionInput = {action: DecisionAction; note: string; expectedRevision: number};
+export type DecisionInput = {action: DecisionAction; categoryIds?:string[]; note: string; expectedRevision: number};
 export function validateDecision(value: unknown): DecisionInput {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new InputError("Send a valid review decision.");
   const input = value as Record<string, unknown>;
-  const permitted = new Set(["action", "note", "confirmedOwnership", "checkedLinks", "expectedRevision"]);
+  const permitted = new Set(["action", "note", "confirmedOwnership", "checkedLinks", "expectedRevision","categoryIds"]);
   if (Object.keys(input).some(key => !permitted.has(key))) throw new InputError("Unsupported review field.");
   if (!decisionActions.includes(input.action as DecisionAction)) throw new InputError("Choose a valid review action.");
   const note = field(input, "note", 5, 1000, "Review note");
@@ -160,7 +163,8 @@ export function validateDecision(value: unknown): DecisionInput {
   if (input.action === "approve" && (input.confirmedOwnership !== true || input.checkedLinks !== true)) {
     throw new InputError("Confirm project ownership and check all links before approving.");
   }
-  return {action: input.action as DecisionAction, note, expectedRevision: input.expectedRevision as number};
+  if(input.categoryIds!==undefined&&(input.action!=='approve'||!validSelection(input.categoryIds)))throw new InputError('Choose valid categories for approval.');
+  return {...(input.categoryIds?{categoryIds:input.categoryIds as string[]}:{}),action: input.action as DecisionAction, note, expectedRevision: input.expectedRevision as number};
 }
 
 export type ProjectLink = {label: string; url: string; type?: string};

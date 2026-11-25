@@ -90,3 +90,14 @@ test('analytics route requires authentication, exact account and a supported per
  assert.equal((await call('?userId=owner',headers)).status,400);
  const ok=await call('?period=30',headers);assert.equal(ok.status,200);assert.match(ok.headers.get('cache-control'),/no-store/);
 });
+
+test('builder analytics reports current category names once while preserving recorded traffic totals',async t=>{
+ const db=dbFor(t);meta(db,3);
+ db.sql.prepare("INSERT INTO analytics_daily(day,project_id,kind,dimension,total) VALUES(?,'vamps','project_view','direct',7)").run(date(now));
+ db.sql.exec("INSERT INTO taxonomy_categories(id,name,position) VALUES('culture','Culture',30); INSERT INTO project_categories VALUES('vamps','culture',0)");
+ const report=await api.readBuilderAnalytics(db,'owner','vamps','7',now);
+ assert.ok(report.categories.includes('Culture'));assert.equal(report.current.views,7);
+ db.sql.exec("UPDATE taxonomy_categories SET name='Local culture' WHERE id='culture'");
+ const renamed=await api.readBuilderAnalytics(db,'owner','vamps','7',now);
+ assert.ok(renamed.categories.includes('Local culture'));assert.equal(renamed.current.views,7);
+});

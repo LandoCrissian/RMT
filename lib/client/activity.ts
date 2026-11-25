@@ -33,12 +33,16 @@ function project(value: unknown): ActivityProject {
       (data.coverFit !== undefined && data.coverFit !== 'cover' && data.coverFit !== 'contain') ||
       (data.coverAspectRatio !== undefined && (typeof data.coverAspectRatio !== 'number' || !Number.isFinite(data.coverAspectRatio) || data.coverAspectRatio <= 0 || data.coverAspectRatio > 100)) ||
       (data.coverBackground !== undefined && (typeof data.coverBackground !== 'string' || !colorPattern.test(data.coverBackground)))) throw invalid();
+  const categoryNames=data.categoryNames;
+  if(categoryNames!==undefined&&(!Array.isArray(categoryNames)||!categoryNames.length||categoryNames.length>32||
+    !categoryNames.every(s=>typeof s==='string'&&s.trim()&&s.length<=100)))throw invalid();
   const cover = data.cover === 'community' ? 'community' : localImage(data.cover);
   const images = data.artwork === undefined ? undefined : record(data.artwork);
   const logoArtwork = images?.logo === undefined ? undefined : artwork(images.logo);
   const bannerArtwork = images?.banner === undefined ? undefined : artwork(images.banner);
   return {
     id: data.id, slug: data.slug, name: data.name, category: data.category as ActivityProject['category'],
+    ...(categoryNames?{categoryNames}:{}),
     initials: data.initials, accent: data.accent, cover,
     ...(data.coverFit ? {coverFit: data.coverFit as ActivityProject['coverFit']} : {}),
     ...(data.coverAspectRatio ? {coverAspectRatio: data.coverAspectRatio as number} : {}),

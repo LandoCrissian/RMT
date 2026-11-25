@@ -134,3 +134,9 @@ test('approved community websites yield bounded first-party artwork suggestions 
   assert.deepEqual(requested,[site]);
   assert.deepEqual(rows[0].artworkCandidates,[{kind:'share',url:site+'card.webp'},{kind:'logo',url:site+'logo.png'}]);
 });
+
+test('category suggestions retain first-party evidence, deduplicate and exclude promotional futures',async()=>{
+ const {suggestCategories}=await import('../lib/category-suggestions.mjs');
+ const rows=suggestCategories([{kind:'website',url:'https://project.dev/',shortDescription:'Play the game. Our NFT collection is coming soon. Our browser game is available.'},{kind:'x',url:'https://x.com/account',shortDescription:'ERC-721 and price charts.'}]);
+ assert.deepEqual(rows,[{id:'gaming',source:'https://project.dev/',evidence:'Play the game'}]);
+});

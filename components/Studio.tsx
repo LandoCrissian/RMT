@@ -1,4 +1,6 @@
 "use client";
+import CategoryFields from './CategoryFields';
+import {defaultCategories,legacyCategory,legacyPrimary} from '@/lib/taxonomy';
 import ProjectLinkInput from "./ProjectLinkInput";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
@@ -18,6 +20,8 @@ const emptyForm: SubmissionForm = { name: "", summary: "", category: "Games", st
 export default function Studio({ session, onToast }: StudioProps) {
   const [section, setSection] = useState<"add" | "projects" | "claims">("add");
   useEffect(() => { setSection(studioSectionFromSearch(window.location.search)); }, []);
+  const [choices,setChoices]=useState(defaultCategories);
+  useEffect(()=>{const c=new AbortController();fetch('/api/catalog',{signal:c.signal}).then(r=>r.json() as Promise<{categories?:import('@/lib/taxonomy').TaxonomyCategory[]}>).then(data=>{if(Array.isArray(data.categories))setChoices(data.categories);}).catch(()=>{});return()=>c.abort();},[]);
   const [form, setForm] = useState<SubmissionForm>(emptyForm);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(false);
@@ -95,7 +99,7 @@ export default function Studio({ session, onToast }: StudioProps) {
     setReceived(null);
     setError("");
     setEditing(submission);
-    setForm({ name: submission.name, summary: submission.summary, category: submission.category, stage: submission.stage ?? "building", website: submission.website, launchUrl: submission.launchUrl, xProfile: submission.xProfile, contactEmail: submission.contactEmail ?? "", ownershipEvidence: submission.ownershipEvidence, companyFax: "" });
+    setForm({ name: submission.name, summary: submission.summary, category: submission.category, categoryIds:submission.categoryIds?.length?submission.categoryIds:undefined, stage: submission.stage ?? "building", website: submission.website, launchUrl: submission.launchUrl, xProfile: submission.xProfile, contactEmail: submission.contactEmail ?? "", ownershipEvidence: submission.ownershipEvidence, companyFax: "" });
     document.getElementById("st-application")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -143,7 +147,7 @@ export default function Studio({ session, onToast }: StudioProps) {
               {editing && <div className="st-information">Your edits will go back into review. {editing.reviewNote || editing.reviewerNote || "Check the feedback on your application below."}<button type="button" onClick={() => { forgetSubmissionDraft(); setEditing(null); setForm(emptyForm); }}>Cancel editing</button></div>}
               <div className="st-fields-two">
                 <label className="st-field">Project name<input name="name" aria-invalid={fieldError?.field === "name" || undefined} aria-describedby={fieldError?.field === "name" ? "submission-field-error" : undefined} autoComplete="organization" placeholder="Your project’s name" minLength={3} maxLength={70} required value={form.name} onChange={event => change("name", event.target.value)} />{fieldError?.field === "name" && <span id="submission-field-error" className="st-error" role="alert">{fieldError.message}</span>}</label>
-                <label className="st-field">Category<select name="category" value={form.category} onChange={event => change("category", event.target.value)}><option>Games</option><option>Music</option><option>Tools</option><option>Community</option></select></label>
+                <CategoryFields choices={choices} ids={form.categoryIds?.length?form.categoryIds:[legacyPrimary[form.category]]} onChange={ids=>{const next={...form,category:legacyCategory(ids[0]),categoryIds:ids};setForm(next);if(session.userId)saveSubmissionDraft(session.userId,next,editing);}}/>
               </div>
               <label className="st-field">Short description<textarea name="summary" aria-invalid={fieldError?.field === "summary" || undefined} aria-describedby={fieldError?.field === "summary" ? "submission-field-error" : undefined} placeholder="What are you creating, and who is it for? Early ideas are welcome." minLength={30} maxLength={280} rows={3} required value={form.summary} onChange={event => change("summary", event.target.value)} /><span className="st-field-hint"><span>30–280 characters. Keep it clear and useful.</span><span>{form.summary.length}/280</span></span>{fieldError?.field === "summary" && <span id="submission-field-error" className="st-error" role="alert">{fieldError.message}</span>}</label>
               <label className="st-field">Where are you in the journey?<select name="stage" value={form.stage} onChange={event => change("stage", event.target.value)}><option value="starting">Starting out — an idea taking shape</option><option value="building">In development — work in progress</option><option value="beta">Beta — ready for early feedback</option><option value="live">Live — ready to explore</option></select><span className="st-hint">You can join before launching an NFT, token, game, or app.</span></label>

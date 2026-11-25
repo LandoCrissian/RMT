@@ -6,7 +6,7 @@ import {build} from 'esbuild';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const bundle=await build({entryPoints:['lib/client/discovery.ts'],absWorkingDir:root,bundle:true,write:false,platform:'node',format:'esm'});
 const {readDiscovery,saveDiscovery}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
-const page={member:false,items:[],nextCursor:null,hasMore:false,lessons:[],categories:['Games'],interests:[],readIds:[],unreadCount:0,recommendedProjects:[],notificationsEnabled:true};
+const page={member:false,items:[],nextCursor:null,hasMore:false,lessons:[],categories:['Games'],categoryLabels:{Games:'Games'},interests:[],readIds:[],unreadCount:0,recommendedProjects:[],notificationsEnabled:true};
 const read=account=>readDiscovery(new URLSearchParams({view:'all'}),account,new AbortController().signal);
 test('anonymous discovery omits credentials and rejects accidental private state',async t=>{
   let body=page;

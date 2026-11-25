@@ -24,5 +24,5 @@ export default async function ProjectPage({params}: Props) {
   const {slug} = await params;
   const showcase = await loadShowcase(slug);
   if (!showcase) notFound();
-  return <Hub initialProjectId={showcase.project.id} initialProjects={showcase.projects} />;
+  return <Hub initialProjectId={showcase.project.id} initialProjects={showcase.projects} initialCategories={showcase.categories} />;
 }

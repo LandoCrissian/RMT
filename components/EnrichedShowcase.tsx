@@ -1,6 +1,7 @@
 import {ArrowLeft, ArrowUpRight, Layers3} from 'lucide-react';
 import type {ReactNode} from 'react';
 import type {Project} from '@/lib/catalog';
+import {projectCategoryLabels} from '@/lib/project-search';
 import type {enrichProject} from '@/lib/project-enrichment';
 import {LinkOptions, type DestinationLink} from './LinkOptions';
 import {stageLabel} from './studio-shared';
@@ -26,7 +27,7 @@ export function ShowcaseHero({project, enrichment, experiences, logo, onBack}: {
     </div>
     <div className="enriched-hero-grid">
       <div className="enriched-heading">
-        <div className="enriched-meta">{logo}<span>{enrichment.categoryLabel || project.category}</span>
+        <div className="enriched-meta">{logo}<span>{project.classification ? projectCategoryLabels(project)[0] : enrichment.categoryLabel || project.category}</span>
           {project.id === 'lammbs' && <span>RMT creator project</span>}
           {project.stage && <span>{stageLabel(project.stage)}</span>}
         </div>

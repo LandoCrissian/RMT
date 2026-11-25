@@ -8,6 +8,7 @@ const MAX_PAGE_SIZE = 48;
 type DiscoveryOptions = {
   query?: string;
   category?: string;
+  categories?: readonly string[];
   savedIds?: readonly string[];
   sort?: DirectorySort;
   page?: number;

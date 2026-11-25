@@ -622,3 +622,16 @@ test('restoring a suspended listing preserves a legitimately transferred active 
   assert.equal((await api.ownedProjects(db,'new-manager')).projects[0].project.id,id);
   assert.equal((await api.ownedProjects(db,user.userId)).projects.length,0);
 });
+
+test('builder classifications require review and the administrator-approved selection publishes atomically',async t=>{
+ const db=database();t.after(()=>db.close());
+ const sub=await api.createSubmission(db,user,input('classified',{categoryIds:['gaming','nft']}));
+ assert.deepEqual(sub.categoryIds,['gaming','nft']);
+ assert.equal((await api.catalog(db)).projects.some(p=>p.id==='community-'+sub.id),false);
+ await assert.rejects(api.reviewSubmission(db,'admin',sub.id,decision('approve',1,{categoryIds:['missing']})),rejection(409));
+ await api.reviewSubmission(db,'admin',sub.id,decision('approve',1,{categoryIds:['nft','apps']}));
+ const project=(await api.catalog(db)).projects.find(p=>p.id==='community-'+sub.id);
+ assert.equal(project.classification.primary,'nft');
+ assert.deepEqual(project.classification.secondary,['apps']);
+ assert.equal(project.claimed,true);
+});

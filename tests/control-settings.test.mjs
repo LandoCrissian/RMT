@@ -194,7 +194,7 @@ test('discovery controls expose aggregate engagement, enforce permissions, and a
  assert.deepEqual([a.status,b.status].sort(),[200,409]);
  assert.equal(db.raw.prepare("SELECT COUNT(*) n FROM control_audit_events WHERE action='discovery.update'").get().n,1);
  const saved=await (await api.discoveryGET(request(path))).json();
- assert.deepEqual(saved.config,{categories:edit.categories,lessons:edit.lessons,recommendedIds:['vamps'],revision:1});
+ assert.deepEqual(saved.config,{categories:['gaming'],lessons:edit.lessons,recommendedIds:['vamps'],revision:1});
  seedMember(db,'editor','admin');
  db.beforeBatch=()=>db.raw.prepare("UPDATE control_roles SET role='member',revision=2 WHERE user_id='editor'").run();
  assert.equal((await patch({...edit,expectedRevision:1},'editor')).status,409);

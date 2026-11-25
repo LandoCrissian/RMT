@@ -11,6 +11,7 @@ export type Project = {
   tagline: string;
   description: string;
   category: Category;
+  classification?: import('./taxonomy').Classification;
   website: string;
   launchUrl: string;
   launchLabel: string;

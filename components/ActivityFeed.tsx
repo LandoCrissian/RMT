@@ -4,6 +4,7 @@ import {useEffect, useRef, useState} from 'react';
 import {ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, ChevronUp, Bell, CalendarDays, CircleAlert, Compass, Hammer, Megaphone, Radio, RefreshCw, Rocket, Terminal, UserRound} from 'lucide-react';
 import type {ActivityItem} from '@/lib/activity';
 import {readDiscovery,saveDiscovery,type DiscoveryPage} from '@/lib/client/discovery';
+import InterestPicker from './InterestPicker';
 import './activity.css';
 import {recordSiteMetric} from '@/lib/client/site-metrics';
 
@@ -38,7 +39,7 @@ function ActivityCard({item, onProject}: {item: ActivityItem; onProject: (id: st
   }
   return <article className={'activity-card activity-kind-' + item.kind} aria-labelledby={'activity-title-' + item.id}>
     <div className="activity-card-top">
-      <a className="activity-project" href={href} onClick={open}><Artwork project={item.project} /><span><strong>{item.project.name}</strong><small>{item.project.category}</small></span></a>
+      <a className="activity-project" href={href} onClick={open}><Artwork project={item.project} /><span><strong>{item.project.name}</strong><small>{item.project.categoryNames?.join(' · ')??item.project.category}</small></span></a>
       <time dateTime={date.toISOString()}>{date.toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}</time>
     </div>
     {item.kind === 'listing' && <a className="activity-banner-link" href={href} onClick={open} aria-label={'Explore ' + item.project.name}><Artwork project={item.project} banner /><span>MEET THE PROJECT <ArrowUpRight size={16} /></span></a>}
@@ -60,24 +61,6 @@ const criteria: Record<View,string> = {
   all:'Every public listing and reviewed project update, newest first.',
   notifications:'Reviewed updates published after you followed a project, newest first.',
 };
-
-function InterestPicker({page,busy,onSave}:{page:DiscoveryPage;busy:boolean;onSave:(values:string[])=>Promise<boolean>}) {
-  const [open,setOpen]=useState(false);
-  const [selected,setSelected]=useState(page.interests);
-  useEffect(()=>{setSelected(page.interests);},[page.interests]);
-  async function save(values:string[]) {
-    if(await onSave(values))setOpen(false);
-  }
-  return <section className="activity-profile-card interest-picker">
-    <h2>Your interests</h2>
-    {open?<><fieldset disabled={busy}><legend>Choose the topics you want to follow.</legend>
-      {page.categories.map(category=><label key={category}><input type="checkbox" checked={selected.includes(category)} onChange={event=>setSelected(current=>event.target.checked?[...current,category]:current.filter(value=>value!==category))}/>{category}</label>)}</fieldset>
-      <div className="preference-actions"><button type="button" disabled={busy} onClick={()=>void save(selected)}>Save interests</button>
-      <button type="button" disabled={busy} onClick={()=>{setSelected(page.interests);setOpen(false);}}>Cancel</button></div>
-      {(page.interests.length>0)&&<button type="button" disabled={busy} onClick={()=>void save([])}>Reset interests</button>}</>
-    :<><p>{page.interests.length?page.interests.join(' · '):'Choose topics for your For You feed. Your selections are private.'}</p><button type="button" onClick={()=>setOpen(true)}>Edit interests <ArrowRight size={15}/></button></>}
-  </section>;
-}
 
 export default function ActivityFeed({account,requestedView,onView,signIn,onProject,onBuilder,onProfile}:{
   account:string|null;requestedView:View|null;onView:(view:View)=>void;signIn:string;onProject:(id:string,updates:boolean)=>boolean;onBuilder:()=>void;onProfile:()=>void

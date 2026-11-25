@@ -1,4 +1,5 @@
-import {categories, InputError} from '@/lib/submission-validation';
+import {InputError} from '@/lib/submission-validation';
+import {legacyPrimary} from '@/lib/taxonomy';
 import {defaultLessons} from '@/lib/discovery-defaults';
 import {controlActorGuard,controlObject,controlReason,controlRevision,type ControlActor} from './control-access';
 import {auditInsert} from './control-audit';
@@ -21,10 +22,19 @@ function list(value:unknown,max:number) {
     throw new InputError('Choose unique entries from the available options.');
   return value as string[];
 }
-function parseConfig(value:unknown):DiscoveryConfig {
+type Option = {id:string;name:string};
+export function interestId(value:string){
+  return Object.hasOwn(legacyPrimary,value)?legacyPrimary[value as keyof typeof legacyPrimary]:value;
+}
+async function activeOptions(db:D1Database){
+  return (await db.prepare('SELECT id,name FROM taxonomy_categories WHERE archived=0 ORDER BY position,id').all<Option>()).results;
+}
+function parseConfig(value:unknown,options:Option[],stored=false):DiscoveryConfig {
   const input=controlObject(value,['categories','lessons','recommendedIds']);
-  const enabled=list(input.categories,categories.length);
-  if(!enabled.every(category=>categories.some(choice=>choice===category)))throw new InputError('Choose a supported project interest.');
+  const normalized=list(input.categories,stored?Infinity:options.length).map(interestId);
+  const selected=new Set(normalized);
+  const enabled=options.filter(option=>selected.has(option.id)).map(option=>option.id);
+  if(!stored&&normalized.length!==enabled.length)throw new InputError('Choose a supported project interest.');
   if(!Array.isArray(input.lessons)||input.lessons.length<1||input.lessons.length>10)throw new InputError('Include between one and ten guide lessons.');
   const lessons=input.lessons.map(item=>{
     const lesson=controlObject(item,['title','body']);
@@ -32,28 +42,31 @@ function parseConfig(value:unknown):DiscoveryConfig {
   });
   return {categories:enabled,lessons,recommendedIds:list(input.recommendedIds,12)};
 }
-async function versionedConfig(db:D1Database):Promise<Versioned> {
+async function versionedConfig(db:D1Database,options:Option[]):Promise<Versioned> {
   const row=await db.prepare("SELECT payload_json,revision FROM discovery_config WHERE id='discovery'").first<{payload_json:string;revision:number}>();
-  if(row)return {...parseConfig(JSON.parse(row.payload_json)),revision:row.revision};
-  return {categories:[...categories],lessons:structuredClone(defaultLessons),recommendedIds:[],revision:0};
+  if(row)return {...parseConfig(JSON.parse(row.payload_json),options,true),revision:row.revision};
+  return {categories:options.map(c=>c.id),lessons:structuredClone(defaultLessons),recommendedIds:[],revision:0};
 }
-export async function getDiscoveryConfig(db:D1Database):Promise<DiscoveryConfig> {
-  const {revision,...config}=await versionedConfig(db);
-  return config;
+export async function getDiscoveryConfig(db:D1Database) {
+  const options=await activeOptions(db);
+  const {revision,...config}=await versionedConfig(db,options);
+  return {...config,categoryLabels:Object.fromEntries(options.filter(c=>config.categories.includes(c.id)).map(c=>[c.id,c.name]))};
 }
 export async function discoveryWorkspace(db:D1Database){
-  const [config,listing,stats]=await Promise.all([versionedConfig(db),catalog(db),db.prepare(
+  const options=await activeOptions(db);
+  const [config,listing,stats]=await Promise.all([versionedConfig(db,options),catalog(db),db.prepare(
     "SELECT COUNT(CASE WHEN onboarding='completed' THEN 1 END) AS completed, COUNT(CASE WHEN onboarding='skipped' THEN 1 END) AS skipped,(SELECT COUNT(*) FROM discovery_reads) AS reads FROM discovery_members"
   ).first<{completed:number;skipped:number;reads:number}>()]);
   if(!stats)throw new Error('Unable to retrieve discovery statistics');
-  return {config,projects:listing.projects.map(p=>({id:p.id,name:p.name})),stats};
+  return {config,options,projects:listing.projects.map(p=>({id:p.id,name:p.name})),stats};
 }
 export async function changeDiscoveryConfig(db:D1Database,actor:ControlActor,value:unknown) {
   if(!actor.capabilities.includes('settings'))throw new InputError('Discovery settings require administrator access.',403);
   const input=controlObject(value,['expectedRevision','reason','categories','recommendedIds','lessons']);
   const {expectedRevision,reason,...fields}=input;
-  const expected=controlRevision(expectedRevision),note=controlReason(reason),next=parseConfig(fields);
-  const before=await versionedConfig(db);
+  const options=await activeOptions(db);
+  const expected=controlRevision(expectedRevision),note=controlReason(reason),next=parseConfig(fields,options);
+  const before=await versionedConfig(db,options);
   if(expected!==before.revision)throw new InputError('Discovery settings changed. Reload before saving.',409);
   if(next.recommendedIds.length){
     const available=new Set((await catalog(db)).projects.map(p=>p.id));

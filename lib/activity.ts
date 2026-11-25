@@ -6,7 +6,7 @@ export const activityKinds = ['all', 'announcement', 'progress', 'release', 'eve
 export type ActivityFilter = (typeof activityKinds)[number];
 export type ActivityKind = UpdateKind | 'listing';
 export type ActivityProject = Pick<Project, 'id' | 'slug' | 'name' | 'category' | 'initials' | 'accent' | 'cover'
-  | 'coverFit' | 'coverAspectRatio' | 'coverBackground' | 'logo' | 'artwork'>;
+  | 'coverFit' | 'coverAspectRatio' | 'coverBackground' | 'logo' | 'artwork'> & {categoryNames?:string[]};
 export type ActivityItem = {
   id: string;
   kind: ActivityKind;

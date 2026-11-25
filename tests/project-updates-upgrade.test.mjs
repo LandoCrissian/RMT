@@ -117,7 +117,7 @@ test('updates migration preserves existing accounts, ownership, artwork, library
   // database-only test cannot catch a dropped column, lost row, or reset retry.
   db.exec(upgradeSchema);
   for (const table of tables) {
-    const expected = table === 'project_claims' ? records[table].map(row => ({...row, proof_method:'manual'})) : records[table];
+    const expected = table === 'project_claims' ? records[table].map(row => ({...row, proof_method:'manual'})) : table === 'submissions' ? records[table].map(row=>({...row,category_selection:'[]'})) : records[table];
     assert.deepEqual(snapshot(db, table), expected, `${table} historical data must survive the upgrade`);
   }
   assert.deepEqual(db.prepare('PRAGMA table_info(notification_outbox)').all(), oldOutboxColumns);

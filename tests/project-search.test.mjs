@@ -53,3 +53,18 @@ test('empty searches retain the scope and collection names are searchable', () =
   assert.ok(collectionProject, 'A real collection listing is present.');
   assert.equal(projectMatchesSearch(collectionProject, collectionProject.collections[0].name), true);
 });
+
+test('taxonomy filters combine primary and secondary assignments without duplicating listings', () => {
+  const labels = {gaming:'Gaming', apps:'Apps & Utilities', art:'Art & Entertainment'};
+  const first = {...suited, classification:{primary:'gaming',secondary:['apps'],labels}};
+  const second = {...suited, id:'second',classification:{primary:'art',secondary:[],labels}};
+  const projects = [first,second];
+  assert.deepEqual(searchProjects(projects,{categories:['gaming','apps']}),[first]);
+  assert.deepEqual(searchProjects(projects,{categories:['apps','art']}),projects);
+  assert.deepEqual(searchProjects(projects,{categories:['apps','art'],savedIds:['second']}),[second]);
+  assert.deepEqual(searchProjects(projects,{categories:['art'],query:'apps utilities'}),[]);
+  assert.deepEqual(searchProjects(projects,{query:'utilities'}),[first]);
+  assert.deepEqual(searchProjects(projects,{query:'entertainment'}),[second]);
+  assert.deepEqual(searchProjects(projects,{categories:['unused-category']}),[]);
+  assert.deepEqual(searchProjects([suited],{categories:['gaming']}),[suited]);
+});

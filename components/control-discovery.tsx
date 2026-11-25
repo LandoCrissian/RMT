@@ -1,12 +1,11 @@
 'use client';
 import {useEffect,useState} from 'react';
 import {BookOpen,CheckCheck,SkipForward} from 'lucide-react';
-import {categories} from '@/lib/submission-validation';
 import {useControlResource,useControlMutation,type ControlApi} from '@/lib/client/use-control';
 import {ConfirmDialog,ErrorPanel,Field,Loading,PanelHeading,SaveNotice,StatCard} from './control-primitives';
 
 type Config={revision:number;categories:string[];lessons:{title:string;body:string}[];recommendedIds:string[]};
-type Workspace={config:Config;projects:{id:string;name:string}[];stats:{completed:number;skipped:number;reads:number}};
+type Workspace={options:{id:string;name:string}[];config:Config;projects:{id:string;name:string}[];stats:{completed:number;skipped:number;reads:number}};
 const path='/api/control/discovery';
 const record=(v:unknown):v is Record<string,unknown>=>Boolean(v&&typeof v==='object'&&!Array.isArray(v));
 const strings=(v:unknown):v is string[]=>Array.isArray(v)&&v.every(s=>typeof s==='string');
@@ -17,7 +16,7 @@ function config(v:unknown):Config {
   return v as Config;
 }
 function workspace(v:unknown):Workspace {
-  if(!record(v)||!Array.isArray(v.projects)||!v.projects.every(p=>record(p)&&typeof p.id==='string'&&typeof p.name==='string')||
+  if(!record(v)||!Array.isArray(v.options)||!v.options.every(o=>record(o)&&typeof o.id==='string'&&typeof o.name==='string')||!Array.isArray(v.projects)||!v.projects.every(p=>record(p)&&typeof p.id==='string'&&typeof p.name==='string')||
     !record(v.stats)||![v.stats.completed,v.stats.skipped,v.stats.reads].every(count))throw Error('Invalid discovery workspace.');
   config(v.config);
   return v as Workspace;
@@ -57,7 +56,7 @@ export default function ControlDiscovery({api,onDirty,onToast}:{api:ControlApi;o
         <button type="button" className="cc-button" disabled={locked||form.lessons.length>=10} onClick={()=>setDraft({...form,lessons:[...form.lessons,{title:'',body:''}]})}>Add lesson</button>
       </section>
       <section className="cc-panel"><h3>Interest categories</h3><p>Choose which directory categories members can select for discovery.</p>
-        {categories.map(c=><label key={c} className="cc-switch-row"><span>{c}</span><input type="checkbox" checked={form.categories.includes(c)} disabled={locked} onChange={()=>setDraft({...form,categories:toggle(form.categories,c)})}/></label>)}
+        {data.options.map(c=><label key={c.id} className="cc-switch-row"><span>{c.name}</span><input type="checkbox" checked={form.categories.includes(c.id)} disabled={locked} onChange={()=>setDraft({...form,categories:toggle(form.categories,c.id)})}/></label>)}
       </section>
       <section className="cc-panel"><h3>Editorial recommendations</h3><p>Choose up to 12 public projects. Picks are labeled in discovery.</p>
         <details><summary>Select projects ({form.recommendedIds.length} selected)</summary>

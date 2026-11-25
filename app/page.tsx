@@ -13,7 +13,7 @@ export async function generateMetadata(){
 export default async function Home() {
   try{
     const db=database(),settings=await siteSettings(db);
-    const projects=settings.maintenance.enabled?[]:(await catalog(db)).projects;
-    return <Hub initialProjects={projects} initialSiteSettings={publicSiteSettings(settings)} />;
+    const directory=settings.maintenance.enabled?{projects:[],categories:[]}:await catalog(db);
+    return <Hub initialProjects={directory.projects} initialCategories={directory.categories} initialSiteSettings={publicSiteSettings(settings)} />;
   }catch{return <Hub initialProjects={[]} initialCatalogError />;}
 }

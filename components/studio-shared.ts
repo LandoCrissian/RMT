@@ -19,6 +19,7 @@ export type ProjectStage = "starting" | "building" | "beta" | "live";
 
 export type Submission = {
   id: string;
+  categoryIds?:string[];
   name: string;
   summary: string;
   category: "Games" | "Music" | "Tools" | "Community";

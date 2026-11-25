@@ -1,0 +1,338 @@
+[
+  {
+    "projectId": "vamps",
+    "primary": "gaming",
+    "secondary": [
+      "nft",
+      "apps",
+      "ai"
+    ],
+    "sources": [
+      "https://vamps.wtf/",
+      "https://games.vamps.wtf/",
+      "https://play.vamps.wtf/studio",
+      "https://tenvek.com/"
+    ],
+    "reason": "VAMPS links its Shadow Crypt game, NFT collection and VTuber Studio. Its linked Tenvek alpha offers AI-assisted subject tracking and video compositing.",
+    "planned": ""
+  },
+  {
+    "projectId": "lammbs",
+    "primary": "nft",
+    "secondary": [
+      "communities"
+    ],
+    "sources": [
+      "https://lammb.fun/genesis/",
+      "https://opensea.io/collection/lammbs-59693791"
+    ],
+    "reason": "Genesis is the founding NFT collection and member community.",
+    "planned": "Empires has no confirmed playable destination in the reviewed listing."
+  },
+  {
+    "projectId": "suited-apes",
+    "primary": "nft",
+    "secondary": [
+      "gaming",
+      "trading"
+    ],
+    "sources": [
+      "https://suitedapes.com/",
+      "https://suitedapes.com/jungletree/",
+      "https://fightclub.suitedapes.com/"
+    ],
+    "reason": "The NFT society's official directory lists Ape Fight Club, poker and SuitedTools trading analytics as live.",
+    "planned": "The official directory labels Ape City in development."
+  },
+  {
+    "projectId": "ccff00",
+    "primary": "nft",
+    "secondary": [
+      "apps"
+    ],
+    "sources": [
+      "https://hoodstreet.capital/ccff00",
+      "https://hoodstreet.capital/my-neon"
+    ],
+    "reason": "HoodStreet's membership NFTs include a token-bound wallet accessed through My Neon.",
+    "planned": ""
+  },
+  {
+    "projectId": "hood-vandalz",
+    "primary": "nft",
+    "secondary": [
+      "art"
+    ],
+    "sources": [
+      "https://www.hoodvandalz.xyz/",
+      "https://www.hoodvandalz.xyz/syndicate/"
+    ],
+    "reason": "The project publishes masked pixel-art characters inspired by graffiti and links its related Hood Syndicate collection.",
+    "planned": ""
+  },
+  {
+    "projectId": "pixel-hood-arcade",
+    "primary": "gaming",
+    "secondary": [
+      "nft",
+      "art"
+    ],
+    "sources": [
+      "https://opensea.io/collection/pixelhoodarcade",
+      "https://opensea.io/collection/pixelhoodarcade/overview"
+    ],
+    "reason": "Pixelord's digital arcade machines contain playable games and original pixel artwork.",
+    "planned": ""
+  },
+  {
+    "projectId": "cannacats-v2",
+    "primary": "nft",
+    "secondary": [
+      "art"
+    ],
+    "sources": [
+      "https://opensea.io/collection/cannacats-v2"
+    ],
+    "reason": "The creator describes V2 as a changing collection of CannaCats artwork.",
+    "planned": ""
+  },
+  {
+    "projectId": "robin-rabbits",
+    "primary": "nft",
+    "secondary": [
+      "art"
+    ],
+    "sources": [
+      "https://robinrabbits.com/",
+      "https://opensea.io/collection/robin-rabbits-834193084"
+    ],
+    "reason": "The Moon Court collection features animated pixel rabbits with artwork and traits drawn from astronomical charts.",
+    "planned": ""
+  },
+  {
+    "projectId": "1kiss",
+    "primary": "art",
+    "secondary": [
+      "nft"
+    ],
+    "sources": [
+      "https://www.jessicayatrofsky.com/1kiss",
+      "https://opensea.io/collection/1kiss"
+    ],
+    "reason": "Artist Jessica Yatrofsky's project turns analogue lip impressions into collectible digital artworks.",
+    "planned": ""
+  },
+  {
+    "projectId": "synchronized-mindz",
+    "primary": "communities",
+    "secondary": [
+      "nft",
+      "art"
+    ],
+    "sources": [
+      "https://opensea.io/collection/synchronized-mindz-genesis-the-original-88/overview",
+      "https://www.instagram.com/synchronizedmindz"
+    ],
+    "reason": "The creator collective brings artists and collectors together. Genesis is its first Robinhood Chain collection.",
+    "planned": ""
+  },
+  {
+    "projectId": "cash-grab-rh",
+    "primary": "gaming",
+    "secondary": [
+      "nft",
+      "art"
+    ],
+    "sources": [
+      "https://streethood.media/cashgrab/",
+      "https://opensea.io/collection/cash-grab-rh"
+    ],
+    "reason": "Vortex Run is a playable arcade game connected to an NFT artwork reveal.",
+    "planned": ""
+  },
+  {
+    "projectId": "abstract-workers2",
+    "primary": "art",
+    "secondary": [
+      "nft"
+    ],
+    "sources": [
+      "https://abstractworkers.com/",
+      "https://opensea.io/collection/abstract-workers2"
+    ],
+    "reason": "The gallery displays generative pixel works drawn by code stored on Robinhood Chain.",
+    "planned": ""
+  },
+  {
+    "projectId": "animal-pharm-71884901",
+    "primary": "art",
+    "secondary": [
+      "nft",
+      "apps"
+    ],
+    "sources": [
+      "https://animalpharm.xyz/",
+      "https://animalpharm.xyz/mixer/"
+    ],
+    "reason": "The artist publishes hand-made pixel animals and a holder-facing trait mixer.",
+    "planned": "New Pharm Creations submissions were closed at review."
+  },
+  {
+    "projectId": "pricedout",
+    "primary": "nft",
+    "secondary": [],
+    "sources": [
+      "https://opensea.io/collection/pricedout"
+    ],
+    "reason": "The publisher describes a collectible series about missing mints. No separate application is documented.",
+    "planned": ""
+  },
+  {
+    "projectId": "companions-by-wfit",
+    "primary": "nft",
+    "secondary": [
+      "apps"
+    ],
+    "sources": [
+      "https://opensea.io/collection/companions-by-wfit",
+      "https://wfitapp.xyz/"
+    ],
+    "reason": "Companions are a collectible series linked to WFit's fitness application.",
+    "planned": "Companion roadmap items and the advertised paid WFit subscription tiers are excluded from the classification."
+  },
+  {
+    "projectId": "tmo-initiates",
+    "primary": "nft",
+    "secondary": [
+      "communities",
+      "art"
+    ],
+    "sources": [
+      "https://robinhood.mallardorder.io/",
+      "https://portal.mallardorder.io/",
+      "https://comics.mallardorder.io/"
+    ],
+    "reason": "The Mallard Order publishes the Initiates collection, a holder portal and community comics.",
+    "planned": ""
+  },
+  {
+    "projectId": "rillaz-n-da-hood-apex-collection",
+    "primary": "gaming",
+    "secondary": [
+      "nft",
+      "trading"
+    ],
+    "sources": [
+      "https://rillazndahood.xyz/hq",
+      "https://rillazndahood.xyz/chess",
+      "https://terminal.rillazndahood.xyz/"
+    ],
+    "reason": "Hood HQ offers games and missions around the Apex Rillaz collection. Hood Terminal offers token and NFT market analytics.",
+    "planned": "Gorilla Scouts is described as a paper beta."
+  },
+  {
+    "projectId": "claystonkz",
+    "primary": "art",
+    "secondary": [
+      "nft"
+    ],
+    "sources": [
+      "https://claystonkz.com/",
+      "https://opensea.io/collection/claystonkz"
+    ],
+    "reason": "Brrrbon sculpts and photographs physical clay characters for the digital collection.",
+    "planned": ""
+  },
+  {
+    "projectId": "stray-cucks",
+    "primary": "nft",
+    "secondary": [
+      "gaming",
+      "apps"
+    ],
+    "sources": [
+      "https://straycucks.com/",
+      "https://straycucks.com/arcade/",
+      "https://allowlist.straycucks.com/"
+    ],
+    "reason": "The pixel-chair collection links an arcade and a holder-facing mint and collection scanner. The arcade listing is verified from the official site.",
+    "planned": ""
+  },
+  {
+    "projectId": "hoodfi",
+    "primary": "infrastructure",
+    "secondary": [
+      "devtools",
+      "apps"
+    ],
+    "sources": [
+      "https://www.hoodfi.name/",
+      "https://build.hoodfi.name/",
+      "https://github.com/RWA-ID/hoodfi-eth"
+    ],
+    "reason": "HoodFi provides blockchain naming and identity records, a website builder and developer integration tools.",
+    "planned": ""
+  },
+  {
+    "projectId": "moneymomos",
+    "primary": "nft",
+    "secondary": [
+      "art",
+      "communities"
+    ],
+    "sources": [
+      "https://moneymomos.com/",
+      "https://elitecompound.moneymomos.com/",
+      "https://council.moneymomos.com/"
+    ],
+    "reason": "SteamVille's collection combines generative characters, hand-drawn portraits and a holder council.",
+    "planned": "Mo's Rise had no confirmed playable release URL."
+  },
+  {
+    "projectId": "wif-outlaws",
+    "primary": "nft",
+    "secondary": [
+      "apps"
+    ],
+    "sources": [
+      "https://opensea.io/collection/wif-outlaws",
+      "https://www.robinwifhat.com/agents"
+    ],
+    "reason": "Outlaw portraits have registered agent identities and attached wallets. The official guide documents optional operator permissions and spending limits.",
+    "planned": ""
+  },
+  {
+    "projectId": "bored-traders",
+    "primary": "nft",
+    "secondary": [
+      "art",
+      "tokens",
+      "defi"
+    ],
+    "sources": [
+      "https://boredtrader.co/art",
+      "https://boredtrader.co/whitepaper"
+    ],
+    "reason": "The official art gallery presents the portraits. The project's whitepaper identifies the live BTRD token, its liquidity pool and the collection's NFT vault.",
+    "planned": ""
+  },
+  {
+    "projectId": "community-a03d19b5-8cb0-47b6-97a8-23ecf5e5f194",
+    "primary": "defi",
+    "secondary": [
+      "trading",
+      "gaming",
+      "tokens"
+    ],
+    "sources": [
+      "https://apexrising.io/swap",
+      "https://apexrising.io/dex/stats",
+      "https://apexrising.io/play",
+      "https://apexrising.io/staking",
+      "https://apexrising.io/markets",
+      "https://apexrising.io/"
+    ],
+    "reason": "APEX operates a multichain swap interface with public DEX statistics, a Cronos APEX token staking page, skill games and tournaments. Robinhood Chain appears in the swap interface.",
+    "planned": "The publisher marks perpetuals and predictions as practice, and tokenized stocks, card payments and APEX Evolution as coming soon."
+  }
+]

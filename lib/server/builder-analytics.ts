@@ -48,6 +48,8 @@ export async function readBuilderAnalytics(db:D1Database,userId:string,projectId
     db.prepare(`SELECT MIN(day) AS start,MAX(day) AS end,COUNT(CASE WHEN kind='project_view' THEN 1 END) AS views,
       COUNT(CASE WHEN kind='outbound' THEN 1 END) AS clicks FROM control_metric_events
       WHERE project_id=? AND day BETWEEN ? AND ? AND created_at<COALESCE((SELECT start_ms FROM analytics_meta WHERE id=1),?)`).bind(projectId,floor>day(now-29*DAY)?floor:day(now-29*DAY),end,now+1),
+    db.prepare(`SELECT c.name FROM project_categories pc JOIN taxonomy_categories c ON c.id=pc.category_id
+      WHERE pc.project_id=? AND c.archived=0 ORDER BY pc.is_primary DESC,c.position,c.id`).bind(projectId),
   ]);
   if((result[0].results[0] as {revision:number}|undefined)?.revision!==owned.revision)throw unavailable();
   const first=(result[1].results[0] as {start_ms:number}|undefined)?.start_ms;
@@ -58,7 +60,7 @@ export async function readBuilderAnalytics(db:D1Database,userId:string,projectId
   if(start)for(let t=timestamp(start);t<=timestamp(end);t+=DAY){const d=day(t);byDay.set(d,{day:d,views:0,clicks:0});}
   for(const row of currentRows){const d=byDay.get(row.day);if(d&&row.kind==='project_view')d.views=row.total;if(d&&row.kind==='outbound')d.clicks=row.total;}
   const counts=result[4].results[0] as {saves:number;follows:number};
-  return {projectId,period,start,end,measuredSince,truncated:period==='all'&&!!measuredSince&&measuredSince<floor,
+  return {projectId,categories:(result[8].results as {name:string}[]).map(row=>row.name),period,start,end,measuredSince,truncated:period==='all'&&!!measuredSince&&measuredSince<floor,
     current:sum(currentRows),previous:period!=='all'&&first!==undefined&&first<=timestamp(prior)?sum(rows.filter(r=>r.day<floor)):null,
     unique:start&&start>=uniqueFloor?Number((result[3].results[0] as {n:number}).n):null,followers:Number(counts.follows),savedBy:Number(counts.saves),
     trend:[...byDay.values()],sources:result[5].results as Breakdown[],destinations:result[6].results as Breakdown[],

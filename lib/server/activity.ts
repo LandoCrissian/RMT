@@ -12,6 +12,7 @@ type ActivityRow = {
 function activityProject(project: Project): ActivityProject {
   return {
     id: project.id, slug: project.slug, name: project.name, category: project.category,
+    ...(project.classification ? {categoryNames:[project.classification.primary,...project.classification.secondary].map(id=>project.classification!.labels[id])} : {}),
     initials: project.initials, accent: project.accent, cover: project.cover,
     ...(project.coverFit ? {coverFit: project.coverFit} : {}),
     ...(project.coverAspectRatio ? {coverAspectRatio: project.coverAspectRatio} : {}),

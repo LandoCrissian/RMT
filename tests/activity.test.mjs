@@ -187,7 +187,7 @@ test('discovery personalizes only eligible public items and isolates preferences
   const following=await load('following','alice');assert.deepEqual(following.items.map(i=>i.updateId),['event','before']);
   assert.deepEqual((await load('for-you','alice')).items.map(i=>i.updateId),['event','before']);
   await api.changeDiscovery(db,'alice',{action:'interests',interests:['Games']});
-  assert.deepEqual((await load('guide','alice')).interests,['Games']);assert.deepEqual((await load('guide','bob')).interests,[]);
+  assert.deepEqual((await load('guide','alice')).interests,['gaming']);assert.deepEqual((await load('guide','bob')).interests,[]);
   assert.deepEqual((await load('guide')).interests,[]);
   await api.changeDiscovery(db,'alice',{action:'interests',interests:[]});
   await api.changeDiscovery(db,'alice',{action:'notifications',enabled:false});
@@ -216,4 +216,37 @@ test('discovery changes require same-origin authenticated requests for the curre
   assert.deepEqual(db.raw.prepare('SELECT user_id FROM discovery_members').all().map(r=>r.user_id),['alice']);
   db.raw.exec("UPDATE control_members SET status='suspended' WHERE user_id='alice'");
   assert.equal((await mutate('alice')).status,403);
+});
+
+test('secondary interests surface reviewed updates; category renames preserve private selections',async t=>{
+  const db=database(t);
+  owner(db);update(db);
+  db.raw.exec("INSERT INTO taxonomy_categories(id,name,position) VALUES('music-events','Live music',30); INSERT INTO project_categories VALUES('vamps','music-events',0)");
+  await api.changeDiscovery(db,'fan',{action:'interests',interests:['music-events']});
+  const load=(view,user=null)=>api.discovery(db,new URL('https://rmt.dev/api/discovery?view='+view),user);
+  const feed=await load('for-you','fan');
+  assert.equal(feed.recommendedProjects.filter(p=>p.id==='vamps').length,1);
+  const item=feed.items.find(i=>i.updateId==='approved-update');
+  assert.ok(item?.project.categoryNames.includes('Live music'));
+  assert.deepEqual(api.publicActivityPage(feed).items.find(i=>i.updateId==='approved-update').project.categoryNames,item.project.categoryNames);
+  db.raw.exec("UPDATE taxonomy_categories SET name='Concerts' WHERE id='music-events'");
+  const guide=await load('guide','fan');assert.deepEqual(guide.interests,['music-events']);assert.equal(guide.categoryLabels['music-events'],'Concerts');
+  assert.deepEqual((await load('guide')).interests,[]);
+  db.raw.exec("DELETE FROM project_categories WHERE category_id='music-events'; UPDATE taxonomy_categories SET archived=1 WHERE id='music-events'");
+  assert.deepEqual((await load('guide','fan')).interests,[]);
+  await assert.rejects(api.changeDiscovery(db,'fan',{action:'interests',interests:['music-events']}),e=>e.status===400);
+  db.raw.exec("UPDATE discovery_members SET interests='[\"Music\"]' WHERE user_id='fan'");
+  assert.deepEqual((await load('guide','fan')).interests,['art']);
+});
+
+test('legacy editorial interest choices survive taxonomy migration and continue restricting member choices',async t=>{
+  const db=database(t);
+  const legacy={categories:['Tools','Games'],recommendedIds:[],lessons:[{title:'Start here',body:'Choose your interests.'}]};
+  db.raw.prepare("INSERT INTO discovery_config(id,payload_json,revision) VALUES('discovery',?,1)").run(JSON.stringify(legacy));
+  db.raw.prepare("INSERT INTO discovery_members(user_id,interests) VALUES('member',?)").run(JSON.stringify(['Games','Community']));
+  const guide=await api.discovery(db,new URL('https://rmt.dev/api/discovery?view=guide'),'member');
+  assert.deepEqual(guide.categories,['gaming','apps']);assert.deepEqual(guide.interests,['gaming']);
+  assert.deepEqual(guide.categoryLabels,{gaming:'Gaming',apps:'Apps & Utilities'});
+  await assert.rejects(api.changeDiscovery(db,'member',{action:'interests',interests:['nft']}),e=>e.status===400);
+  await assert.rejects(api.changeDiscovery(db,'member',{action:'interests',interests:['Games','gaming']}),e=>e.status===400);
 });

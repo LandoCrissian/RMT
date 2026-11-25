@@ -6,6 +6,8 @@ import {fileURLToPath} from 'node:url';
 import {build} from 'esbuild';
 const root=fileURLToPath(new URL('../',import.meta.url)),environment={};globalThis.__CONTROL_PROJECTS_ENV__=environment;
 const bundled=await build({stdin:{contents:`
+export {taxonomyWorkspace,updateTaxonomy} from './lib/server/taxonomy-admin';
+export {GET as taxonomyGET,PATCH as taxonomyPATCH} from './app/api/control/taxonomy/route';
 export {publicActivity} from './lib/server/activity';
 export * from './lib/spotlight'; export * from './lib/server/control-projects'; export * from './lib/server/control-content';
 export * from './lib/server/repository'; export * from './lib/server/project-showcase';
@@ -181,4 +183,26 @@ test('spotlights preserve the ordered free defaults and independently save revie
   for(const bad of [{position:0},{accent:'lime'},{cta:''},{artwork:'https://example.org/image.png'}]) {
     assert.throws(()=>api.validateSpotlight({...original,...bad},'lammbs'));
   }
+});
+
+test('classification review enforces administrator access, stable IDs, atomic edits and archive protection',async t=>{
+ const db=database(t),route='/api/control/taxonomy';
+ assert.equal((await api.taxonomyGET(request(route,{user:''}))).status,401);
+ assert.equal((await api.taxonomyGET(request(route,{user:'member'}))).status,403);
+ const w=await api.taxonomyWorkspace(db);
+ assert.equal(w.categories.length,12);
+ const newCategory={id:'exhibits',name:'Exhibits',position:13,archived:false};
+ const apply=(action,revision,fields)=>api.updateTaxonomy(db,actor,{action,revision,...fields});
+ await apply('create',0,newCategory);
+ await apply('assign',1,{id:'vamps',ids:['gaming','exhibits']});
+ await assert.rejects(apply('assign',1,{id:'vamps',ids:['gaming']}),reject(409));
+ await assert.rejects(apply('edit',2,{...newCategory,archived:true}),reject(409));
+ await apply('edit',2,{...newCategory,name:'Exhibitions',position:0});
+ let item=(await api.catalog(db)).projects.find(p=>p.id==='vamps');
+ assert.equal(item.classification.labels.exhibits,'Exhibitions');
+ assert.deepEqual(item.classification.secondary,['exhibits']);
+ await apply('assign',3,{id:'vamps',ids:['gaming']});
+ await apply('edit',4,{...newCategory,archived:true});
+ await assert.rejects(apply('assign',5,{id:'vamps',ids:['gaming','exhibits']}),reject(409));
+ assert.equal((await api.taxonomyWorkspace(db)).revision,5);
 });

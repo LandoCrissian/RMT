@@ -1,9 +1,10 @@
 // Account-bound, per-tab recovery only. A sign-out or successful submission
 // clears the draft. No form data travels in a sign-in link or diagnostics.
+import {validSelection} from './taxonomy';
 import type {Submission, ProjectStage} from '../components/studio-shared';
 
 export type SubmissionForm = {
-  name:string; summary:string; category:Submission['category']; stage:ProjectStage;
+  categoryIds?:string[]; name:string; summary:string; category:Submission['category']; stage:ProjectStage;
   website:string; launchUrl:string; xProfile:string; contactEmail:string; ownershipEvidence:string; companyFax:string;
 };
 type Edit = Pick<Submission,'id'|'revision'|'reviewNote'|'reviewerNote'>;
@@ -27,7 +28,7 @@ export function restoreSubmissionDraft(owner:string): Draft | null {
   }
   if (!item) return null;
   if (!Number.isFinite(item.expires) || item.expires < Date.now() || item.expires > Date.now()+ttl || item.owner !== owner) {forgetSubmissionDraft(); return null;}
-  if (!item.form || ['name','summary','website','launchUrl','xProfile','contactEmail','ownershipEvidence'].some(k=>typeof item.form[k as keyof SubmissionForm] !== 'string' || item.form[k as keyof SubmissionForm].length>2048) ||
+  if (!item.form || (item.form.categoryIds!==undefined && !validSelection(item.form.categoryIds)) || ['name','summary','website','launchUrl','xProfile','contactEmail','ownershipEvidence'].some(k=>typeof item.form[k as keyof SubmissionForm] !== 'string' || String(item.form[k as keyof SubmissionForm]).length>2048) ||
     !['Games','Music','Tools','Community'].includes(item.form.category) || !['starting','building','beta','live'].includes(item.form.stage) ||
     (item.edit && (typeof item.edit.id !== 'string' || !Number.isSafeInteger(item.edit.revision)))) return null;
   return {...item, form:{...item.form, companyFax:''}};

@@ -39,8 +39,11 @@
 .discovery-directory .section-heading{margin-bottom:18px}
 .discovery-directory .directory-heading{outline:none}
 .browse-toolbar{border-bottom:1px solid #2b3338;margin-bottom:19px;padding-bottom:15px}
-.browse-categories{display:flex;gap:7px;min-width:0;max-width:100%;overflow-x:auto;scrollbar-width:none;padding-bottom:1px}
+.browse-categories{display:flex;flex-wrap:wrap;gap:7px;min-width:0;max-width:100%;overflow-x:auto;scrollbar-width:none;padding-bottom:1px}
 .browse-categories::-webkit-scrollbar{display:none}
+.showcase-secondary-categories{display:flex;flex-wrap:wrap;gap:6px;list-style:none;padding:0;margin:0 0 14px}
+.showcase-secondary-categories li{max-width:100%;overflow-wrap:anywhere;border:1px solid #39413a;border-radius:5px;padding:3px 8px;color:#b9c4ba;font-size:11px}
+.category-tabs.browse-categories button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
 .browse-categories>button{min-height:40px;font-size:11px;flex-shrink:0;border-radius:8px;padding:9px 13px;display:flex;align-items:center;justify-content:center;gap:7px}
 .browse-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px}
 .browse-controls:first-child{margin-top:0}

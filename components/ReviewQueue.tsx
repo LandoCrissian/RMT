@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowUpRight, Check, CheckCircle2, Clock3, Copy, Inbox, LoaderCircle, LockKeyhole, MessageSquare, Pause, RefreshCw, X, ClipboardList, KeyRound, FilePenLine, Bell, Megaphone } from "lucide-react";
 import { formattedDate, readApiResponse, statusLabel, stageLabel, type StudioProps, type Submission } from "./studio-shared";
 import { announceCatalogChange } from "@/lib/client/catalog-changes";
+import {suggestCategories} from '@/lib/category-suggestions.mjs';
+import CategoryFields from './CategoryFields';
+import {defaultCategories,legacyPrimary} from '@/lib/taxonomy';
 import { ClaimReview, EditReview } from "./ClaimReview";
 import NotificationSettings from "./NotificationSettings";
 import ProjectUpdatesReview from "./ProjectUpdatesReview";
@@ -16,6 +19,8 @@ function safeLink(value: string) {
 }
 
 export default function ReviewQueue({ session, onToast }: StudioProps) {
+  const [categoryNames,setCategoryNames]=useState<Record<string,string>>({});
+  useEffect(()=>{const controller=new AbortController();fetch('/api/catalog',{signal:controller.signal}).then(r=>r.json() as Promise<{categories?:import('@/lib/taxonomy').TaxonomyCategory[]}>).then(data=>{if(Array.isArray(data.categories))setCategoryNames(Object.fromEntries(data.categories.map((c:{id:string;name:string})=>[c.id,c.name])));}).catch(()=>{});return()=>controller.abort();},[]);
   const [workspaceTab, setWorkspaceTab] = useState<"applications" | "claims" | "edits" | "updates" | "notifications">("applications");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,6 +48,10 @@ export default function ReviewQueue({ session, onToast }: StudioProps) {
 
   const filtered = submissions.filter(item => filter === "all" || item.status === filter || (filter === "needs_changes" && item.status === "changes_requested"));
   const selected = submissions.find(item => item.id === selectedId) ?? filtered[0] ?? null;
+  const [excerpt,setExcerpt]=useState('');
+  const [reviewIds,setReviewIds]=useState<string[]|null>(null);
+  const proposal=selected?.categoryIds?.length?selected.categoryIds:[legacyPrimary[selected?.category??'Community']];
+  const choices=Object.keys(categoryNames).length?Object.entries(categoryNames).map(([id,name],position)=>({id,name,position,archived:false})):defaultCategories;
   const availableActions: ReviewAction[] = selected ? ({
     pending: ["approve", "request_changes", "reject"],
     needs_changes: ["reject"],
@@ -51,7 +60,7 @@ export default function ReviewQueue({ session, onToast }: StudioProps) {
     rejected: [],
   } as Record<string, ReviewAction[]>)[selected.status] ?? [] : [];
 
-  useEffect(() => { setNote(""); setCheckedLinks(false); setConfirmedOwnership(false); setActionError(""); }, [selected?.id, selected?.revision]);
+  useEffect(() => { setReviewIds(null);setExcerpt('');setNote(""); setCheckedLinks(false); setConfirmedOwnership(false); setActionError(""); }, [selected?.id, selected?.revision]);
 
   async function review(nextAction: ReviewAction) {
     if (!selected || action) return;
@@ -63,7 +72,7 @@ export default function ReviewQueue({ session, onToast }: StudioProps) {
       await readApiResponse(await fetch(`/api/admin/submissions/${encodeURIComponent(selected.id)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-RMT-Account":session.userId||"" },
-        body: JSON.stringify({ action: nextAction, note: note.trim(), checkedLinks, confirmedOwnership, expectedRevision: selected.revision }),
+        body: JSON.stringify({ ...(nextAction==='approve'&&selected.status==='pending'?{categoryIds:reviewIds??proposal}:{}),action: nextAction, note: note.trim(), checkedLinks, confirmedOwnership, expectedRevision: selected.revision }),
       }));
       if(nextAction==="approve"||nextAction==="suspend")announceCatalogChange();
       onToast(({ approve: "Project approved and published.", reject: "Application marked not approved.", request_changes: "Changes requested. The applicant can update their submission.", suspend: "Project suspended and removed from the directory." })[nextAction]);
@@ -97,7 +106,9 @@ export default function ReviewQueue({ session, onToast }: StudioProps) {
     <div className="st-review-filters" aria-label="Filter applications">{[{ value: "pending", label: "In review" }, { value: "needs_changes", label: "Changes requested" }, { value: "approved", label: "Published" }, { value: "all", label: "All applications" }].map(item => <button key={item.value} type="button" aria-pressed={filter === item.value} className={filter === item.value ? "active" : ""} onClick={() => { setFilter(item.value); setSelectedId(null); }}>{item.label}</button>)}</div>
     {error ? <div className="st-panel"><p className="st-error" role="alert">{error}</p><button type="button" className="st-button st-secondary" onClick={() => void loadQueue()}>Try again</button></div> : loading && submissions.length === 0 ? <div className="st-panel st-review-empty" role="status"><LoaderCircle className="st-spin" size={25} /><p>Loading applications…</p></div> : filtered.length === 0 ? <div className="st-panel st-review-empty"><div className="st-symbol"><Inbox size={27} /></div><h2>{filter === "pending" ? "The queue is clear." : "Nothing here yet."}</h2><p>{filter === "pending" ? "New applications will land here. They stay private until you check and approve them." : "Applications with this status will appear here."}</p></div> : <div className="st-review-layout">
       <aside className="st-panel st-review-list" aria-label="Applications">{filtered.map(item => <button type="button" key={item.id} className={selected?.id === item.id ? "st-review-list-item selected" : "st-review-list-item"} onClick={() => setSelectedId(item.id)}><span className="st-project-initial">{item.name.slice(0, 1).toUpperCase()}</span><span><strong>{item.name}</strong><small>{item.category} · {formattedDate(item.createdAt)}</small><span className={`st-status st-status-${item.status}`}>{statusLabel(item.status)}</span></span><ArrowUpRight size={15} /></button>)}</aside>
-      {selected && <article className="st-panel st-review-detail"><div className="st-review-detail-title"><div><span className="st-kicker">{selected.category} · {stageLabel(selected.stage)}</span><h2>{selected.name}</h2></div><span className={`st-status st-status-${selected.status}`}>{statusLabel(selected.status)}</span></div><p className="st-review-summary">{selected.summary}</p><dl className="st-review-links">{[{ label: "Official website", value: selected.website }, { label: "Launch destination", value: selected.launchUrl }, { label: "Project X profile", value: selected.xProfile }].map(link => <div key={link.label}><dt>{link.label}</dt><dd>{safeLink(link.value) ? <a href={safeLink(link.value)!} target="_blank" rel="noopener noreferrer">{link.value}<ArrowUpRight size={14} /></a> : link.value || "Not supplied"}</dd></div>)}{selected.contactEmail && <div><dt>Private contact</dt><dd>{selected.contactEmail}</dd></div>}</dl><section className="st-evidence"><h3>Applicant’s ownership evidence</h3><p>{selected.ownershipEvidence}</p><span>Verification code</span><code>{selected.verificationCode}</code></section>{(selected.reviewNote || selected.reviewerNote) && <div className="st-information"><strong>Previous review note</strong><p>{selected.reviewNote || selected.reviewerNote}</p></div>}
+      {selected && <article className="st-panel st-review-detail"><div className="st-review-detail-title"><div><span className="st-kicker">{selected.category} · {stageLabel(selected.stage)}</span><h2>{selected.name}</h2></div><span className={`st-status st-status-${selected.status}`}>{statusLabel(selected.status)}</span></div><p>Proposed categories (primary first): {(selected.categoryIds?.length?selected.categoryIds:[selected.category]).map(id=>categoryNames[id]??id).join(' · ')}</p> {selected.status==='pending'&&<><CategoryFields ids={reviewIds??proposal} onChange={setReviewIds} choices={choices}/>
+ {selected.website&&<details open={checkedLinks||undefined}><summary>Source-based suggestions</summary><a href={selected.website} target="_blank" rel="noreferrer">Open official website</a><label className="st-field">Optional verified excerpt from the official website<textarea maxLength={1500} value={excerpt} onChange={e=>setExcerpt(e.target.value)}/></label>
+ {(excerpt.trim()||checkedLinks)&&<p>{suggestCategories([{kind:'website',url:selected.website,shortDescription:excerpt||(checkedLinks?selected.summary:'')}]).map(s=>categoryNames[s.id]??s.id).join(' · ')||'No category suggested.'}</p>}</details>}</>}<p className="st-review-summary">{selected.summary}</p><dl className="st-review-links">{[{ label: "Official website", value: selected.website }, { label: "Launch destination", value: selected.launchUrl }, { label: "Project X profile", value: selected.xProfile }].map(link => <div key={link.label}><dt>{link.label}</dt><dd>{safeLink(link.value) ? <a href={safeLink(link.value)!} target="_blank" rel="noopener noreferrer">{link.value}<ArrowUpRight size={14} /></a> : link.value || "Not supplied"}</dd></div>)}{selected.contactEmail && <div><dt>Private contact</dt><dd>{selected.contactEmail}</dd></div>}</dl><section className="st-evidence"><h3>Applicant’s ownership evidence</h3><p>{selected.ownershipEvidence}</p><span>Verification code</span><code>{selected.verificationCode}</code></section>{(selected.reviewNote || selected.reviewerNote) && <div className="st-information"><strong>Previous review note</strong><p>{selected.reviewNote || selected.reviewerNote}</p></div>}
         {selected.status === "needs_changes" && <div className="st-information">Waiting for the applicant to update and resubmit. Their application will return to the review queue when it’s ready.</div>}
         {availableActions.length > 0 && <div className="st-review-decision">
           <h3>Record your review</h3>

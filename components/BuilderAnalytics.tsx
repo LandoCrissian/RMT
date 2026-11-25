@@ -43,7 +43,7 @@ export default function BuilderAnalytics({project,account,onBack}:{project:{id:s
     const params=new URLSearchParams({period});
     fetch('/api/projects/'+encodeURIComponent(project.id)+'/analytics?'+params,{signal:controller.signal,cache:'no-store',credentials:'same-origin',headers:{'X-RMT-Account':account}})
       .then(readApiResponse).then(value=>{
-        if(value.projectId!==project.id||value.period!==period||!Array.isArray(value.trend))throw Error('The analytics response was incomplete.');
+        if(value.projectId!==project.id||value.period!==period||!Array.isArray(value.categories)||!value.categories.every((c:unknown)=>typeof c==='string')||!Array.isArray(value.trend))throw Error('The analytics response was incomplete.');
         if(!controller.signal.aborted)setReport(value as BuilderReport);
       }).catch(cause=>{if(!controller.signal.aborted)setError(cause instanceof Error?cause.message:'Analytics could not be loaded.');}).finally(()=>window.clearTimeout(timer));
     return ()=>{window.clearTimeout(timer);controller.abort();};
@@ -59,7 +59,7 @@ export default function BuilderAnalytics({project,account,onBack}:{project:{id:s
   const delta=(key:keyof ProjectMetrics)=>report?.previous?diff(report.current[key],report.previous[key]):undefined;
   const net=curr?curr.followersAdded-curr.followersLost:0;
   return <section className="ba-dashboard"><button type="button" className="st-text-button st-back-link" onClick={onBack}><ArrowLeft size={15}/> My projects</button>
-    <header className="ba-heading"><div><span className="st-kicker">Builder analytics</span><h2>{project.name}</h2></div><button type="button" className="st-text-button" aria-label="Refresh analytics" onClick={()=>reload(v=>v+1)}><RefreshCw size={16}/> Refresh</button></header>
+    <header className="ba-heading"><div><span className="st-kicker">Builder analytics</span><h2>{project.name}</h2>{!!report?.categories.length&&<p className="ba-coverage">Current categories · {report.categories.join(' · ')}</p>}</div><button type="button" className="st-text-button" aria-label="Refresh analytics" onClick={()=>reload(v=>v+1)}><RefreshCw size={16}/> Refresh</button></header>
     <div className="ba-segments ba-periods" role="group" aria-label="Analytics period">{periods.map(value=><button type="button" key={value} aria-pressed={value===period} onClick={()=>setPeriod(value)}>{value==='all'?'All time':value+' days'}</button>)}</div>
     {error?<p className="st-error" role="alert">{error} <button type="button" className="st-text-button" onClick={()=>reload(v=>v+1)}>Try again</button></p>:!report||!curr?<p role="status">Loading project analytics…</p>:<>
       <p className="ba-coverage">{report.start?'Measured '+formatDay(report.start)+' – '+formatDay(report.end)+' UTC. Today is in progress.':'No Release 28 activity has been measured yet.'}

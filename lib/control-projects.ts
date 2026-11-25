@@ -8,7 +8,7 @@ export type ControlProject={project:Project;revision:number;listingRevision:numb
   featured:boolean|null;origin:'curated'|'community'|'admin';sourceStatus:'curated'|'approved'|'suspended'|'admin';
   publiclyAvailable:boolean;content:ControlProjectContent;owner:{userId:string;status:'active'|'revoked';revision:number}|null;updatedAt:number|null};
 export type ControlProjectsPage={projects:ControlProject[];total:number;page:number;pageSize:number;hasMore:boolean};
-export type CreateControlProject={content:ControlProjectContent;visibility:ControlProjectVisibility;featured:boolean;reason:string;confirmedLinks:boolean};
+export type CreateControlProject={categoryIds?:string[];content:ControlProjectContent;visibility:ControlProjectVisibility;featured:boolean;reason:string;confirmedLinks:boolean};
 export type ChangeControlProject={expectedRevision:number;expectedListingRevision:number;reason:string} & (
   {action:'edit';content:ControlProjectContent;confirmedLinks:boolean}|
   {action:'visibility';visibility:ControlProjectVisibility}|

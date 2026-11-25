@@ -5,7 +5,7 @@ export type ProjectMetrics = {
   shares:number; announcements:number; impressions:number; discoveryClicks:number;
 };
 export type BuilderReport = {
-  projectId:string; period:AnalyticsPeriod; start:string|null; end:string; measuredSince:string|null;
+  projectId:string; categories:string[]; period:AnalyticsPeriod; start:string|null; end:string; measuredSince:string|null;
   truncated:boolean; current:ProjectMetrics; previous:ProjectMetrics|null; unique:number|null;
   followers:number; savedBy:number; trend:{day:string;views:number;clicks:number}[];
   destinations:{label:string;count:number}[]; sources:{label:string;count:number}[];

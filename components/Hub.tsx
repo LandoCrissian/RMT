@@ -8,7 +8,8 @@ import {
   UserRound, Cloud, LoaderCircle, RefreshCw, AlertCircle, List, ChevronLeft, ChevronDown, Megaphone, Radio,
 } from 'lucide-react';
 import { type Project } from '@/lib/catalog';
-import { normalizeProjectQuery, searchProjects } from '@/lib/project-search';
+import {legacyPrimary, type TaxonomyCategory} from '@/lib/taxonomy';
+import { normalizeProjectQuery, projectCategoryLabels, searchProjects } from '@/lib/project-search';
 import { listenForCatalogChanges } from '@/lib/client/catalog-changes';
 import { discoverProjects, recentProjects, type DirectorySort } from '@/lib/project-discovery';
 import { projectPath, projectShareUrl, projectSocialImagePath, projectXIntentUrl } from '@/lib/project-sharing';
@@ -53,7 +54,8 @@ const ProfileEditor = dynamic(() => import('./ProfileEditor'), {loading: Workspa
 type Section = 'discover' | 'activity' | 'library' | 'games' | 'music' | 'tools' | 'studio' | 'review' | 'claim' | 'account' | 'profile' | 'member' | 'control';
 type Session = StudioSession;
 const emptySession: Session = { authenticated: false, userId: null, displayName: null, isAdmin: false };
-const categories = ['All projects', 'Games', 'Music', 'Tools', 'Community'];
+const legacyCategories = Object.entries(legacyPrimary).map(([name,id],position) => ({id,name,position,archived:false}));
+const categorySections: Partial<Record<Section,string>> = {games:legacyPrimary.Games, music:legacyPrimary.Music, tools:legacyPrimary.Tools};
 const sectionTitles: Record<Section, string> = {
   discover: 'RMT — Your ecosystem. All together.',
   library: 'My library | RMT', games: 'Games | RMT', music: 'Music | RMT', tools: 'Tools | RMT',
@@ -104,11 +106,12 @@ function ProjectLogo({project}: {project: Project}) {
   return <img className="approved-project-logo" src={source} alt="" width="58" height="58" loading="lazy" decoding="async" onError={() => setFailed(true)} />;
 }
 
-export default function Hub({ initialProjectId, initialProjects = [], initialProfileHandle, initialPublicProfile, initialSiteSettings, initialCatalogError=false }: { initialProjectId?: string; initialProjects?: Project[]; initialProfileHandle?: string; initialPublicProfile?: PublicProfile; initialSiteSettings?:PublicSiteSettings; initialCatalogError?:boolean } = {}) {
+export default function Hub({ initialProjectId, initialProjects = [], initialCategories, initialProfileHandle, initialPublicProfile, initialSiteSettings, initialCatalogError=false }: { initialProjectId?: string; initialProjects?: Project[]; initialCategories?: TaxonomyCategory[]; initialProfileHandle?: string; initialPublicProfile?: PublicProfile; initialSiteSettings?:PublicSiteSettings; initialCatalogError?:boolean } = {}) {
   const [section, setSection] = useState<Section>(initialProfileHandle ? 'member' : 'discover');
   const [memberHandle, setMemberHandle] = useState(initialProfileHandle ?? '');
   const [profileSeed, setProfileSeed] = useState(initialPublicProfile);
-  const [category, setCategory] = useState('All projects');
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [catalogCategories, setCatalogCategories] = useState<TaxonomyCategory[]>(initialCategories ?? legacyCategories);
   const [query, setQuery] = useState('');
   const [directoryView, setDirectoryView] = useState<'grid' | 'list'>('grid');
   const [directorySort, setDirectorySort] = useState<DirectorySort>('name');
@@ -173,7 +176,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
 
   function browseNewest() {
     void refreshCatalog();
-    setQuery(''); setCategory('All projects'); setDirectorySort('recent');
+    setQuery(''); setCategoryIds([]); setDirectorySort('recent');
     focusDirectory();
   }
 
@@ -204,7 +207,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
 
   function go(next: Section) {
     if (['discover','games','music','tools','library'].includes(next)) void refreshCatalog();
-    setSection(next); setMemberHandle(''); setQuery(''); setCategory('All projects'); setDirectoryPaging({ key: '', page: 1 }); setMobileMenu(false); setSelected(null); setClaimProject(null);
+    setSection(next); setMemberHandle(''); setQuery(''); setCategoryIds([]); setDirectoryPaging({ key: '', page: 1 }); setMobileMenu(false); setSelected(null); setClaimProject(null);
     window.history.pushState(null, '', '/#' + next);
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
@@ -238,7 +241,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   async function refreshCatalog(replacePending=false){
     if(catalogRequest.current&&!replacePending)return;
     catalogRequest.current?.abort();const controller=new AbortController();catalogRequest.current=controller;
-    try{const response=await fetch('/api/catalog',{cache:'no-store',credentials:'same-origin',signal:controller.signal});if(!response.ok)throw new Error();const data=await response.json() as {projects?:Project[]};if(!Array.isArray(data.projects))throw new Error();if(!controller.signal.aborted){setProjects(data.projects);setCatalogError(false);}}catch{if(!controller.signal.aborted){setProjects([]);setCatalogError(true);}}finally{if(catalogRequest.current===controller){catalogRequest.current=null;if(!controller.signal.aborted)setCatalogLoaded(true);}}
+    try{const response=await fetch('/api/catalog',{cache:'no-store',credentials:'same-origin',signal:controller.signal});if(!response.ok)throw new Error();const data=await response.json() as {projects?:Project[];categories?:TaxonomyCategory[]};if(!Array.isArray(data.projects))throw new Error();if(!controller.signal.aborted){setProjects(data.projects);setCatalogCategories(data.categories ?? legacyCategories);setCatalogError(false);}}catch{if(!controller.signal.aborted){setProjects([]);setCatalogError(true);}}finally{if(catalogRequest.current===controller){catalogRequest.current=null;if(!controller.signal.aborted)setCatalogLoaded(true);}}
   }
 
   useEffect(() => {
@@ -468,15 +471,21 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
     setInstallPrompt(null);
   }
 
-  const activeCategory = section === 'games' ? 'Games' : section === 'music' ? 'Music' : section === 'tools' ? 'Tools' : category;
+  const categoryOptions = catalogCategories.filter(item => !item.archived);
+  const sectionCategory = categorySections[section];
+  const activeCategories = sectionCategory ? [sectionCategory] : categoryOptions.filter(item => categoryIds.includes(item.id)).map(item => item.id);
+  const scopeNames = activeCategories.map(id => catalogCategories.find(item => item.id === id)?.name ?? id).join(' or ');
+  function toggleCategory(id: string) {
+    setCategoryIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current,id]);
+  }
   const hasSearch = normalizeProjectQuery(query).length > 0;
   const DirectoryHeading = hasSearch ? 'h1' : 'h2';
-  const directoryKey = [section, activeCategory, normalizeProjectQuery(query), directorySort].join('|');
+  const directoryKey = [section, activeCategories.join(','), normalizeProjectQuery(query), directorySort].join('|');
   useEffect(() => { setDirectoryPaging({ key: directoryKey, page: 1 }); }, [directoryKey]);
-  const page = discoverProjects(projects, { query, category: activeCategory, savedIds: section === 'library' ? saved : undefined, sort: directorySort, page: directoryPaging.key === directoryKey ? directoryPaging.page : 1 });
+  const page = discoverProjects(projects, { query, categories: activeCategories, savedIds: section === 'library' ? saved : undefined, sort: directorySort, page: directoryPaging.key === directoryKey ? directoryPaging.page : 1 });
   const latest = recentProjects(projects);
-  const isSearchScoped = section === 'library' || activeCategory !== 'All projects';
-  const searchScope = section === 'library' ? (activeCategory === 'All projects' ? 'your library' : activeCategory.toLowerCase() + ' in your library') : activeCategory.toLowerCase();
+  const isSearchScoped = section === 'library' || activeCategories.length > 0;
+  const searchScope = section === 'library' ? (scopeNames ? scopeNames + ' in your library' : 'your library') : scopeNames || 'all projects';
   const matchesOutsideScope = hasSearch && isSearchScoped ? searchProjects(projects, { query }).length - page.total : 0;
   const isDirectory = !['studio', 'review', 'claim', 'account', 'activity', 'profile', 'member', 'control'].includes(section);
   useEffect(()=>{
@@ -517,7 +526,9 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   const selectedCommunity = uniqueLinks.filter(link => !selectedExperiences.includes(link)
     && !selected?.collections?.some(collection => collection.url === link.url)
     && !(link.url === selected?.launchUrl && uniqueLinks.length === 1 && !link.image));
-  const relatedProjects = selected ? projects.filter(project => project.id !== selected.id).sort((a, b) => Number(b.category === selected.category) - Number(a.category === selected.category) || a.name.localeCompare(b.name)).slice(0, 3) : [];
+  const selectedCategories=new Set(selected?.classification?[selected.classification.primary,...selected.classification.secondary]:[]);
+  const sharedCategories=(p:Project)=>p.classification?[p.classification.primary,...p.classification.secondary].filter(id=>selectedCategories.has(id)).length:Number(p.category===selected?.category);
+  const relatedProjects = selected ? projects.filter(project => project.id !== selected.id).sort((a, b) => sharedCategories(b)-sharedCategories(a) || a.name.localeCompare(b.name)).slice(0, 3) : [];
   const titles: Record<string, { eyebrow: string; title: string; description: string }> = {
     discover: { eyebrow: 'LESS SEARCHING. MORE EXPLORING.', title: 'Your ecosystem. All together.', description: 'Discover what communities are building. Keep your favorites one tap away.' },
     library: { eyebrow: 'MAKE YOURSELF AT HOME', title: 'Your library', description: 'Your projects, games, and tools. Ready when you are.' },
@@ -525,7 +536,15 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
     music: { eyebrow: 'A SPACE FOR CREATORS', title: 'Something worth listening to.', description: 'A home for music experiences from independent creators.' },
     tools: { eyebrow: 'BUILT FOR THE CURIOUS', title: 'Find your next favorite tool.', description: 'Creative software and useful apps from ecosystem builders.' },
   };
-  const heading = titles[section] || titles.discover;
+  const heading = sectionCategory && catalogCategories !== legacyCategories
+    ? {eyebrow:'PROJECT DIRECTORY', title:scopeNames, description:'Explore projects in this category.'}
+    : titles[section] || titles.discover;
+  const visibleNavItems = navItems.flatMap(item => {
+    const id = categorySections[item.id];
+    if (!id) return [item];
+    const category = categoryOptions.find(option => option.id === id);
+    return category ? [{...item,label:category.name}] : [];
+  });
   const toastNode = toast ? (<div className="toast" role="status"><span className="toast-check"><Check size={16} /></span>{toast}<button onClick={() => setToast('')} aria-label="Dismiss notification"><X size={15} /></button></div>) : null;
   const pageNumbers = Array.from({length: page.pageCount}, (_, index) => index + 1).filter(number => number === 1 || number === page.pageCount || Math.abs(number - page.page) <= 1);
   function changePage(next: number) {
@@ -544,7 +563,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
       </button>
       <div className="nav-caption">YOUR SPACE</div>
       <nav>
-        {navItems.map(({ id, label, icon: Icon }) => <button key={id} className={'nav-item ' + (section === id ? 'nav-active' : '')} onClick={() => go(id)} aria-current={section === id ? 'page' : undefined}>
+        {visibleNavItems.map(({ id, label, icon: Icon }) => <button key={id} className={'nav-item ' + (section === id ? 'nav-active' : '')} onClick={() => go(id)} aria-current={section === id ? 'page' : undefined}>
           <Icon size={19} strokeWidth={1.8} /><span>{label}</span>
           {id === 'library' && savedProjects.length > 0 && <span className="nav-count">{savedProjects.length}</span>}
         </button>)}
@@ -580,16 +599,16 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
         {section==='claim'&&!site.settings.claimsOpen&&<p className='site-intake-notice'>New ownership claims are temporarily paused. Your existing claim remains saved.</p>}
         {publicPaused?<section className='site-pause'><Wrench size={34}/><h1>A little work behind the scenes.</h1><p>{site.settings.maintenance.message}</p><div className='site-pause-actions'><button className='button button-lime' onClick={()=>{void site.refresh();void refreshCatalog();}}>Check again <RefreshCw size={16}/></button><button className='button button-outline' onClick={()=>go('account')}>My account <UserRound size={16}/></button></div></section>:isDirectory ? <>
           {!hasSearch && <div className="page-heading"><div><div className="eyebrow">{heading.eyebrow}</div><h1>{heading.title}</h1><p>{heading.description}</p></div><button className="directory-jump" onClick={focusDirectory}>Browse projects <span>{page.total}</span><ArrowRight size={15} /></button></div>}
-          {section === 'discover' && !hasSearch && category === 'All projects' && (featuredProjects.length > 0 || latest.length > 0) && <section className={'feature-layout discovery-feature' + (featuredProjects.length ? '' : ' spotlight-empty')} aria-label="Featured projects and recent additions">
+          {section === 'discover' && !hasSearch && activeCategories.length === 0 && (featuredProjects.length > 0 || latest.length > 0) && <section className={'feature-layout discovery-feature' + (featuredProjects.length ? '' : ' spotlight-empty')} aria-label="Featured projects and recent additions">
             {featuredProjects.length > 0 && <ProjectSpotlights projects={featuredProjects} saved={saved} canSave={library.canSave} onOpen={openProject} onSave={toggleSave} />}
             <aside className="feature-side discovery-arrivals" aria-label="Recently added projects">
               <div className="arrivals-heading"><div><span className="card-overline">FRESH FINDS</span><h3>New to RMT<span className="new-dot" /></h3></div><Compass size={20} /></div>
-              <div className="arrivals-list">{latest.map(project => <button type="button" className="arrival-card" key={project.id} onClick={() => openProject(project)} aria-label={'Explore ' + project.name} aria-haspopup="dialog"><span className="arrival-art"><Cover project={project} /></span><span className="arrival-copy"><strong>{project.name}</strong><small>{project.category}</small></span><ArrowUpRight size={16} /></button>)}</div>
+              <div className="arrivals-list">{latest.map(project => <button type="button" className="arrival-card" key={project.id} onClick={() => openProject(project)} aria-label={'Explore ' + project.name} aria-haspopup="dialog"><span className="arrival-art"><Cover project={project} /></span><span className="arrival-copy"><strong>{project.name}</strong><small>{projectCategoryLabels(project)[0]}</small></span><ArrowUpRight size={16} /></button>)}</div>
               <button className="arrivals-more" onClick={browseNewest}>Browse newest additions <ArrowRight size={14} /></button>
             </aside>
           </section>}
           {section === 'discover' && !hasSearch && <DiscoveryEntry key={followAccount ?? 'visitor'} account={followAccount} onActivity={()=>go('activity')}/>}
-          {section === 'discover' && !hasSearch && category === 'All projects' && <section className="quick-return" aria-label="Your saved projects"><span className="quick-return-label"><Bookmark size={16} />Your shortcuts</span><div className="quick-return-projects">{savedProjects.slice(0, 4).map(project => <button key={project.id} onClick={() => openProject(project)} aria-haspopup="dialog">{project.name}<ArrowUpRight size={12} /></button>)}{!savedProjects.length && <span>Save a project to keep it one tap away.</span>}</div><button className="quick-return-library" onClick={() => go('library')}>My library <ArrowRight size={14} /></button></section>}
+          {section === 'discover' && !hasSearch && activeCategories.length === 0 && <section className="quick-return" aria-label="Your saved projects"><span className="quick-return-label"><Bookmark size={16} />Your shortcuts</span><div className="quick-return-projects">{savedProjects.slice(0, 4).map(project => <button key={project.id} onClick={() => openProject(project)} aria-haspopup="dialog">{project.name}<ArrowUpRight size={12} /></button>)}{!savedProjects.length && <span>Save a project to keep it one tap away.</span>}</div><button className="quick-return-library" onClick={() => go('library')}>My library <ArrowRight size={14} /></button></section>}
           {section === 'library' && <>
             {!hasSearch && <section className="library-home" aria-label="Your personal launchpad">
               <div className="library-home-header"><div className="library-home-heading"><span className="library-home-icon"><Library size={25} /></span><div><h2>Quick launch</h2><p>{library.status === 'ready' ? savedProjects.length + (savedProjects.length === 1 ? ' project ready to explore.' : ' projects ready to explore.') : library.status === 'loading' ? 'Your favorites are on their way.' : 'Reconnect to see your saved projects.'}</p></div></div><div className="library-home-tools"><LibrarySyncStatus library={library} />{library.isCloud && <button className="library-refresh" disabled={library.busy || library.status === 'loading'} onClick={() => library.status === 'error' ? void refreshSession() : void library.refresh()} aria-label="Refresh your account library" title="Refresh your account library"><RefreshCw size={13} /></button>}</div></div>
@@ -603,16 +622,19 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
             {!hasSearch && unavailableSaved.length > 0 && <details className="library-unavailable"><summary>{unavailableSaved.length} saved {unavailableSaved.length === 1 ? 'project is' : 'projects are'} currently unavailable</summary><p>These projects are not in the current directory. Keep them for their return, or remove a saved reference below.</p><ul>{unavailableSaved.map(id => <li key={id}><span>Unavailable project <small>{id}</small></span><button disabled={!library.canSave} onClick={() => void removeUnavailable(id)} aria-label={'Remove unavailable saved project ' + id}>Remove <X size={12} /></button></li>)}</ul></details>}
           </>}
           <section ref={directoryRef} className="directory-section discovery-directory" aria-labelledby="directory-heading">
-            <div className="section-heading"><div><DirectoryHeading id="directory-heading" className="directory-heading" tabIndex={-1}>{hasSearch ? 'Search results' : section === 'library' ? 'Saved by you' : section === 'discover' ? 'Project directory' : section === 'games' ? 'Find your next game' : section === 'music' ? 'Music experiences' : 'Tools & creative apps'}<span className="count-pill">{page.total}</span></DirectoryHeading>{!hasSearch && <p>{section === 'library' ? (library.status !== 'ready' ? 'Your library will appear when the connection is checked.' : library.isCloud ? 'Your favorites are connected to your RMT account.' : library.storageAvailable ? 'Favorites saved while signed out stay on this device.' : 'Browser storage is unavailable. Favorites last for this visit.') : 'Find your people. Open something new.'}</p>}</div></div>
+            <div className="section-heading"><div><DirectoryHeading id="directory-heading" className="directory-heading" tabIndex={-1}>{hasSearch ? 'Search results' : section === 'library' ? 'Saved by you' : section === 'discover' ? 'Project directory' : scopeNames}<span className="count-pill">{page.total}</span></DirectoryHeading>{!hasSearch && <p>{section === 'library' ? (library.status !== 'ready' ? 'Your library will appear when the connection is checked.' : library.isCloud ? 'Your favorites are connected to your RMT account.' : library.storageAvailable ? 'Favorites saved while signed out stay on this device.' : 'Browser storage is unavailable. Favorites last for this visit.') : 'Find your people. Open something new.'}</p>}</div></div>
             <div className="browse-toolbar">
-              {['discover', 'library'].includes(section) && <div className="category-tabs browse-categories" aria-label="Filter by category">{categories.map(item => <button key={item} className={category === item ? 'tab-active' : ''} onClick={() => setCategory(item)} aria-pressed={category === item}>{item === 'Games' && <Gamepad2 size={14} />}{item === 'Music' && <Music2 size={14} />}{item === 'Tools' && <Wrench size={14} />}{item}</button>)}</div>}
+              {['discover', 'library'].includes(section) && <div className="category-tabs browse-categories" role="group" aria-label="Filter by any selected category">
+                <button type="button" className={!activeCategories.length ? 'tab-active' : ''} aria-pressed={!activeCategories.length} onClick={() => setCategoryIds([])}>All projects</button>
+                {categoryOptions.map(item => <button type="button" key={item.id} className={activeCategories.includes(item.id) ? 'tab-active' : ''} aria-pressed={activeCategories.includes(item.id)} onClick={() => toggleCategory(item.id)}>{item.name}</button>)}
+              </div>}
               <div className="browse-controls"><span className="browse-result-range" aria-live="polite" aria-atomic="true">{page.total ? `${page.start}–${page.end} of ${page.total} projects` : 'No projects in this view'}</span><div className="browse-options"><label className="browse-sort"><ListFilter size={14} /><span className="sr-only">Sort projects</span><select aria-label="Sort projects" value={directorySort} onChange={event => setDirectorySort(event.target.value as DirectorySort)}><option value="name">Name A–Z</option><option value="recent">Newest on RMT</option></select><ChevronDown size={13} /></label><div className="view-switch" role="group" aria-label="Project layout"><button type="button" className={directoryView === 'grid' ? 'view-active' : ''} aria-label="Grid view" aria-pressed={directoryView === 'grid'} onClick={() => changeDirectoryView('grid')}><Grid2X2 size={17} /></button><button type="button" className={directoryView === 'list' ? 'view-active' : ''} aria-label="List view" aria-pressed={directoryView === 'list'} onClick={() => changeDirectoryView('list')}><List size={18} /></button></div></div></div>
             </div>
             {hasSearch && (section !== 'library' || library.status === 'ready') && <div className="search-feedback"><div role="status" aria-live="polite" aria-atomic="true"><p><strong>{page.total} {page.total === 1 ? 'result' : 'results'}</strong> for “{query.trim()}” in <strong>{searchScope}</strong>.</p>{matchesOutsideScope > 0 && <span>{matchesOutsideScope} more {matchesOutsideScope === 1 ? 'match is' : 'matches are'} outside this view.</span>}</div>{isSearchScoped && page.total > 0 && <button type="button" onClick={searchAllProjects}>Search all projects <ArrowRight size={14} /></button>}</div>}
             {catalogError && <p className="inline-notice" role="status">The directory could not be loaded. Your saved projects are unchanged. <button className='text-link' onClick={()=>void refreshCatalog()}>Try again</button></p>}
             {section === 'library' && library.status !== 'ready' ? null : page.total ? <><div className={'project-grid browse-grid' + (directoryView === 'list' ? ' browse-list' : '')} data-view={directoryView}>{page.items.map(project => <article className="project-card browse-card" data-metric-project={section==='discover'?project.id:undefined} key={project.id}>
               <div className="project-image-button"><Cover project={project} className="directory-art" thumbnail={directoryView === 'list'} /></div>
-              <div className="project-card-body"><div className="browse-card-kicker"><span>{project.category}</span>{project.stage && project.stage !== 'live' && <span>{stageLabel(project.stage)}</span>}</div><div className="project-card-heading"><div className="project-name-button"><h3><button type="button" className="project-card-trigger" onClick={() => {if(section==='discover'&&sessionStatus==='ready'&&!session.isAdmin&&!maintenance)recordSiteMetric('discovery_click',project.id);openProject(project);}} aria-label={'Explore ' + project.name} aria-haspopup="dialog">{project.name}</button></h3></div></div><p>{project.tagline}</p><div className="project-card-footer"><span className="project-card-explore" aria-hidden="true">Explore <ArrowUpRight size={13} /></span><span className="browse-destinations">{destinationCount(project)} links</span><button type="button" className={'save-button ' + (saved.includes(project.id) ? 'saved' : '')} aria-label={(saved.includes(project.id) ? 'Remove ' : 'Save ') + project.name + (saved.includes(project.id) ? ' from library' : ' to library')} aria-pressed={saved.includes(project.id)} disabled={!library.canSave} onClick={() => void toggleSave(project)}><Bookmark size={17} fill={saved.includes(project.id) ? 'currentColor' : 'none'} /></button></div></div>
+              <div className="project-card-body"><div className="browse-card-kicker"><span>{projectCategoryLabels(project)[0]}</span>{project.stage && project.stage !== 'live' && <span>{stageLabel(project.stage)}</span>}</div><div className="project-card-heading"><div className="project-name-button"><h3><button type="button" className="project-card-trigger" onClick={() => {if(section==='discover'&&sessionStatus==='ready'&&!session.isAdmin&&!maintenance)recordSiteMetric('discovery_click',project.id);openProject(project);}} aria-label={'Explore ' + project.name} aria-haspopup="dialog">{project.name}</button></h3></div></div><p>{project.tagline}</p><div className="project-card-footer"><span className="project-card-explore" aria-hidden="true">Explore <ArrowUpRight size={13} /></span><span className="browse-destinations">{destinationCount(project)} links</span><button type="button" className={'save-button ' + (saved.includes(project.id) ? 'saved' : '')} aria-label={(saved.includes(project.id) ? 'Remove ' : 'Save ') + project.name + (saved.includes(project.id) ? ' from library' : ' to library')} aria-pressed={saved.includes(project.id)} disabled={!library.canSave} onClick={() => void toggleSave(project)}><Bookmark size={17} fill={saved.includes(project.id) ? 'currentColor' : 'none'} /></button></div></div>
             </article>)}</div><div className="browse-pagination"><p>{page.total > 8 ? 'A little at a time. There’s more to discover.' : 'You’re all caught up in this view.'}</p>{page.pageCount > 1 && <nav className="pagination-controls" aria-label="Project pages"><button className="pagination-direction" disabled={page.page === 1} onClick={() => changePage(page.page - 1)} aria-label="Previous project page"><ChevronLeft size={17} /><span>Previous</span></button><span className="mobile-page-summary">{page.page} / {page.pageCount}</span><div className="page-numbers">{pageNumbers.map((number, index) => <span className="page-slot" key={number}>{index > 0 && number - pageNumbers[index - 1] > 1 && <span className="page-ellipsis" aria-hidden="true">…</span>}<button className={number === page.page ? 'page-active' : ''} aria-current={number === page.page ? 'page' : undefined} aria-label={'Project page ' + number} onClick={() => changePage(number)}>{number}</button></span>)}</div><button className="pagination-direction" disabled={page.page === page.pageCount} onClick={() => changePage(page.page + 1)} aria-label="Next project page"><span>Next</span><ChevronRight size={17} /></button></nav>}</div></> : <div className="empty-state"><div className="empty-state-icon">{section === 'library' ? <Library size={29} /> : section === 'music' ? <Music2 size={29} /> : <Search size={29} />}</div><h3>{hasSearch ? (matchesOutsideScope > 0 ? 'There’s more beyond this view.' : 'No projects found.') : section === 'library' ? 'Your next favorite belongs here.' : 'The first spot could be yours.'}</h3><p>{hasSearch ? (matchesOutsideScope > 0 ? 'Your search matches projects elsewhere in the directory. Open all projects to see them without changing your search.' : isSearchScoped ? 'Try a shorter name, or search all projects to look beyond your current filters.' : 'Try a project name, part of a name, a game, or a website.') : section === 'library' ? (library.isCloud ? 'Tap the bookmark on any project to save it to your account. Your favorites will be ready here on any device.' : 'Tap the bookmark on any project to keep it here. Sign in to take your library to another device.') : 'We’re opening this part of the directory to builders. Have an experience people should discover?'}</p><button className="button button-lime" onClick={() => hasSearch ? (isSearchScoped ? searchAllProjects() : setQuery('')) : go(section === 'library' ? 'discover' : 'studio')}>{hasSearch ? (isSearchScoped ? 'Search all projects' : 'Clear search') : section === 'library' ? 'Find a project' : 'Submit your project'}<ArrowRight size={16} /></button></div>}
           </section>
           {section === 'discover' && <section className="community-banner"><div className="community-banner-icon"><LayoutGrid size={26} /></div><div><h3>Your community built it. Let people find it.</h3><p>Games, creative tools, and projects deserve more than a buried link.</p></div><button className="button button-outline" onClick={() => go('studio')}>Join the directory <ArrowUpRight size={16} /></button></section>}
@@ -638,12 +660,13 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
           <div className="detail-cover-shade" />
           <div className="showcase-toolbar"><button onClick={closeProject} className="showcase-back"><ArrowLeft size={15} /> Back to RMT</button></div>
           <div className="showcase-title">
-            <div className="showcase-badges">{selected.id === 'lammbs' && <span>RMT creator project</span>}<span className="showcase-category">{selected.category === 'Games' ? <Gamepad2 size={13} /> : selected.category === 'Tools' ? <Wrench size={13} /> : selected.category === 'Music' ? <Music2 size={13} /> : <Compass size={13} />}{enhancedLayout ? enrichment.categoryLabel : selected.category}</span>{selected.stage && <span>{stageLabel(selected.stage)}</span>}</div>
+            <div className="showcase-badges">{selected.id === 'lammbs' && <span>RMT creator project</span>}<span className="showcase-category"><Compass size={13} />{projectCategoryLabels(selected)[0]}</span>{selected.stage && <span>{stageLabel(selected.stage)}</span>}</div>
             <h2 id="project-title" tabIndex={-1}><ProjectLogo project={selected} />{selected.name}</h2>
             {selected.tagline && selected.tagline !== aboutCopy && <p>{selected.tagline}</p>}
           </div>
         </div>}
         <div className="detail-body showcase-body">
+          {selected.classification && selected.classification.secondary.length > 0 && <ul className="showcase-secondary-categories" aria-label="Additional project categories">{projectCategoryLabels(selected).slice(1).map(label => <li key={label}>{label}</li>)}</ul>}
           <div className="showcase-actionbar">
             <a className="button button-lime showcase-launch" href={selected.launchUrl} target="_top" rel="noopener noreferrer">{selected.presentation?.labels?.[selected.launchUrl] || (selected.launchUrl === selected.officialXProfile ? 'Visit on X' : selected.launchLabel)} <ArrowUpRight size={18} /></a>
             <LinkOptions href={selected.launchUrl} label={selected.name + ' launch destination'} onOpen={setDestination} />
@@ -682,7 +705,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
           </div>
           <div className="detail-note"><ArrowUpRight size={15} /><p>Experiences open on their creators’ sites. Access requirements vary. {selected.claimed ? 'Project ownership has been reviewed by RMT.' : 'This listing uses public project pages and is waiting for its builder to claim it.'}</p></div>
           <div className="detail-claim-row"><div className="showcase-builder-icon"><Terminal size={21} /></div><div><strong>{selected.claimed ? 'Project management' : 'Do you build ' + selected.name + '?'}</strong><p>{selected.claimed ? 'Manage your listing and share project updates in Builder Studio.' : 'Claim this page for free. Bring your links, collections, and experiences together.'}</p></div><button className="button button-outline" onClick={() => selected.claimed ? openProjectManagement() : startClaim(selected)}>{selected.claimed ? 'Builder Studio' : 'Claim this project'} <ArrowUpRight size={15} /></button></div>
-          {relatedProjects.length > 0 && <section className="showcase-related" aria-labelledby="related-heading"><div className="showcase-section-heading"><h3 id="related-heading">Keep exploring</h3><Compass size={15} /></div><div className="related-projects">{relatedProjects.map(project => <button className="related-project" key={project.id} onClick={() => openProject(project)}><span className="related-project-art"><Cover project={project} /></span><span><strong>{project.name}</strong><small>{project.category}</small></span><ArrowUpRight size={15} /></button>)}</div></section>}
+          {relatedProjects.length > 0 && <section className="showcase-related" aria-labelledby="related-heading"><div className="showcase-section-heading"><h3 id="related-heading">Keep exploring</h3><Compass size={15} /></div><div className="related-projects">{relatedProjects.map(project => <button className="related-project" key={project.id} onClick={() => openProject(project)}><span className="related-project-art"><Cover project={project} /></span><span><strong>{project.name}</strong><small>{projectCategoryLabels(project)[0]}</small></span><ArrowUpRight size={15} /></button>)}</div></section>}
         </div>
         {toastNode}
       </div>}

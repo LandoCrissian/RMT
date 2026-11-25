@@ -1,3 +1,4 @@
+import {suggestCategories} from '../lib/category-suggestions.mjs';
 import {lookup} from 'node:dns/promises';
 import {BlockList, isIP} from 'node:net';
 import https from 'node:https';
@@ -166,7 +167,10 @@ export async function collectProject(project,fetchPublic=readPublic) {
       snapshots.push({kind:'explorer',url:link.url,destinations:{[link.url]:{label:'Collection contract',copy:name+' is registered as an '+token.type+' contract on Robinhood Chain.'}}});
     } catch { /* Leave unverified contract metadata out. */ }
   }
-  return snapshots;
+  return snapshots.map(row=>{
+    const suggestions=suggestCategories([row]);
+    return suggestions.length?{...row,categorySuggestions:suggestions}:row;
+  });
 }
 
 async function main(){

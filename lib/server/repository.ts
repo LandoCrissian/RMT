@@ -1,3 +1,4 @@
+import {checkActiveSelection,readTaxonomy} from './taxonomy';
 import {applyReviewedCommunityArtwork} from '@/lib/reviewed-community-artwork';
 import {currentPresentation} from '@/lib/project-presentation';
 import type { Project } from "@/lib/catalog";
@@ -11,6 +12,7 @@ import {publicControlArtwork,type ControlArtworkRow} from './control-artwork-mod
 
 export type SubmissionStatus = "pending" | "needs_changes" | "approved" | "rejected" | "suspended";
 export type SubmissionRow = {
+  category_selection?:string;
   id: string; user_id: string; account_email: string; name: string; normalized_name: string;
   summary: string; category: Project["category"]; stage: ProjectStage; website: string; normalized_host: string;
   launch_url: string; x_profile: string; contact_email: string; ownership_evidence: string;
@@ -20,7 +22,7 @@ export type SubmissionRow = {
 
 export function privateSubmission(row: SubmissionRow, includeAccount = false) {
   return {
-    id: row.id, name: row.name, summary: row.summary, category: row.category, stage: row.stage,
+    categoryIds:JSON.parse(row.category_selection||'[]') as string[],id: row.id, name: row.name, summary: row.summary, category: row.category, stage: row.stage,
     website: row.website, launchUrl: row.launch_url, xProfile: row.x_profile,
     contactEmail: row.contact_email, ownershipEvidence: row.ownership_evidence,
     verificationCode: row.verification_code, status: row.status, reviewNote: row.review_note,
@@ -75,6 +77,7 @@ function translateUnique(error: unknown): never {
 }
 
 export async function createSubmission(db: D1Database, user: PlatformIdentity, input: SubmissionInput) {
+  await checkActiveSelection(db,input.categoryIds);
   assertNotSeed(input);
   await assertNotAdminProject(db,input);
   const now = Date.now();
@@ -88,13 +91,13 @@ export async function createSubmission(db: D1Database, user: PlatformIdentity, i
       INSERT INTO submissions (
         id,user_id,account_email,name,normalized_name,summary,category,stage,website,
         normalized_host,launch_url,x_profile,contact_email,ownership_evidence,
-        verification_code,status,review_note,revision,created_at,updated_at
-      ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending','',1,?,?
+        verification_code,category_selection,status,review_note,revision,created_at,updated_at
+      ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending','',1,?,?
         WHERE (SELECT COUNT(*) FROM submissions WHERE user_id = ? AND created_at >= ?) < 3
         AND NOT EXISTS(SELECT 1 FROM project_controls WHERE source='admin' AND (normalized_name=? OR normalized_host=?))
     `).bind(id, user.userId, user.email, input.name, input.normalizedName, input.summary,
       input.category, input.stage, input.website, input.normalizedHost, input.launchUrl, input.xProfile,
-      input.contactEmail, input.ownershipEvidence, verificationCode, now, now, user.userId, now - 86_400_000,input.normalizedName,input.normalizedHost),
+      input.contactEmail, input.ownershipEvidence, verificationCode, JSON.stringify(input.categoryIds??[]), now, now, user.userId, now - 86_400_000,input.normalizedName,input.normalizedHost),
       ...pendingNotifications(db,{kind:"submission",id,projectName:input.name,revision:1,now}),
     ]);
   } catch (error) { return translateUnique(error); }
@@ -124,7 +127,7 @@ function approvedDestinationLinks(edit:ProjectEditInput):Project['links'] {
 }
 
 async function buildCatalog(db:D1Database,includeHidden=false) {
-  const [rows,owners,overrides,artworkRows,controls,controlArtworkRows] = await Promise.all([
+  const [rows,owners,overrides,artworkRows,controls,controlArtworkRows,taxonomy] = await Promise.all([
     db.prepare(`SELECT s.*,
       (SELECT MIN(r.created_at) FROM review_events r WHERE r.submission_id=s.id AND r.next_status='approved') AS first_approved_at
       FROM submissions s WHERE s.status IN (${includeHidden?"'approved','suspended'":"'approved'"}) ORDER BY s.name COLLATE NOCASE LIMIT 500`).all<PublicSubmissionRow>(),
@@ -137,6 +140,7 @@ async function buildCatalog(db:D1Database,includeHidden=false) {
     db.prepare('SELECT * FROM project_controls').all<ProjectControlRow>(),
     db.prepare(`SELECT a.* FROM control_project_artwork a JOIN project_controls c ON c.project_id=a.project_id AND c.artwork_override=1
       WHERE a.status='ready' AND ((a.kind='logo' AND c.logo_asset_id=a.id) OR (a.kind='banner' AND c.banner_asset_id=a.id))`).all<ControlArtworkRow>(),
+    readTaxonomy(db),
   ]);
   const ownership=new Map(owners.results.map(row=>[row.project_id,row.status]));
   const approvedEdits=new Map(overrides.results.map(row=>[row.project_id,{edit:JSON.parse(row.payload_json) as ProjectEditInput,revision:row.revision}]));
@@ -174,6 +178,7 @@ async function buildCatalog(db:D1Database,includeHidden=false) {
         officialXProfile:edit.xProfile || undefined,website:edit.website,launchUrl:edit.launchUrl,links:approvedDestinationLinks(edit)}:{}),
       ...(artwork?{artwork,cover:banner?.url||logo!.url,coverFit:banner?'cover' as const:'contain' as const,
         coverAspectRatio:banner?banner.width/banner.height:logo!.width/logo!.height}:{})};
+    merged.classification=taxonomy.assignments.get(project.id);
     if (!control?.artwork_override) applyReviewedCommunityArtwork(merged);
     if(control?.presentation_json)merged.presentation=currentPresentation(merged,JSON.parse(control.presentation_json));
     return merged;
@@ -188,10 +193,10 @@ async function buildCatalog(db:D1Database,includeHidden=false) {
       const ids=new Set(visible.results.map(row=>row.project_id));projects=projects.filter(project=>ids.has(project.id));
     }
   }
-  return{projects,counts:{curated:projects.filter(p=>p.source==='curated').length,community:projects.filter(p=>p.source==='community').length},
+  return{projects,categories:taxonomy.categories,counts:{curated:projects.filter(p=>p.source==='curated').length,community:projects.filter(p=>p.source==='community').length},
     controls:controls.results,submissions:rows.results,overrides:overrides.results};
 }
-export async function catalog(db:D1Database){const {projects,counts}=await buildCatalog(db);return{projects,counts};}
+export async function catalog(db:D1Database){const {projects,counts,categories}=await buildCatalog(db);return{projects,counts,categories};}
 /** Private administrative projection; never return its supporting records publicly. */
 export async function administrativeCatalog(db:D1Database){return buildCatalog(db,true);}
 
@@ -222,6 +227,8 @@ export async function reviewSubmission(db: D1Database, reviewerId: string, id: s
   const ownershipGuard = initialApproval ? `AND NOT EXISTS (
     SELECT 1 FROM project_owners o WHERE o.project_id=? AND o.status='active' AND o.user_id<>submissions.user_id)` : '';
   const audited = 'EXISTS(SELECT 1 FROM review_events e WHERE e.id=? AND e.submission_id=submissions.id AND e.revision=submissions.revision+1)';
+  const approvedIds=initialApproval?decision.categoryIds:undefined;
+  if(initialApproval)await checkActiveSelection(db,approvedIds??JSON.parse(row.category_selection||'[]'));
   const results = await db.batch([
     db.prepare(`INSERT INTO review_events (id,submission_id,reviewer_id,previous_status,next_status,note,revision,created_at)
       SELECT ?,id,?,status,?,?,revision+1,? FROM submissions WHERE id=? AND revision=? AND status=? ${ownershipGuard}`)
@@ -232,9 +239,9 @@ export async function reviewSubmission(db: D1Database, reviewerId: string, id: s
       ON CONFLICT(project_id) DO UPDATE SET user_id=excluded.user_id,claim_id=NULL,status='active',revision=project_owners.revision+1,updated_at=excluded.updated_at
       WHERE project_owners.status='revoked'
     `).bind(projectId,now,now,id,eventId)] : []),
-    db.prepare(`UPDATE submissions SET status=?,review_note=?,revision=revision+1,updated_at=?
+    db.prepare(`UPDATE submissions SET status=?,review_note=?,category_selection=coalesce(?,category_selection),revision=revision+1,updated_at=?
       WHERE id=? AND revision=? AND status=? AND ${audited}`)
-      .bind(transition.to,decision.note,now,id,row.revision,row.status,eventId),
+      .bind(transition.to,decision.note,approvedIds?JSON.stringify(approvedIds):null,now,id,row.revision,row.status,eventId),
   ]);
   if (results[0]?.meta.changes !== 1 || results.at(-1)?.meta.changes !== 1)
     throw new InputError("The application or its project manager changed. Refresh the review queue and check management before approving.", 409);
@@ -244,6 +251,7 @@ export async function reviewSubmission(db: D1Database, reviewerId: string, id: s
 }
 
 export async function resubmit(db: D1Database, user: PlatformIdentity, id: string, input: SubmissionInput, expectedRevision: number) {
+  await checkActiveSelection(db,input.categoryIds);
   assertNotSeed(input);
   await assertNotAdminProject(db,input);
   const row = await db.prepare("SELECT * FROM submissions WHERE id = ? AND user_id = ?").bind(id, user.userId).first<SubmissionRow>();
@@ -256,11 +264,11 @@ export async function resubmit(db: D1Database, user: PlatformIdentity, id: strin
       db.prepare(`INSERT INTO review_events (id,submission_id,reviewer_id,previous_status,next_status,note,revision,created_at)
         SELECT ?,id,?,status,'pending','Applicant resubmitted requested changes.',revision+1,? FROM submissions WHERE id = ? AND user_id = ? AND revision = ? AND status = 'needs_changes' AND NOT EXISTS(SELECT 1 FROM project_controls WHERE source='admin' AND (normalized_name=? OR normalized_host=?))`)
         .bind(crypto.randomUUID(), user.userId, now, id, user.userId, row.revision,input.normalizedName,input.normalizedHost),
-      db.prepare(`UPDATE submissions SET name=?,normalized_name=?,summary=?,category=?,stage=?,website=?,normalized_host=?,launch_url=?,x_profile=?,contact_email=?,ownership_evidence=?,
+      db.prepare(`UPDATE submissions SET name=?,normalized_name=?,summary=?,category=?,stage=?,website=?,normalized_host=?,launch_url=?,x_profile=?,contact_email=?,ownership_evidence=?,category_selection=?,
         status='pending',review_note='',revision=revision+1,updated_at=?
         WHERE id=? AND user_id=? AND revision=? AND status='needs_changes' AND NOT EXISTS(SELECT 1 FROM project_controls WHERE source='admin' AND (normalized_name=? OR normalized_host=?))`)
         .bind(input.name, input.normalizedName, input.summary, input.category, input.stage, input.website, input.normalizedHost, input.launchUrl, input.xProfile,
-          input.contactEmail, input.ownershipEvidence, now, id, user.userId, row.revision,input.normalizedName,input.normalizedHost),
+          input.contactEmail, input.ownershipEvidence, JSON.stringify(input.categoryIds??[]), now, id, user.userId, row.revision,input.normalizedName,input.normalizedHost),
       ...pendingNotifications(db,{kind:'submission',id,projectName:input.name,revision:row.revision+1,now}),
     ]);
   } catch (error) { return translateUnique(error); }

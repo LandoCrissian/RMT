@@ -13,6 +13,8 @@ import {assertControlArtworkSelection,controlArtworkSelectionGuard} from './cont
 
 type OwnerRow={user_id:string;status:'active'|'revoked';revision:number};
 const PAGE_SIZE=20;
+import {validSelection} from '../taxonomy';
+import {checkActiveSelection} from './taxonomy';
 export type ProjectListInput={q:string;visibility:'all'|'public'|'hidden'|'archived';category:string;page:number;pageSize:number};
 const projectIdPattern=/^[a-zA-Z0-9_-]{1,120}$/;
 export function checkedProjectId(id:string){if(!projectIdPattern.test(id))throw new InputError('Choose a valid project.');return id;}
@@ -36,7 +38,7 @@ async function projectRows(db:D1Database):Promise<ControlProject[]>{
 }
 export async function controlProjects(db:D1Database,input:ProjectListInput):Promise<ControlProjectsPage>{
  const query=input.q.toLowerCase();
- const projects=(await projectRows(db)).filter(item=>(input.visibility==='all'||item.visibility===input.visibility)&&(input.category==='all'||item.project.category===input.category)&&(!query||[item.project.name,item.project.id,item.project.description,item.owner?.userId??''].some(text=>text.toLowerCase().includes(query)))).sort((a,b)=>a.project.name.localeCompare(b.project.name)||a.project.id.localeCompare(b.project.id));
+ const projects=(await projectRows(db)).filter(item=>(input.visibility==='all'||item.visibility===input.visibility)&&(input.category==='all'||item.project.classification?.primary===input.category||item.project.classification?.secondary.includes(input.category)||item.project.category===input.category)&&(!query||[item.project.name,item.project.id,item.project.description,item.owner?.userId??''].some(text=>text.toLowerCase().includes(query)))).sort((a,b)=>a.project.name.localeCompare(b.project.name)||a.project.id.localeCompare(b.project.id));
  const offset=(input.page-1)*input.pageSize;
  return{projects:projects.slice(offset,offset+input.pageSize),total:projects.length,page:input.page,pageSize:input.pageSize,hasMore:offset+input.pageSize<projects.length};
 }
@@ -51,11 +53,12 @@ export function validateControlProjectContent(value:unknown,id:string,baseRevisi
  return{content:{name,summary:edit.summary,category:edit.category,stage:edit.stage,website:edit.website,launchUrl:edit.launchUrl,xProfile:edit.xProfile,links:edit.links},edit};
 }
 export function validateCreateControlProject(value:unknown):CreateControlProject{
- const body=controlObject(value,['content','visibility','featured','reason','confirmedLinks']);
+ const body=controlObject(value,['content','visibility','featured','reason','confirmedLinks','categoryIds']);
  if(!['public','hidden','archived'].includes(String(body.visibility))||typeof body.featured!=='boolean')throw new InputError('Choose the listing visibility and featured setting.');
  if(body.confirmedLinks!==true)throw new InputError('Confirm you checked the official links before adding this listing.');
  const {content}=validateControlProjectContent(body.content,'new-project',0);
- return{content,visibility:body.visibility as CreateControlProject['visibility'],featured:body.featured,reason:controlReason(body.reason),confirmedLinks:true};
+ if(body.categoryIds!==undefined&&!validSelection(body.categoryIds))throw new InputError('Select a valid classification.');
+ return{content,...(body.categoryIds?{categoryIds:body.categoryIds as string[]}:{}),visibility:body.visibility as CreateControlProject['visibility'],featured:body.featured,reason:controlReason(body.reason),confirmedLinks:true};
 }
 export function validateChangeControlProject(value:unknown,id:string):ChangeControlProject{
  const body=controlObject(value,['action','expectedRevision','expectedListingRevision','reason','content','visibility','featured','spotlight','presentation','confirmedLinks','logoAssetId','bannerAssetId']);
@@ -87,6 +90,7 @@ async function assertUniqueProject(db:D1Database,content:ControlProjectContent,e
 }
 function translateUnique(error:unknown):never{if(error instanceof Error&&/UNIQUE constraint failed.*project_controls/i.test(error.message))throw new InputError('This project already has an RMT listing. Refresh before adding it again.',409);throw error;}
 export async function createControlProject(db:D1Database,actor:ControlActor,input:CreateControlProject):Promise<ControlProject>{
+ await checkActiveSelection(db,input.categoryIds);
  const unique=await assertUniqueProject(db,input.content);
  const suffix=crypto.randomUUID(),id='admin-'+suffix,now=Date.now(),eventId=crypto.randomUUID();
  const {content,edit}=validateControlProjectContent(input.content,id,0);
@@ -98,7 +102,7 @@ export async function createControlProject(db:D1Database,actor:ControlActor,inpu
   const results=await db.batch([
    auditInsert(db,actor,{id:eventId,action:'project.create',entityType:'project',entityId:id,reason:input.reason,after:{name:content.name,visibility:input.visibility,featured:input.featured},now},guard),
    db.prepare(`INSERT INTO project_controls(project_id,source,definition_json,name_override,payload_json,normalized_name,normalized_host,base_override_revision,visibility,featured,revision,created_at,updated_at)
-    SELECT ?,'admin',?,'',?,?,?,0,?,?,1,?,? WHERE EXISTS(SELECT 1 FROM control_audit_events WHERE id=?)`).bind(id,JSON.stringify(project),JSON.stringify(edit),unique.name,unique.host,input.visibility,Number(input.featured),now,now,eventId),
+    SELECT ?,'admin',?,'',?,?,?,0,?,?,1,?,? WHERE EXISTS(SELECT 1 FROM control_audit_events WHERE id=?)`).bind(id,JSON.stringify({...project,...(input.categoryIds?{initialCategories:input.categoryIds}:{})}),JSON.stringify(edit),unique.name,unique.host,input.visibility,Number(input.featured),now,now,eventId),
   ]);
   if(results[0]?.meta.changes!==1||results[1]?.meta.changes!==1)throw new InputError('The listing changed, already exists, or your access changed. Refresh before adding it again.',409);
  }catch(error){return translateUnique(error);}
@@ -194,7 +198,7 @@ export async function changeControlOwnership(db:D1Database,actor:ControlActor,id
 export function projectListInput(search:URLSearchParams):ProjectListInput{
  const q=(search.get('q')??'').trim();if(q.length>100)throw new InputError('Search with 100 characters or fewer.');
  const visibility=search.get('visibility')??'all',category=search.get('category')??'all';
- if(!['all','public','hidden','archived'].includes(visibility)||!['all','Games','Music','Tools','Community'].includes(category))throw new InputError('Choose valid project filters.');
+ if(!['all','public','hidden','archived'].includes(visibility)||(!['all','Games','Music','Tools','Community'].includes(category)&&!validSelection([category])))throw new InputError('Choose valid project filters.');
  const page=Number(search.get('page')??1),pageSize=Number(search.get('pageSize')??PAGE_SIZE);
  if(!Number.isSafeInteger(page)||page<1||page>10000||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>50)throw new InputError('Choose a valid project page.');
  return{q,visibility:visibility as ProjectListInput['visibility'],category,page,pageSize};

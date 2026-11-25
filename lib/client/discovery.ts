@@ -4,7 +4,7 @@ import type {ActivityPage} from '../activity';
 export type DiscoveryView = 'for-you' | 'following' | 'all' | 'notifications';
 export type Lesson = {title: string; body: string};
 export type DiscoveryPage = ActivityPage & {
-  member: boolean; interests: string[]; categories: string[]; lessons: Lesson[];
+  member: boolean; interests: string[]; categories: string[]; categoryLabels:Record<string,string>; lessons: Lesson[];
   recommendedProjects: {id: string; name: string}[]; notificationsEnabled: boolean;
   readIds: string[]; unreadCount: number;
 };
@@ -31,7 +31,13 @@ export async function readDiscovery(query: URLSearchParams, account: string | nu
       || !Array.isArray(body.recommendedProjects) || !body.recommendedProjects.every((item:{id:string;name:string}) => item && typeof item.id === 'string' && typeof item.name === 'string')
       || typeof body.notificationsEnabled !== 'boolean' || typeof body.unreadCount !== 'number' || !Number.isSafeInteger(body.unreadCount) || body.unreadCount < 0
       || (!account && (body.interests.length > 0 || body.readIds.length > 0 || body.unreadCount > 0))) throw Error('The discovery response could not be verified.');
-  return {...feed, member:body.member, interests:body.interests, categories:body.categories, lessons:body.lessons,
+  const labels=body.categoryLabels;
+  const categoryLabels=Object.fromEntries(body.categories.map(id=>{
+    const label=labels===undefined?id:isRecord(labels)?labels[id]:null;
+    if(typeof label!=='string'||!label.trim())throw Error('The discovery categories could not be verified.');
+    return [id,label];
+  }));
+  return {...feed, categoryLabels, member:body.member, interests:body.interests, categories:body.categories, lessons:body.lessons,
     recommendedProjects:body.recommendedProjects, notificationsEnabled:body.notificationsEnabled, readIds:body.readIds, unreadCount:body.unreadCount};
 }
 

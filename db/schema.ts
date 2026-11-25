@@ -7,6 +7,7 @@ export const submissions = sqliteTable("submissions", {
   accountEmail: text("account_email").notNull(),
   name: text("name").notNull(),
   normalizedName: text("normalized_name").notNull(),
+  categorySelection:text("category_selection").notNull().default("[]"),
   summary: text("summary").notNull(),
   category: text("category").notNull(),
   stage: text("stage").notNull().default("building"),
@@ -284,3 +285,13 @@ export const claimEligibilityCache=sqliteTable('claim_eligibility_cache',{
   projectId:text('project_id').primaryKey(),binding:text('binding').notNull(),status:text('status').notNull(),ownerToken:text('owner_token').notNull(),
   resultJson:text('result_json').notNull(),checkedAt:integer('checked_at').notNull(),expiresAt:integer('expires_at').notNull(),
 },t=>[index('claim_eligibility_checked').on(t.checkedAt)]);
+
+export const taxonomyCategories=sqliteTable('taxonomy_categories',{
+ id:text('id').primaryKey(),name:text('name').notNull().unique(),position:integer('position').notNull(),archived:integer('archived').notNull().default(0)
+},t=>[check('taxonomy_archived',sql`${t.archived} IN (0,1)`)]);
+export const projectCategories=sqliteTable('project_categories',{
+ projectId:text('project_id').notNull(),categoryId:text('category_id').notNull().references(()=>taxonomyCategories.id),isPrimary:integer('is_primary').notNull()
+},t=>[primaryKey({columns:[t.projectId,t.categoryId]}),uniqueIndex('project_primary_category').on(t.projectId).where(sql`${t.isPrimary}=1`),index('category_members').on(t.categoryId,t.projectId),check('category_primary',sql`${t.isPrimary} IN (0,1)`)]);
+export const taxonomyReviews=sqliteTable('taxonomy_reviews',{
+ revision:integer('revision').primaryKey(),actor:text('actor').notNull(),action:text('action').notNull(),detail:text('detail').notNull(),reviewedAt:integer('reviewed_at').notNull()
+});

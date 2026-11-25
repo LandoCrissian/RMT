@@ -2,7 +2,8 @@ import {validateActivityPage} from '@/lib/activity';
 import {InputError} from '@/lib/submission-validation';
 import {publicActivity} from './activity';
 import {catalog} from './repository';
-import {getDiscoveryConfig} from './discovery-config';
+import {legacyPrimary} from '@/lib/taxonomy';
+import {getDiscoveryConfig,interestId} from './discovery-config';
 import {followedProjects} from './following';
 import {publicUpdateOwnershipGuard,publicUpdateProjectGuard,publicUpdateContentGuard} from './project-updates';
 import {activeControlMemberSql} from './control-sql';
@@ -23,16 +24,20 @@ export async function discovery(db:D1Database,url:URL,user:string|null){
   const page=validateActivityPage(url);
   const [config,prefs]=await Promise.all([getDiscoveryConfig(db),user?db.prepare(
     'SELECT interests,notifications_enabled,onboarding FROM discovery_members WHERE user_id=?').bind(user).first<Preferences>():null]);
-  const interests:string[]=JSON.parse(prefs?.interests??'[]').filter((s:string)=>config.categories.includes(s));
+  const interests:string[]=[...new Set<string>((JSON.parse(prefs?.interests??'[]') as string[]).map(interestId).filter(id=>config.categories.includes(id)))];
   const enabled=prefs?.notifications_enabled!==0;
-  const base={lessons:config.lessons,categories:config.categories,interests,member:!!user,notificationsEnabled:enabled,
+  const base={lessons:config.lessons,categories:config.categories,categoryLabels:config.categoryLabels,interests,member:!!user,notificationsEnabled:enabled,
     onboarding:prefs?.onboarding??null};
   const empty={items:[],nextCursor:null,hasMore:false,unreadCount:0,readIds:[],recommendedProjects:[]};
   if(view==='guide')return {...base,...empty};
   const [{projects},followed,unread]=await Promise.all([catalog(db),user && ['following','for-you','notifications'].includes(view)?followedProjects(db,user):null,
     user&&enabled?db.prepare(`SELECT COUNT(*) AS n ${inboxFrom} AND NOT EXISTS(SELECT 1 FROM discovery_reads r WHERE r.user_id=f.user_id AND r.update_id=u.id)`).bind(user).first<{n:number}>():null]);
   const follows=new Set(followed?.projectIds);
-  const recommendations=projects.filter(p=>config.recommendedIds.includes(p.id)||interests.includes(p.category));
+  const recommendations=projects.filter(project=>{
+    const c=project.classification;
+    const ids=c?[c.primary,...c.secondary]:[legacyPrimary[project.category]];
+    return config.recommendedIds.includes(project.id)||ids.some(id=>interests.includes(id));
+  });
   const recommendedIds=new Set(recommendations.map(p=>p.id));
   const matches=projects.filter(p=>view==='all'||(view==='for-you'&&recommendedIds.has(p.id))||follows.has(p.id));
   const result=view==='notifications'&&!enabled?empty:await publicActivity(db,page,{projects:matches,...(view==='notifications'&&user?{inboxUser:user}:{})});
@@ -54,9 +59,9 @@ export async function changeDiscovery(db:D1Database,user:string,value:unknown){
     case 'interests':{
       const {categories}=await getDiscoveryConfig(db);
       if(!Array.isArray(body.interests)||body.interests.length>categories.length||
-        !body.interests.every(s=>typeof s==='string'&&categories.includes(s))||new Set(body.interests).size!==body.interests.length)
+        !body.interests.every(s=>typeof s==='string'&&categories.includes(interestId(s)))||new Set(body.interests.map(interestId)).size!==body.interests.length)
         throw new InputError('Choose available interests.');
-      field='interests';saved=JSON.stringify(body.interests);break;
+      field='interests';saved=JSON.stringify(body.interests.map(interestId));break;
     }
     case 'notifications':
       if(typeof body.enabled!=='boolean')throw new InputError('Choose a notification preference.');
