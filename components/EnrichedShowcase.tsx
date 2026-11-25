@@ -6,13 +6,15 @@ import type {enrichProject} from '@/lib/project-enrichment';
 import {LinkOptions, type DestinationLink} from './LinkOptions';
 import {stageLabel} from './studio-shared';
 import './enriched-showcase.css';
+import {followPublicLink} from './public-link';
 
 type Enrichment = ReturnType<typeof enrichProject>;
 type Destination = Enrichment['destinations'][number];
 
-export function ShowcaseHero({project, enrichment, experiences, logo, onBack}: {
-  project: Project; enrichment: Enrichment; experiences: Destination[]; logo: ReactNode; onBack: () => void;
+export function ShowcaseHero({project, enrichment, experiences, logo, onBack, standalone}: {
+  project: Project; enrichment: Enrichment; experiences: Destination[]; logo: ReactNode; onBack: () => void; standalone: boolean;
 }) {
+  const Heading = standalone ? 'h1' : 'h2';
   const cover = project.presentation?.hero || project.cover;
   const illustrated = experiences.filter(link => link.image);
   // A wordmark with a companion portrait needs a different canvas from a
@@ -22,7 +24,7 @@ export function ShowcaseHero({project, enrichment, experiences, logo, onBack}: {
   const chain = project.collections?.[0]?.chain;
   return <header className={'enriched-hero enriched-' + layout}>
     <div className="enriched-toolbar">
-      <button type="button" className="showcase-back" onClick={onBack}><ArrowLeft size={16}/> Back to RMT</button>
+      <a href="/" className="showcase-back" onClick={event => followPublicLink(event, onBack)}><ArrowLeft size={16}/> Back to RMT</a>
       {chain && <span><Layers3 size={14}/>{chain}</span>}
     </div>
     <div className="enriched-hero-grid">
@@ -31,7 +33,7 @@ export function ShowcaseHero({project, enrichment, experiences, logo, onBack}: {
           {project.id === 'lammbs' && <span>RMT creator project</span>}
           {project.stage && <span>{stageLabel(project.stage)}</span>}
         </div>
-        <h2 id="project-title" tabIndex={-1}>{project.name}</h2>
+        <Heading id="project-title" tabIndex={-1}>{project.name}</Heading>
         {project.tagline && project.tagline !== enrichment.shortDescription && <p>{project.tagline}</p>}
       </div>
       <div className="enriched-key-art">

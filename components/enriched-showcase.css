@@ -46,7 +46,7 @@
   background: #141718;
   border: 1px solid var(--hero-line);
 }
-.enriched-heading h2 {
+.enriched-heading :is(h1,h2) {
   font-size: clamp(31px, 4.9vw, 57px);
   font-weight: 750;
   line-height: 1.04;
@@ -54,7 +54,7 @@
   margin: 13px 0 0;
   overflow-wrap: anywhere;
 }
-.enriched-heading h2[tabindex="-1"]:focus { outline: none; }
+.enriched-heading :is(h1,h2)[tabindex="-1"]:focus { outline: none; }
 .enriched-heading p, .enriched-intro {
   color: #cbd0ce;
   line-height: 1.58;
@@ -154,7 +154,7 @@
   .enriched-banner { height: auto; max-height: 175px; }
   .enriched-panorama .enriched-banner { max-height: 200px; }
   .enriched-meta .approved-project-logo { width: 29px; height: 29px; border-radius: 6px; }
-  .enriched-heading h2 { margin-top: 8px; }
+  .enriched-heading :is(h1,h2) { margin-top: 8px; }
   .enriched-heading p { margin-top: 7px; }
   .enriched-gallery .enriched-hero-grid { grid-template-columns: minmax(0,1.3fr) minmax(0,.75fr); }
   .enriched-gallery .enriched-key-art { order: 1; }
@@ -171,5 +171,5 @@
 }
 @media (max-width: 360px) {
   .enriched-gallery .enriched-hero-grid { grid-template-columns: minmax(0,1.5fr) minmax(0,.7fr); }
-  .enriched-heading h2 { font-size: 29px; }
+  .enriched-heading :is(h1,h2) { font-size: 29px; }
 }

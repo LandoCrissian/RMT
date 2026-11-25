@@ -10,8 +10,8 @@ export function homepageArtwork(value:unknown):string {
   throw new InputError('Choose an RMT homepage image or upload a new one.');
 }
 export function homepageMetadata(path:string):Metadata {
-  const title='RMT — One chain. Endless possibilities.';
-  const description='Discover the Robinhood Chain ecosystem.';
+  const title='RMT — Robinhood Chain Projects, Games & Apps';
+  const description='Explore the independent directory of Robinhood Chain games, apps, NFT projects and community tools. Browse without an account or wallet.';
   const url='https://rmtlaunch.fun/';
   const image={url:new URL(homepageArtwork(path),url).href,width:1200,height:630,
     type:path.endsWith('.png')?'image/png':'image/jpeg',alt:path===flagship?'RMT in electric lime. One chain. Endless possibilities.':'RMT homepage share artwork'};
