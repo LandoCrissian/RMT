@@ -4,6 +4,7 @@ import {InputError} from '@/lib/submission-validation';
 import {controlActorGuard,type ControlActor} from './control-access';
 import {auditInsert} from './control-audit';
 import {publicProjectSql} from './control-visibility';
+import {findPublicProject} from './repository';
 import {privateControlArtwork,type ControlArtworkRow} from './control-artwork-model';
 export {privateControlArtwork,publicControlArtwork,type ControlArtworkRow} from './control-artwork-model';
 
@@ -64,7 +65,16 @@ export async function publicControlArtworkRow(db:D1Database,id:string):Promise<C
   WHERE a.id=? AND a.status='ready' AND (
     (c.artwork_override=1 AND ((a.kind='logo' AND c.logo_asset_id=a.id) OR (a.kind='banner' AND c.banner_asset_id=a.id)))
     OR (a.kind='banner' AND COALESCE(c.featured,c.project_id IN ('vamps','lammbs'))=1 AND json_extract(c.spotlight_json,'$.artwork')=a.id)) AND ${publicProjectSql('a.project_id')}`).bind(id).first<ControlArtworkRow>();
- if(!row)throw new InputError('This image was not found.',404);return row;
+ if(row)return row;
+ const url='/media/control-project-artwork/'+id;
+ const candidate=await db.prepare(`SELECT a.* FROM control_project_artwork a JOIN project_controls c ON c.project_id=a.project_id
+  WHERE a.id=? AND a.status='ready' AND (json_extract(c.presentation_json,'$.hero')=? OR EXISTS(
+    SELECT 1 FROM json_each(c.presentation_json,'$.supporting') WHERE value=?)) AND ${publicProjectSql('a.project_id')}`).bind(id,url,url).first<ControlArtworkRow>();
+ if(candidate){
+  const project=await findPublicProject(db,candidate.project_id);
+  if(project.presentation?.hero===url || Object.values(project.presentation?.supporting??{}).includes(url))return candidate;
+ }
+ throw new InputError('This image was not found.',404);
 }
 export function controlArtworkSelectionGuard(projectId:string,logo:string|null,banner:string|null){
  return{sql:([['logo',logo],['banner',banner]] as const).map(()=>`(? IS NULL OR EXISTS(SELECT 1 FROM control_project_artwork WHERE id=? AND project_id=? AND kind=? AND status='ready'))`).join(' AND '),args:[logo,logo,projectId,'logo',banner,banner,projectId,'banner']};

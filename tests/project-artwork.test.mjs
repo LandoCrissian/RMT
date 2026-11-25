@@ -98,7 +98,8 @@ test('pending artwork stays private and no original filename, R2 key or owner id
   const project = await api.findPublicProject(db,'vamps'),metadata = api.projectMetadata(project);
   assert.equal(project.cover,'/media/project-artwork/' + asset.id);
   assert.equal(project.artwork.banner.id,asset.id);
-  assert.equal(metadata.openGraph.images[0].url,'https://rmtlaunch.fun/media/project-artwork/' + asset.id);
+  assert.equal(api.shareCardPlan(project).art,project.cover);
+  assert.match(metadata.openGraph.images[0].url,/^https:\/\/rmtlaunch\.fun\/media\/share-card\/vamps\?v=4-/);
   assert.equal(metadata.openGraph.images[0].width,1200); assert.equal(metadata.openGraph.images[0].height,630);
   assert.equal(metadata.openGraph.images[0].type,'image/png');
   assert.equal(metadata.twitter.images[0].url,metadata.openGraph.images[0].url);
@@ -125,7 +126,7 @@ test('both artwork fields independently reject other projects, wrong image roles
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM project_edits').get().n,0);
 });
 
-test('an approved logo is displayed while the curated social card remains the banner fallback',async t => {
+test('an approved replacement logo supplies art for the composed share card',async t => {
   const db = database(t),store = bucket(); own(db);
   const logo = await upload(db,store,'logo');
   await approve(db,await api.createProjectEdit(db,user,edit('vamps',0,{logoAssetId: logo.id})));
@@ -134,7 +135,8 @@ test('an approved logo is displayed while the curated social card remains the ba
   assert.equal(project.artwork.banner,undefined);
   assert.equal(project.cover,api.publicArtworkPath(logo.id));
   assert.equal(project.coverFit,'contain');
-  assert.equal(api.projectSocialImagePath(project),`/social/vamps-${api.SOCIAL_IMAGE_VERSION}.jpg`);
+  assert.equal(api.shareCardPlan(project).kind,'composed');
+  assert.equal(api.shareCardPlan(project).art,project.cover);
 });
 
 test('approval rechecks asset readiness and fresh manager revision inside the publication batch',async t => {
@@ -187,9 +189,12 @@ test('replacing or removing an approved banner invalidates its old URL and chang
   const db = database(t),store = bucket(); own(db);
   const first = await upload(db,store),second = await upload(db,store);
   await approve(db,await api.createProjectEdit(db,user,edit('vamps',0,{bannerAssetId: first.id})));
+  const firstCard=api.projectSocialImagePath(await api.findPublicProject(db,'vamps'));
   await approve(db,await api.createProjectEdit(db,user,edit('vamps',1,{bannerAssetId: second.id})));
   await assert.rejects(api.publicArtworkRow(db,first.id),rejectsStatus(404));
-  assert.equal(api.projectSocialImagePath(await api.findPublicProject(db,'vamps')),api.publicArtworkPath(second.id));
+  const replacement=api.shareCardPlan(await api.findPublicProject(db,'vamps'));
+  assert.equal(replacement.art,api.publicArtworkPath(second.id));
+  assert.notEqual(replacement.path,firstCard);
   await approve(db,await api.createProjectEdit(db,user,edit('vamps',2,{bannerAssetId: null})));
   await assert.rejects(api.publicArtworkRow(db,second.id),rejectsStatus(404));
   assert.equal(api.projectSocialImagePath(await api.findPublicProject(db,'vamps')),`/social/vamps-${api.SOCIAL_IMAGE_VERSION}.jpg`);

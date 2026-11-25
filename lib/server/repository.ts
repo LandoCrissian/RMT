@@ -1,3 +1,4 @@
+import {currentPresentation} from '@/lib/project-presentation';
 import type { Project } from "@/lib/catalog";
 import { getSeedProjects } from "@/lib/catalog";
 import { InputError, projectIdentityKey, normalizeName, type SubmissionInput, type DecisionInput, type ProjectEditInput, type ProjectStage } from "@/lib/submission-validation";
@@ -145,7 +146,8 @@ async function buildCatalog(db:D1Database,includeHidden=false) {
   const added=controls.results.filter(row=>row.source==='admin'&&row.definition_json).map(row=>JSON.parse(row.definition_json!) as Project);
   let projects=[...curated,...community,...added].filter(project=>includeHidden||!controlMap.has(project.id)||controlMap.get(project.id)!.visibility==='public').map(project=>{
     const approved=approvedEdits.get(project.id),control=controlMap.get(project.id);
-    const edit=control?.payload_json&&control.base_override_revision>=(approved?.revision??0)?JSON.parse(control.payload_json) as ProjectEditInput:approved?.edit;
+    const adminEdit=control?.payload_json && control.base_override_revision>=(approved?.revision??0) ? JSON.parse(control.payload_json) as ProjectEditInput : undefined;
+    const edit=adminEdit ?? approved?.edit;
     const ownerStatus=ownership.get(project.id);
     // Administrator image selections have an explicit reset operation. Builder
     // text revisions never replace them; reset reveals current builder artwork.
@@ -158,7 +160,11 @@ async function buildCatalog(db:D1Database,includeHidden=false) {
     const banner=control?.artwork_override===1?(adminBanner?.project_id===project.id&&adminBanner.kind==='banner'?publicControlArtwork(adminBanner):undefined):bannerRow?.project_id===project.id&&bannerRow.kind==='banner'?publicArtwork(bannerRow):undefined;
     const artwork=logo||banner?{logo,banner}:undefined;
     const name=control?.name_override||project.name;
-    return {...project,name,initials:control?.name_override?name.split(/\s+/).map(v=>v[0]).join('').slice(0,2).toUpperCase():project.initials,
+    // Approved community submissions have passed the ownership review. A claim
+    // on an existing listing alone does not establish authorship of its copy.
+    const contentOrigin=adminEdit?'admin':approved?'owner':control?.source==='admin'?'admin':project.source==='community'?'owner':undefined;
+    const merged:Project = {...project,name,initials:control?.name_override?name.split(/\s+/).map(v=>v[0]).join('').slice(0,2).toUpperCase():project.initials,
+      ...(contentOrigin ? {contentOrigin} : {}),
       claimed:ownerStatus?ownerStatus==='active':project.claimed,
       ...(control?.spotlight_json && (includeHidden || control.featured===1 || (control.featured===null && ['lammbs','vamps'].includes(project.id)))
         ? {spotlight: JSON.parse(control.spotlight_json) as Project['spotlight']} : {}),
@@ -167,6 +173,8 @@ async function buildCatalog(db:D1Database,includeHidden=false) {
         officialXProfile:edit.xProfile || undefined,website:edit.website,launchUrl:edit.launchUrl,links:approvedDestinationLinks(edit)}:{}),
       ...(artwork?{artwork,cover:banner?.url||logo!.url,coverFit:banner?'cover' as const:'contain' as const,
         coverAspectRatio:banner?banner.width/banner.height:logo!.width/logo!.height}:{})};
+    if(control?.presentation_json)merged.presentation=currentPresentation(merged,JSON.parse(control.presentation_json));
+    return merged;
   });
   if(!includeHidden){
     // Fresh visibility recheck prevents a concurrent admin hide/suspension from

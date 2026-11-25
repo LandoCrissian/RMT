@@ -1,0 +1,74 @@
+{
+  "bored-traders": [
+    {
+      "kind": "website",
+      "url": "https://boredtrader.co/art",
+      "destinations": {
+        "https://boredtrader.co/art": {
+          "copy": "All 10,000 Bored Trader pieces, in the order the on-chain provenance hash commits."
+        }
+      }
+    },
+    {
+      "kind": "x",
+      "url": "https://x.com/BoredTrader_CO",
+      "destinations": {
+        "https://x.com/BoredTrader_CO": {
+          "label": "@BoredTrader_CO",
+          "copy": "Official project posts from @BoredTrader_CO."
+        }
+      }
+    }
+  ],
+  "moneymomos": [
+    {
+      "kind": "website",
+      "url": "https://elitecompound.moneymomos.com/",
+      "destinations": {
+        "https://elitecompound.moneymomos.com/": {
+          "copy": "The 100 hand-drawn Elites, the Patrons of MoneyMomos."
+        }
+      }
+    },
+    {
+      "kind": "website",
+      "url": "https://momowallet.moneymomos.com/",
+      "destinations": {
+        "https://momowallet.moneymomos.com/": {
+          "copy": "Every MoneyMomo is its own wallet. Look up a Momo's Stash, switch it on, and control what is inside."
+        }
+      }
+    },
+    {
+      "kind": "website",
+      "url": "https://swagshop.moneymomos.com/",
+      "destinations": {
+        "https://swagshop.moneymomos.com/": {
+          "copy": "MoneyMomos merch, printed on demand and shipped worldwide."
+        }
+      }
+    },
+    {
+      "kind": "x",
+      "url": "https://x.com/MoneyMomos",
+      "destinations": {
+        "https://x.com/MoneyMomos": {
+          "label": "@MoneyMomos",
+          "copy": "Official project posts from @MoneyMomos."
+        }
+      }
+    }
+  ],
+  "wif-outlaws": [
+    {
+      "kind": "x",
+      "url": "https://x.com/RobinWifHat",
+      "destinations": {
+        "https://x.com/RobinWifHat": {
+          "label": "@RobinWifHat",
+          "copy": "Official project posts from @RobinWifHat."
+        }
+      }
+    }
+  ]
+}

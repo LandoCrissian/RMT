@@ -32,13 +32,37 @@ function builder(db){member(db,'builder');db.raw.prepare("INSERT INTO project_ow
 function edit(baseRevision=0,extra={}){return api.validateProjectEdit({projectId:'vamps',baseRevision,summary:'The builder has updated this project with new tools and community details.',category:'Games',stage:'live',website:'https://vamps.wtf',launchUrl:'https://games.vamps.wtf',xProfile:'',links:[],...extra});}
 async function approve(db,change){return api.reviewProjectEdit(db,'owner',change.id,{action:'approve',expectedRevision:change.revision,note:'Checked project details and artwork.'});}
 
+test('presentation changes publish only selected project assets and leave ownership and spotlight intact', async t => {
+ const db=database(t), store=bucket(), id='moneymomos';
+ const before=await api.findPublicProject(db,id), destination=before.links[0].url;
+ const asset=await upload(db,store,'banner',id), hero='/media/control-project-artwork/'+asset.id;
+ const other=await upload(db,store,'banner','vamps');
+ const save=presentation=>change(db,id,{action:'presentation',presentation});
+ await assert.rejects(save({hero:'/media/control-project-artwork/'+other.id}),reject(404));
+ await assert.rejects(save({hero:'https://example.org/unreviewed.png'}),reject(400));
+ await assert.rejects(save({labels:{'https://example.org':'Unlisted destination'}}),reject(400));
+ const settings={shortDescription:'Reviewed showcase text.',hero,labels:{[destination]:'Reviewed label'},supporting:{[destination]:hero},accent:'#ad7760',cardStyle:'portrait',cardMode:'project'};
+ const saved=await save(settings);
+ assert.deepEqual(saved.project.presentation,settings);
+ assert.deepEqual(await api.findPublicProject(db,id),{...before,presentation:settings});
+ assert.equal((await api.publicControlArtworkRow(db,asset.id)).project_id,id);
+ await assert.rejects(change(db,id,{action:'presentation',presentation:{},expectedRevision:saved.revision-1}),reject(409));
+ await change(db,id,{action:'visibility',visibility:'hidden'});
+ await assert.rejects(api.publicControlArtworkRow(db,asset.id),reject(404));
+ await change(db,id,{action:'visibility',visibility:'public'});
+ await save({});
+ assert.deepEqual(await api.findPublicProject(db,id),before);
+ await assert.rejects(api.publicControlArtworkRow(db,asset.id),reject(404));
+ assert.equal(db.raw.prepare("SELECT count(*) AS n FROM control_audit_events WHERE action='project.presentation'").get().n,2);
+});
+
 test('administrator uploads stay private until explicitly selected, retain uploader attribution, and publish exact share artwork',async t=>{
  const db=database(t),store=bucket(),asset=await upload(db,store);
  const row=await api.privateControlArtworkRow(db,actor,asset.id);assert.equal(row.uploader_id,'owner');assert.equal(db.raw.prepare('SELECT COUNT(*) AS n FROM project_owners').get().n,0);
  assert.equal(asset.previewUrl,'/api/control/artwork/'+asset.id);assert.equal(JSON.stringify(asset).includes('object_key'),false);assert.equal(JSON.stringify(asset).includes('uploader_id'),false);
  await assert.rejects(api.publicControlArtworkRow(db,asset.id),reject(404));assert.equal((await api.findPublicProject(db,'vamps')).artwork,undefined);
  const saved=await change(db,'vamps',{action:'artwork',logoAssetId:null,bannerAssetId:asset.id});assert.equal(saved.artworkOverride,true);assert.equal(saved.bannerAssetId,asset.id);
- const project=await api.findPublicProject(db,'vamps');assert.equal(project.cover,'/media/control-project-artwork/'+asset.id);assert.equal(api.projectMetadata(project).openGraph.images[0].url,'https://rmtlaunch.fun/media/control-project-artwork/'+asset.id);
+ const project=await api.findPublicProject(db,'vamps');assert.equal(project.cover,'/media/control-project-artwork/'+asset.id);assert.equal(api.shareCardPlan(project).art,project.cover);assert.match(api.projectMetadata(project).openGraph.images[0].url,/\/media\/share-card\/vamps\?v=4-/);
  environment.BUCKET=store;const response=await api.publicGET(new Request('https://rmt.dev'+project.cover),{params:Promise.resolve({id:asset.id})});assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store');assert.equal(response.headers.get('content-type'),'image/png');assert.deepEqual(Buffer.from(await response.arrayBuffer()),Buffer.from(store.objects.get(row.object_key)));
  assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM control_audit_events WHERE action='project.artwork_upload'").get().n,1);assert.equal(db.raw.prepare("SELECT COUNT(*) AS n FROM control_audit_events WHERE action='project.artwork'").get().n,1);
 });

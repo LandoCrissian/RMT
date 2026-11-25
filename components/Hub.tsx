@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, Bookmark, Check, ChevronRight,
   Compass, Gamepad2, Grid2X2, LayoutGrid, Library, ListFilter, Menu,
@@ -15,7 +15,8 @@ import ProjectSpotlights from './ProjectSpotlights';
 import {orderedSpotlights} from '@/lib/spotlight';
 import thumbnails from '@/lib/project-thumbnails.json';
 import dynamic from 'next/dynamic';
-import experienceArtwork from '@/lib/experience-artwork.json';
+import {enrichProject, isExperience} from '@/lib/project-enrichment';
+import {ShowcaseHero, ShowcaseExperiences} from './EnrichedShowcase';
 import { FirebaseSessionBridge } from './FirebaseAccount';
 import {observeRmtSession} from '@/lib/firebase-client';
 import Account, { LibrarySyncStatus, signInHref } from './Account';
@@ -84,11 +85,10 @@ function Cover({ project, className = '', thumbnail = false, priority = false }:
   </div>;
 }
 
-function ExperienceSymbol({projectId, link}: {projectId: string; link: Project['links'][number]}) {
-  const art = experienceArtwork.find(item => item.project === projectId && item.destination === link.url);
+function ExperienceSymbol({link}: {link: ReturnType<typeof enrichProject>['destinations'][number]}) {
   const Icon = /game/i.test(link.type || '') ? Gamepad2 : /music|audio/i.test(link.type || '') ? Music2 : Wrench;
-  return <span className="destination-symbol">{art
-    ? <img src={art.image} alt={art.alt} loading="lazy" decoding="async" width={108} height={61} />
+  return <span className="destination-symbol">{link.image
+    ? <img src={link.image} alt={link.alt || ''} loading="lazy" decoding="async" width={108} height={61} />
     : <Icon size={21} aria-hidden="true" />}</span>;
 }
 
@@ -471,11 +471,15 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   const savedProjects = saved.map(id => projects.find(project => project.id === id)).filter(Boolean) as Project[];
   const unavailableSaved = saved.filter(id => !projects.some(project => project.id === id));
   const returnTo = selected ? projectPath(selected) + (showcaseTab === 'updates' ? '#updates' : '') : section === 'member' && memberHandle ? '/u/' + encodeURIComponent(memberHandle) : '/#' + (claimProject ? 'claim/' + encodeURIComponent(claimProject.id) : section);
-  const uniqueLinks = selected?.links.filter((link, index, links) => links.findIndex(other => other.url === link.url) === index) ?? [];
-  const selectedExperiences = uniqueLinks.filter(link => /game|creative|software|tool|wallet|app|music|audio|experience|missions|comics|gallery/i.test(link.type ?? ''));
+  const enrichment = useMemo(() => selected ? enrichProject(selected) : null, [selected]);
+  const enhancedLayout = Boolean(selected && enrichment && (selected.presentation || enrichment.hasVerifiedEvidence || selected.source === 'community' || selected.contentOrigin));
+  const enrichedHero = enhancedLayout && (selected?.presentation?.hero || selected?.cover || '').startsWith('/');
+  const aboutCopy = enhancedLayout ? enrichment?.shortDescription : selected?.description;
+  const uniqueLinks = enrichment?.destinations ?? [];
+  const selectedExperiences = uniqueLinks.filter(isExperience);
   const selectedCommunity = uniqueLinks.filter(link => !selectedExperiences.includes(link)
     && !selected?.collections?.some(collection => collection.url === link.url)
-    && !(link.url === selected?.launchUrl && uniqueLinks.length === 1));
+    && !(link.url === selected?.launchUrl && uniqueLinks.length === 1 && !link.image));
   const relatedProjects = selected ? projects.filter(project => project.id !== selected.id).sort((a, b) => Number(b.category === selected.category) - Number(a.category === selected.category) || a.name.localeCompare(b.name)).slice(0, 3) : [];
   const titles: Record<string, { eyebrow: string; title: string; description: string }> = {
     discover: { eyebrow: 'LESS SEARCHING. MORE EXPLORING.', title: 'Your ecosystem. All together.', description: 'Discover what communities are building. Keep your favorites one tap away.' },
@@ -589,20 +593,20 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
       {[navItems[0], navItems[1], navItems[2], { id: 'studio' as Section, label: 'Build', icon: Terminal }, {id: 'account' as Section, label: 'Account', icon: UserRound}].map(({ id, label, icon: Icon }) => <button key={id} aria-current={section === id || (id === 'account' && (section === 'profile' || section === 'control')) ? 'page' : undefined} className={section === id || (id === 'account' && (section === 'profile'||section==='control')) ? 'active' : ''} onClick={() => go(id)}><Icon size={20} /><span>{label}</span></button>)}
     </nav>
     <dialog ref={dialogRef} className="project-dialog showcase-dialog" aria-labelledby="project-title" onCancel={closeProject} onClick={event => { if (event.target === event.currentTarget) closeProject(); }}>
-      {selected && !maintenance && <div className="detail-inner" onClickCapture={event=>{const anchor=(event.target as Element).closest('a[href]');if(anchor&&selected&&!session.isAdmin&&!maintenance){try{if(new URL(anchor.getAttribute('href')!,window.location.href).origin!==window.location.origin)recordSiteMetric('outbound',selected.id);}catch{}}}} style={{ '--project-accent': selected.accent } as React.CSSProperties}>
-        <div className="detail-cover showcase-cover">
+      {selected && enrichment && !maintenance && <div className={'detail-inner' + (enhancedLayout ? ' enriched-project' : '')} onClickCapture={event=>{const anchor=(event.target as Element).closest('a[href]');if(anchor&&selected&&!session.isAdmin&&!maintenance){try{if(new URL(anchor.getAttribute('href')!,window.location.href).origin!==window.location.origin)recordSiteMetric('outbound',selected.id);}catch{}}}} style={{ '--project-accent': enrichment.accent } as React.CSSProperties}>
+        {enrichedHero ? <ShowcaseHero project={selected} enrichment={enrichment} experiences={selectedExperiences} logo={<ProjectLogo project={selected}/>} onBack={closeProject}/> : <div className="detail-cover showcase-cover">
           <Cover project={selected} priority />
           <div className="detail-cover-shade" />
           <div className="showcase-toolbar"><button onClick={closeProject} className="showcase-back"><ArrowLeft size={15} /> Back to RMT</button></div>
           <div className="showcase-title">
-            <div className="showcase-badges">{selected.id === 'lammbs' && <span>RMT creator project</span>}<span className="showcase-category">{selected.category === 'Games' ? <Gamepad2 size={13} /> : selected.category === 'Tools' ? <Wrench size={13} /> : selected.category === 'Music' ? <Music2 size={13} /> : <Compass size={13} />}{selected.category}</span>{selected.stage && <span>{stageLabel(selected.stage)}</span>}</div>
+            <div className="showcase-badges">{selected.id === 'lammbs' && <span>RMT creator project</span>}<span className="showcase-category">{selected.category === 'Games' ? <Gamepad2 size={13} /> : selected.category === 'Tools' ? <Wrench size={13} /> : selected.category === 'Music' ? <Music2 size={13} /> : <Compass size={13} />}{enhancedLayout ? enrichment.categoryLabel : selected.category}</span>{selected.stage && <span>{stageLabel(selected.stage)}</span>}</div>
             <h2 id="project-title" tabIndex={-1}><ProjectLogo project={selected} />{selected.name}</h2>
-            {selected.tagline !== selected.description && <p>{selected.tagline}</p>}
+            {selected.tagline && selected.tagline !== aboutCopy && <p>{selected.tagline}</p>}
           </div>
-        </div>
+        </div>}
         <div className="detail-body showcase-body">
           <div className="showcase-actionbar">
-            <a className="button button-lime showcase-launch" href={selected.launchUrl} target="_top" rel="noopener noreferrer">{selected.launchUrl === selected.officialXProfile ? 'Visit on X' : selected.launchLabel} <ArrowUpRight size={18} /></a>
+            <a className="button button-lime showcase-launch" href={selected.launchUrl} target="_top" rel="noopener noreferrer">{selected.presentation?.labels?.[selected.launchUrl] || (selected.launchUrl === selected.officialXProfile ? 'Visit on X' : selected.launchLabel)} <ArrowUpRight size={18} /></a>
             <LinkOptions href={selected.launchUrl} label={selected.name + ' launch destination'} onOpen={setDestination} />
             <button className={'button button-outline detail-save ' + (saved.includes(selected.id) ? 'is-saved' : '')} disabled={!library.canSave} onClick={() => void toggleSave(selected)} aria-pressed={saved.includes(selected.id)}>{saved.includes(selected.id) ? <Check size={16} /> : <Bookmark size={16} />}{saved.includes(selected.id) ? 'In your library' : 'Save project'}</button>
             <button className="button button-outline showcase-share" onClick={() => void shareProject(selected)}><Share2 size={16} /><span>Share</span></button>
@@ -618,10 +622,10 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
                 event.currentTarget.querySelector<HTMLButtonElement>('#project-tab-' + next)?.focus();
               }}><button type="button" role="tab" id="project-tab-overview" aria-selected={showcaseTab === 'overview'} aria-controls="project-panel-overview" tabIndex={showcaseTab === 'overview' ? 0 : -1} onClick={() => chooseShowcaseTab('overview')}><Compass size={15} /> Overview</button><button type="button" role="tab" id="project-tab-updates" aria-selected={showcaseTab === 'updates'} aria-controls="project-panel-updates" tabIndex={showcaseTab === 'updates' ? 0 : -1} onClick={() => chooseShowcaseTab('updates')}><Megaphone size={15} /> Updates</button></div>
               <div className="showcase-panel" id="project-panel-overview" role="tabpanel" aria-labelledby="project-tab-overview" hidden={showcaseTab !== 'overview'}>
-              <section className="showcase-about" aria-labelledby="project-about"><div className="showcase-section-heading"><h3 id="project-about">Inside {selected.name}</h3><span className="showcase-listing">{selected.claimed ? <><Check size={12} /> Builder claimed</> : selected.source === 'curated' ? 'Curated by RMT' : 'Community listing'}</span></div><p className="detail-description">{selected.description}</p></section>
-              {selectedExperiences.length > 0 && <section className="showcase-destinations" aria-labelledby="experience-heading"><div className="showcase-section-heading"><h3 id="experience-heading">Things to try</h3><span>{selectedExperiences.length} {selectedExperiences.length === 1 ? 'experience' : 'experiences'}</span></div><div className="destination-list">{selectedExperiences.map(link => <div className="destination-entry experience-entry" key={link.url}><a href={link.url} target="_top" rel="noopener noreferrer" className="destination"><ExperienceSymbol projectId={selected.id} link={link} /><span><strong>{link.label}</strong><small>{link.type || domain(link.url)}</small></span><ArrowUpRight size={18} /></a><LinkOptions href={link.url} label={link.label} onOpen={setDestination} /></div>)}</div></section>}
-              {selectedCommunity.length > 0 && <section className="showcase-destinations" aria-labelledby="destination-heading"><div className="showcase-section-heading"><h3 id="destination-heading">{selectedExperiences.length ? 'Find the community' : 'Explore the project'}</h3><span>{selectedCommunity.length} {selectedCommunity.length === 1 ? 'destination' : 'destinations'}</span></div><div className="destination-list">{selectedCommunity.map(link => <div className="destination-entry" key={link.url}><a href={link.url} target="_top" rel="noopener noreferrer" className="destination"><span className="destination-symbol">{/social/i.test(link.type || '') ? <span className="destination-x">𝕏</span> : /collection|explore/i.test(link.type || '') ? <Layers3 size={19} /> : <Compass size={19} />}</span><span><strong>{link.label}</strong><small>{domain(link.url)}{link.type && <span> · {link.type}</span>}</small></span><ArrowUpRight size={18} /></a><LinkOptions href={link.url} label={link.label} onOpen={setDestination} /></div>)}</div></section>}
-              {!!selected.collections?.length && <section className="collections-section" aria-labelledby="collection-heading"><div className="showcase-section-heading"><h3 id="collection-heading">The collections</h3><span><Layers3 size={13} /> {selected.collections.length}</span></div><div className="collection-list">{selected.collections.map((collection, index) => <div className="collection-entry" key={collection.url}><a className="collection-link" href={collection.url} target="_top" rel="noopener noreferrer"><span className="collection-index">{String(index + 1).padStart(2, '0')}</span><span><strong>{collection.name}</strong><small>{domain(collection.url)} · {collection.chain || 'Collection'} · {index === 0 ? 'Primary collection' : 'Related collection'}</small></span><ArrowUpRight size={16} /></a><LinkOptions href={collection.url} label={collection.name} onOpen={setDestination} /></div>)}</div><p className="collection-footnote">Grouped using links published by the project or its creator.</p></section>}
+              <section className="showcase-about" aria-labelledby="project-about"><div className="showcase-section-heading"><h3 id="project-about">Inside {selected.name}</h3><span className="showcase-listing">{selected.claimed ? <><Check size={12} /> Builder claimed</> : selected.source === 'curated' ? 'Curated by RMT' : 'Community listing'}</span></div>{aboutCopy && <p className="detail-description">{aboutCopy}</p>}</section>
+              {enhancedLayout ? <ShowcaseExperiences items={selectedExperiences} intro={enrichment.experienceIntro} onOptions={setDestination}/> : selectedExperiences.length > 0 && <section className="showcase-destinations" aria-labelledby="experience-heading"><div className="showcase-section-heading"><h3 id="experience-heading">Things to try</h3><span>{selectedExperiences.length} {selectedExperiences.length === 1 ? 'experience' : 'experiences'}</span></div><div className="destination-list">{selectedExperiences.map(link => <div className="destination-entry experience-entry" key={link.url}><a href={link.url} target="_top" rel="noopener noreferrer" className="destination"><ExperienceSymbol link={link} /><span><strong>{link.label}</strong><small>{link.type || domain(link.url)}</small></span><ArrowUpRight size={18} /></a><LinkOptions href={link.url} label={link.label} onOpen={setDestination} /></div>)}</div></section>}
+              {selectedCommunity.length > 0 && <section className="showcase-destinations" aria-labelledby="destination-heading"><div className="showcase-section-heading"><h3 id="destination-heading">{selectedExperiences.length ? 'Find the community' : 'Explore the project'}</h3><span>{selectedCommunity.length} {selectedCommunity.length === 1 ? 'destination' : 'destinations'}</span></div>{enhancedLayout && enrichment.communityIntro && <p className="enriched-intro">{enrichment.communityIntro}</p>}<div className="destination-list">{selectedCommunity.map(link => <div className="destination-entry" key={link.url}><a href={link.url} target="_top" rel="noopener noreferrer" className="destination"><span className="destination-symbol">{link.image ? <img src={link.image} alt={link.alt || ''} loading="lazy" decoding="async"/> : /social/i.test(link.type || '') ? <span className="destination-x">𝕏</span> : /collection|explore/i.test(link.type || '') ? <Layers3 size={19} /> : <Compass size={19} />}</span><span><strong>{link.label}</strong><small>{enhancedLayout && link.copy ? link.copy : <>{domain(link.url)}{link.type && <span> · {link.type}</span>}</>}</small></span><ArrowUpRight size={18} /></a><LinkOptions href={link.url} label={link.label} onOpen={setDestination} /></div>)}</div></section>}
+              {!!selected.collections?.length && <section className="collections-section" aria-labelledby="collection-heading"><div className="showcase-section-heading"><h3 id="collection-heading">The collections</h3><span><Layers3 size={13} /> {selected.collections.length}</span></div><div className="collection-list">{selected.collections.map((collection, index) => <div className="collection-entry" key={collection.url}><a className="collection-link" href={collection.url} target="_top" rel="noopener noreferrer">{selected.presentation?.supporting?.[collection.url] ? <img className="enriched-collection-art" src={selected.presentation.supporting[collection.url]} alt="" loading="lazy" decoding="async"/> : <span className="collection-index">{String(index + 1).padStart(2, '0')}</span>}<span><strong>{selected.presentation?.labels?.[collection.url] || collection.name}</strong><small>{domain(collection.url)} · {collection.chain || 'Collection'} · {index === 0 ? 'Primary collection' : 'Related collection'}</small></span><ArrowUpRight size={16} /></a><LinkOptions href={collection.url} label={selected.presentation?.labels?.[collection.url] || collection.name} onOpen={setDestination} /></div>)}</div><p className="collection-footnote">Grouped using links published by the project or its creator.</p></section>}
               </div>
               <div className="showcase-panel" id="project-panel-updates" role="tabpanel" aria-labelledby="project-tab-updates" hidden={showcaseTab !== 'updates'}>
                 {showcaseTab === 'updates' && <ProjectUpdates key={selected.id} project={selected} onBuilder={() => selected.claimed ? openProjectManagement() : startClaim(selected)} />}
@@ -631,7 +635,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
               <ProjectBuilders key={selected.id} projectId={selected.id} />
               <section className="showcase-share-card">
                 <h3>Share {selected.name}</h3>
-                <div className="project-share-preview"><img src={projectSocialImagePath(selected)} alt={selected.name + ' share card preview'} loading="lazy" /><div><small>RMTLAUNCH.FUN</small><strong>{selected.name} on RMT</strong></div></div>
+                <div className="project-share-preview"><img src={projectSocialImagePath(selected)} alt={selected.name + ' share card preview'} loading="lazy" />{!enhancedLayout && <div><small>RMTLAUNCH.FUN</small><strong>{selected.name} on RMT</strong></div>}</div>
                 <div className="showcase-share-actions"><button className="button button-outline" onClick={() => void copyLink(projectShareUrl(selected), 'Project link copied. Ready to share.')}><Copy size={14} /> Copy link</button><a className="button button-outline" href={projectXIntentUrl(selected)} target="_blank" rel="noopener noreferrer" aria-label={'Share ' + selected.name + ' on X'}><span className="share-x">𝕏</span> Post</a></div>
               </section>
             </aside>

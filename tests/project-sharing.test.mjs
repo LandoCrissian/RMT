@@ -59,10 +59,14 @@ test('each curated project has an individual canonical path, large-image metadat
 test('new projects and mismatched artwork use the RMT fallback without stale project claims', () => {
   const vamps = api.seedProjects.find(project => project.id === 'vamps');
   const unknown = {...vamps, id: 'community-new', slug: 'project-new', name: 'New project', cover: 'community'};
-  for (const project of [unknown, {...vamps, name: 'A changed name'}, {...vamps, cover: '/new-approved-artwork.png'}]) {
+  for (const project of [unknown, {...vamps, cover: '/new-approved-artwork.png'}]) {
     assert.equal(api.projectSocialImagePath(project), `/social/rmt-${api.SOCIAL_IMAGE_VERSION}.jpg`);
     assert.equal(api.projectMetadata(project).openGraph.images[0].alt, 'RMT — discover projects, games, and creative tools');
   }
+  const renamed=api.shareCardPlan({...vamps,name:'A changed name'});
+  assert.equal(renamed.kind,'composed');
+  assert.equal(renamed.title,'A changed name');
+  assert.equal(renamed.art,vamps.cover);
 });
 
 test('share URLs use the canonical host and X composer keeps names and URL separate', () => {
@@ -74,6 +78,35 @@ test('share URLs use the canonical host and X composer keeps names and URL separ
   assert.equal(intent.searchParams.get('text'), 'Explore Example & Co #1 on @RMTLaunch.');
   assert.equal(intent.searchParams.get('url'), api.projectShareUrl(project));
   assert.equal([...intent.searchParams].length, 2);
+});
+
+test('reviewed edition cards and administrator settings select versioned, project-scoped artwork',()=>{
+  for(const id of api.artDirectedProjects){
+    const project=api.seedProjects.find(item=>item.id===id);
+    const designed=api.shareCardPlan(project);
+    assert.equal(designed.kind,'designed');
+    assert.equal(api.shareCardPlan({...project,presentation:{cardMode:'project'}}).path,designed.path);
+    assert.equal(api.shareCardPlan({...project,presentation:{cardMode:'fallback'}}).kind,'fallback');
+    const changed=api.shareCardPlan({...project,presentation:{cardStyle:'portrait',accent:'#efabad',hero:project.cover}});
+    assert.equal(changed.kind,'composed');
+    assert.equal(changed.art,project.cover);
+    assert.notEqual(changed.path,designed.path);
+    assert.equal(changed.style,'portrait');
+    assert.equal(changed.accent,'#efabad');
+    assert.equal(api.projectMetadata({...project,presentation:{shortDescription:'Reviewed listing text.'}}).description,'Reviewed listing text.');
+  }
+});
+
+test('future approved uploads produce project cards; unapproved image paths cannot enter the renderer',()=>{
+  const id='e314e66b-2c25-4aa0-96fb-8eb740702652';
+  const url='/media/project-artwork/'+id;
+  const project={id:'community-new',slug:'community-new',name:'Future project',cover:'community',accent:'#574973'};
+  const valid={id,url,mime:'image/png',width:800,height:450};
+  assert.equal(api.shareCardPlan({...project,artwork:{banner:valid}}).art,url);
+  assert.equal(api.shareCardPlan({...project,artwork:{logo:valid}}).style,'portrait');
+  for(const path of ['https://example.org/unreviewed.jpg','/projects/vamps-cover.webp',url]){
+    assert.equal(api.shareCardPlan({...project,presentation:{hero:path,cardMode:'project'}}).kind,'fallback');
+  }
 });
 
 test('showcases stay unavailable until approved and disappear after suspension', async t => {
@@ -105,9 +138,11 @@ test('unknown showcases return no listing and catalog failures do not revive old
 });
 
 test('all served social images are actual 1200×630 JPEGs below 5 MB', async () => {
-  const paths = [...api.seedProjects.map(api.projectSocialImagePath), `/social/rmt-${api.SOCIAL_IMAGE_VERSION}.jpg`];
+  const paths = [...api.seedProjects.map(project=>api.shareCardPlan(project).kind==='designed'
+    ? '../lib/server/share-card-images/'+project.slug+'.jpg' : '../public'+api.projectSocialImagePath(project)),
+    `../public/social/rmt-${api.SOCIAL_IMAGE_VERSION}.jpg`];
   for (const path of paths) {
-    const bytes = await readFile(new URL('../public' + path, import.meta.url));
+    const bytes = await readFile(new URL(path, import.meta.url));
     const metadata = await sharp(bytes).metadata();
     assert.equal(metadata.format, 'jpeg', path);
     assert.equal(metadata.width, 1200, path);

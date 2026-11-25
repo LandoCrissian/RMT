@@ -1,3 +1,4 @@
+import {controlImageId, currentPresentation, validatePresentation} from '@/lib/project-presentation';
 import {validateSpotlight} from '@/lib/spotlight';
 import type {Project} from '@/lib/catalog';
 import {getSeedProjects} from '@/lib/catalog';
@@ -57,13 +58,14 @@ export function validateCreateControlProject(value:unknown):CreateControlProject
  return{content,visibility:body.visibility as CreateControlProject['visibility'],featured:body.featured,reason:controlReason(body.reason),confirmedLinks:true};
 }
 export function validateChangeControlProject(value:unknown,id:string):ChangeControlProject{
- const body=controlObject(value,['action','expectedRevision','expectedListingRevision','reason','content','visibility','featured','spotlight','confirmedLinks','logoAssetId','bannerAssetId']);
+ const body=controlObject(value,['action','expectedRevision','expectedListingRevision','reason','content','visibility','featured','spotlight','presentation','confirmedLinks','logoAssetId','bannerAssetId']);
  const base={expectedRevision:controlRevision(body.expectedRevision),expectedListingRevision:controlRevision(body.expectedListingRevision),reason:controlReason(body.reason)};
  if(body.action==='edit'){
   if(body.confirmedLinks!==true)throw new InputError('Confirm you checked the official links before publishing this edit.');
   return{...base,action:'edit',content:validateControlProjectContent(body.content,id,base.expectedListingRevision).content,confirmedLinks:true};
  }
  if(body.action==='visibility'&&['public','hidden','archived'].includes(String(body.visibility)))return{...base,action:'visibility',visibility:body.visibility as 'public'|'hidden'|'archived'};
+ if(body.action==='presentation')return {...base,action:'presentation',presentation:validatePresentation(body.presentation)};
  if(body.action==='spotlight' && typeof body.featured==='boolean')return {...base,action:'spotlight',featured:body.featured,spotlight:validateSpotlight(body.spotlight,id)};
  if(body.action==='feature'&&(typeof body.featured==='boolean'||body.featured===null))return{...base,action:'feature',featured:body.featured};
  if(body.action==='reset_content')return{...base,action:'reset_content'};
@@ -108,6 +110,8 @@ export async function changeControlProject(db:D1Database,actor:ControlActor,id:s
  const row=await db.prepare('SELECT * FROM project_controls WHERE project_id=?').bind(id).first<ProjectControlRow>();
  let name=row?.name_override??'',payload=row?.payload_json??null,base=row?.base_override_revision??0;
  let visibility=row?.visibility??'public',featured=row?.featured??null,normalizedName=row?.normalized_name??null,normalizedHost=row?.normalized_host??null;
+ let presentationJson=row?.presentation_json??null;
+ let presentationGuard:{sql:string;args:(number|string|null)[]}={sql:'1=1',args:[]};
  let spotlightJson=row?.spotlight_json??null;
  let spotlightBanner:string|null=null;
  let logoAssetId=row?.logo_asset_id??null,bannerAssetId=row?.banner_asset_id??null,artworkOverride=row?.artwork_override??0;
@@ -116,6 +120,16 @@ export async function changeControlProject(db:D1Database,actor:ControlActor,id:s
   name=validated.content.name;payload=JSON.stringify(validated.edit);base=previous.listingRevision;
   if(row?.source==='admin'){normalizedName=unique.name;normalizedHost=unique.host;}
  }else if(input.action==='visibility')visibility=input.visibility;
+ else if(input.action==='presentation'){
+  const settings=validatePresentation(input.presentation);
+  if(JSON.stringify(currentPresentation(previous.project,settings))!==JSON.stringify(settings))throw new InputError('Choose artwork and destinations from this project.');
+  const ids=[...new Set([settings.hero,...Object.values(settings.supporting??{})].flatMap(url=>url&&controlImageId(url)?[controlImageId(url)!]:[]))];
+  if(ids.length){
+   presentationGuard={sql:"NOT EXISTS (SELECT 1 FROM json_each(?) i WHERE NOT EXISTS (SELECT 1 FROM control_project_artwork a WHERE a.id=i.value AND a.project_id=? AND a.status='ready'))",args:[JSON.stringify(ids),id]};
+   if(!await db.prepare('SELECT 1 AS found WHERE '+presentationGuard.sql).bind(...presentationGuard.args).first())throw new InputError('Choose an image uploaded for this project.',404);
+  }
+  presentationJson=Object.keys(settings).length?JSON.stringify(settings):null;
+ }
  else if(input.action==='spotlight'){
   const spotlight=validateSpotlight(input.spotlight,id);
   spotlightBanner=ARTWORK_ID_PATTERN.test(spotlight.artwork)?spotlight.artwork:null;
@@ -129,14 +143,14 @@ export async function changeControlProject(db:D1Database,actor:ControlActor,id:s
  const now=Date.now(),eventId=crypto.randomUUID();
  let definition=row?.definition_json??null;
  if(row?.source==='admin'&&definition&&visibility==='public'){const baseProject=JSON.parse(definition) as Project;if(!baseProject.listedAt)definition=JSON.stringify({...baseProject,listedAt:new Date(now).toISOString()});}
- const revision=revisionGuard(id,input.expectedRevision,input.expectedListingRevision),selection=input.action==='artwork'?controlArtworkSelectionGuard(id,logoAssetId,bannerAssetId):spotlightBanner?controlArtworkSelectionGuard(id,null,spotlightBanner):{sql:'1=1',args:[]};
- const statements=[auditInsert(db,actor,{id:eventId,action:'project.'+input.action,entityType:'project',entityId:id,reason:input.reason,before:{...(input.action==='spotlight'?{spotlight:previous.project.spotlight??null}:{}),visibility:previous.visibility,featured:previous.featured,name:previous.project.name,artworkOverride:previous.artworkOverride,logoAssetId:previous.logoAssetId,bannerAssetId:previous.bannerAssetId},after:{...(input.action==='spotlight'?{spotlight:input.spotlight}:{}),visibility,featured:featured===null?null:featured===1,name:name||previous.project.name,artworkOverride:artworkOverride===1,logoAssetId,bannerAssetId},now},{sql:`(${revision.sql}) AND (${selection.sql})`,args:[...revision.args,...selection.args]}),
-  db.prepare(`INSERT INTO project_controls(project_id,source,definition_json,spotlight_json,name_override,payload_json,normalized_name,normalized_host,logo_asset_id,banner_asset_id,artwork_override,base_override_revision,visibility,featured,revision,created_at,updated_at)
-   SELECT ?, 'existing', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ? WHERE EXISTS(SELECT 1 FROM control_audit_events WHERE id=?)
-   ON CONFLICT(project_id) DO UPDATE SET spotlight_json=excluded.spotlight_json,definition_json=COALESCE(excluded.definition_json,project_controls.definition_json),name_override=excluded.name_override,payload_json=excluded.payload_json,normalized_name=excluded.normalized_name,normalized_host=excluded.normalized_host,
+ const revision=revisionGuard(id,input.expectedRevision,input.expectedListingRevision),selection=input.action==='artwork'?controlArtworkSelectionGuard(id,logoAssetId,bannerAssetId):spotlightBanner?controlArtworkSelectionGuard(id,null,spotlightBanner):input.action==='presentation'?presentationGuard:{sql:'1=1',args:[]};
+ const statements=[auditInsert(db,actor,{id:eventId,action:'project.'+input.action,entityType:'project',entityId:id,reason:input.reason,before:{...(input.action==='presentation'?{presentation:previous.project.presentation??null}:{}),...(input.action==='spotlight'?{spotlight:previous.project.spotlight??null}:{}),visibility:previous.visibility,featured:previous.featured,name:previous.project.name,artworkOverride:previous.artworkOverride,logoAssetId:previous.logoAssetId,bannerAssetId:previous.bannerAssetId},after:{...(input.action==='presentation'?{presentation:input.presentation}:{}),...(input.action==='spotlight'?{spotlight:input.spotlight}:{}),visibility,featured:featured===null?null:featured===1,name:name||previous.project.name,artworkOverride:artworkOverride===1,logoAssetId,bannerAssetId},now},{sql:`(${revision.sql}) AND (${selection.sql})`,args:[...revision.args,...selection.args]}),
+  db.prepare(`INSERT INTO project_controls(project_id,source,definition_json,spotlight_json,presentation_json,name_override,payload_json,normalized_name,normalized_host,logo_asset_id,banner_asset_id,artwork_override,base_override_revision,visibility,featured,revision,created_at,updated_at)
+   SELECT ?, 'existing', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ? WHERE EXISTS(SELECT 1 FROM control_audit_events WHERE id=?)
+   ON CONFLICT(project_id) DO UPDATE SET presentation_json=excluded.presentation_json,spotlight_json=excluded.spotlight_json,definition_json=COALESCE(excluded.definition_json,project_controls.definition_json),name_override=excluded.name_override,payload_json=excluded.payload_json,normalized_name=excluded.normalized_name,normalized_host=excluded.normalized_host,
     logo_asset_id=excluded.logo_asset_id,banner_asset_id=excluded.banner_asset_id,artwork_override=excluded.artwork_override,
     base_override_revision=excluded.base_override_revision,visibility=excluded.visibility,featured=excluded.featured,revision=project_controls.revision+1,updated_at=excluded.updated_at WHERE project_controls.revision=?`)
-   .bind(id,definition,spotlightJson,name,payload,normalizedName,normalizedHost,logoAssetId,bannerAssetId,artworkOverride,base,visibility,featured,now,now,eventId,input.expectedRevision)];
+   .bind(id,definition,spotlightJson,presentationJson,name,payload,normalizedName,normalizedHost,logoAssetId,bannerAssetId,artworkOverride,base,visibility,featured,now,now,eventId,input.expectedRevision)];
  if(input.action==='edit'||input.action==='reset_content'){
   // Existing pending edits were composed against the prior public listing. Ask
   // their author to refresh instead of silently overwriting an admin edit later.

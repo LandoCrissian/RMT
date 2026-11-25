@@ -33,6 +33,9 @@ export type Project = {
   /** Explicit administrator selection; omitted retains the existing discovery default. */
   featured?: boolean;
   spotlight?: import('./spotlight').Spotlight;
+  presentation?: import('./project-presentation').ProjectPresentation;
+  /** Origin of the currently published editorial content when it has been edited. */
+  contentOrigin?: 'owner' | 'admin';
   claimed: boolean;
   source: 'curated' | 'community';
 };

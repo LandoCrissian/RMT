@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import {existsSync} from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve, join, sep } from 'node:path';
 import { build } from 'esbuild';
@@ -11,6 +12,7 @@ const compiled = await build({
 });
 const {seedProjects, SOCIAL_IMAGE_WIDTH: width, SOCIAL_IMAGE_HEIGHT: height, SOCIAL_IMAGE_VERSION: version} = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 const destination = join(root, 'public/social');
+const rebuild=process.argv.includes('--rebuild');
 await mkdir(destination, {recursive: true});
 
 function xml(value) {
@@ -56,6 +58,7 @@ function overlay(project, panoramic = false) {
 }
 
 for (const project of seedProjects) {
+  if(!rebuild && existsSync(join(destination,`${project.slug}-${version}.jpg`))) continue;
   if (!project.cover.startsWith('/projects/')) throw new Error(`Missing local artwork for ${project.slug}`);
   const sourcePath = resolve(root, 'public', project.cover.slice(1));
   if (!sourcePath.startsWith(join(root, 'public/projects') + sep)) throw new Error('Artwork must be in public/projects.');
@@ -89,5 +92,7 @@ const fallback = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="120
   <g fill="#c6ff42" fill-opacity=".1" stroke="#b6df78" stroke-opacity=".3" stroke-width="2"><rect x="823" y="125" width="260" height="320" rx="27" transform="rotate(12 953 285)"/><rect x="788" y="150" width="260" height="320" rx="27" transform="rotate(-8 918 310)"/><rect x="765" y="175" width="260" height="320" rx="27" fill="#20291b"/></g>
   <g font-family="DejaVu Sans, Arial, sans-serif"><text x="62" y="105" font-size="34" font-weight="800" fill="#c6ff42">RMT</text><text x="60" y="310" font-size="64" font-weight="800" letter-spacing="-3" fill="#fff">Your ecosystem.</text><text x="60" y="388" font-size="64" font-weight="800" letter-spacing="-3" fill="#fff">All together.</text><text x="64" y="448" font-size="22" fill="#bdc4b6">Projects, games, and creative tools.</text><text x="64" y="557" font-size="18" fill="#d3ddc4">rmtlaunch.fun</text><text x="893" y="355" text-anchor="middle" font-size="56" font-weight="800" fill="#c6ff42">RMT</text></g><rect y="626" width="1200" height="4" fill="#c6ff42"/>
 </svg>`);
-await sharp(fallback).jpeg({quality: 88, mozjpeg: true}).toFile(join(destination, `rmt-${version}.jpg`));
-console.log(`Generated ${seedProjects.length} project share cards and the RMT fallback (${width}×${height}).`);
+const fallbackFile=join(destination,`rmt-${version}.jpg`);
+if(rebuild || !existsSync(fallbackFile)) await sharp(fallback).jpeg({quality: 88, mozjpeg: true}).toFile(fallbackFile);
+
+await (await import('./build-showcase-cards.mjs')).buildShowcaseCards(root,rebuild);

@@ -1,0 +1,46 @@
+{
+  "moneymomos": [
+    {
+      "kind": "website", "url": "https://moneymomos.com/",
+      "shortDescription": "SteamVille is home to five ranks of dumpling characters and 100 individually drawn Elites. Visit the Elite Compound for the artwork or the Council to see what holders want to build next.",
+      "categoryLabel": "Character art & community",
+      "experienceIntro": "SteamVille’s buildings each have a job. The Compound houses the Elites, the Council takes proposals and the Academy handles rank upgrades.",
+      "communityIntro": "Follow SteamVille’s official channels or inspect the collection contract.",
+      "destinations": {
+        "https://elitecompound.moneymomos.com/": {"label":"The Elite Compound"},
+        "https://council.moneymomos.com/": {"label":"The Council","copy":"Holders bring proposals here for what SteamVille should build next."},
+        "https://jail.moneymomos.com/": {"label":"SteamVille Jail","copy":"Read the jail rules and look up the standings. Staking is available to activated Momos."},
+        "https://bossacademy.moneymomos.com/": {"label":"Boss Academy","copy":"See how rank upgrades work. The Academy’s upgrade process burns eligible Momos."},
+        "https://momowallet.moneymomos.com/": {"label":"MomoWallet"},
+        "https://swagshop.moneymomos.com/": {"label":"Swagshop"}
+      }
+    },
+    {"kind":"opensea","url":"https://opensea.io/collection/moneymomosreal","categoryLabel":"Dumpling portrait collection"}
+  ],
+  "wif-outlaws": [
+    {
+      "kind":"website","url":"https://www.robinwifhat.com/agents",
+      "shortDescription":"A WIF Outlaw is a portrait with a registered agent identity and a wallet of its own. The RobinWifHat guide explains how these fit together and which controls the holder can turn on.",
+      "categoryLabel":"Agent-enabled character collection",
+      "experienceIntro":"Start with the relationship between an Outlaw and its wallet, then explore how permissions work.",
+      "communityIntro":"Find RobinWifHat’s project pages, official posts and collection contract.",
+      "destinations":{
+        "https://www.robinwifhat.com/agents":{"label":"Anatomy of an Outlaw","copy":"Follow the guide from the NFT to its wallet. See where operator permissions, spending limits and activity records fit in."}
+      }
+    },
+    {"kind":"opensea","url":"https://opensea.io/collection/wif-outlaws","categoryLabel":"Character & agent collection"}
+  ],
+  "bored-traders": [
+    {
+      "kind":"website","url":"https://boredtrader.co/art",
+      "shortDescription":"Step inside the Bored Trader Terminal to browse its illustrated portraits. The Art presents the pieces in the order committed onchain, while the whitepaper documents the collection and its vault.",
+      "categoryLabel":"Portrait art collection",
+      "experienceIntro":"The Terminal’s art index follows the collection’s committed sequence.",
+      "communityIntro":"The Terminal and whitepaper document the project. Follow its official account for posts from the team.",
+      "destinations":{
+        "https://boredtrader.co/art":{"label":"The Art Index"}
+      }
+    },
+    {"kind":"opensea","url":"https://opensea.io/collection/boredtraders","categoryLabel":"Illustrated trader portraits"}
+  ]
+}

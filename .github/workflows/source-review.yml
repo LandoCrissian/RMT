@@ -1,0 +1,43 @@
+name: Review published project sources
+on:
+  schedule:
+    - cron: '37 12 * * 3'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: published-project-source-review
+  cancel-in-progress: false
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node scripts/collect-project-evidence.mjs source-review.json
+      - name: Check for an identical recent review
+        if: hashFiles('source-review.json') != ''
+        id: previous
+        uses: actions/cache/restore@v4
+        with:
+          path: source-review.json
+          key: source-review-v1-${{ hashFiles('source-review.json') }}
+          lookup-only: true
+      - name: Retain changed suggestions for review
+        if: hashFiles('source-review.json') != '' && steps.previous.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-source-review
+          path: source-review.json
+          retention-days: 14
+      - name: Remember this review
+        if: hashFiles('source-review.json') != '' && steps.previous.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: source-review.json
+          key: source-review-v1-${{ hashFiles('source-review.json') }}

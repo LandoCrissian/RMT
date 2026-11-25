@@ -4,6 +4,7 @@ import hostingConfig from "./.openai/hosting.json";
 import { readExecutionProfile } from "./scripts/execution-profile.mjs";
 import { configureToolEnvironment } from "./scripts/tool-environment.mjs";
 import { sites } from "./scripts/vite/sites-vite-plugin";
+import { shareCardAssets } from "./scripts/vite/share-card-assets";
 import { connectorPreview } from "./scripts/vite/connector-preview-plugin.mjs";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
@@ -53,6 +54,7 @@ export default defineConfig(async ({ command }) => {
         : {}),
     },
     plugins: [
+      shareCardAssets(),
       vinext(),
       sites({ mockAuth: !managedLinux }),
       connectorPreview(),
