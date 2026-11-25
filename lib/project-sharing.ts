@@ -1,3 +1,4 @@
+import {communityCardMark, reviewedCommunityArtwork} from './reviewed-community-artwork';
 import experienceArt from './experience-artwork.json';
 import {enrichProject} from './project-enrichment';
 import {controlImageId} from './project-presentation';
@@ -26,13 +27,15 @@ export function shareCardPlan(project:ShareArtworkProject) {
   const settings=project.presentation;
   const seed=seedProjects.find(item=>item.id===project.id && item.slug===project.slug);
   const banner=approvedImage(project.artwork?.banner), logo=approvedImage(project.artwork?.logo);
-  const localAssets=new Set([seed?.cover,seed?.logo,...experienceArt.filter(a=>a.project===project.id).map(a=>a.image)].filter(Boolean));
+  const reviewed=reviewedCommunityArtwork(project);
+  const localAssets=new Set([seed?.cover,seed?.logo,reviewed?.cover,reviewed?.logo,...experienceArt.filter(a=>a.project===project.id).map(a=>a.image)].filter(Boolean));
   function usable(url:string|undefined) {
     return !!url && (localAssets.has(url) || url===banner?.url || url===logo?.url ||
       (!!controlImageId(url) && (url===settings?.hero || Object.values(settings?.supporting??{}).includes(url))));
   }
   const supporting=Object.values(settings?.supporting??{}).find(usable);
-  const art = [settings?.hero,banner?.url,project.cover??seed?.cover,logo?.url,project.logo,supporting].find(usable);
+  const initialCommunityCard = project.source==='community' && project.id.startsWith('community-') && project.slug==='project-'+project.id.slice(10);
+  const art = [settings?.hero,banner?.url,project.cover??seed?.cover,logo?.url,project.logo,supporting].find(usable) ?? (initialCommunityCard ? communityCardMark : undefined);
   const title = project.name ?? seed?.name;
   const enrichedAccent=project.links && project.category && typeof project.description==='string' && typeof project.tagline==='string'
     ? enrichProject(project as Project).accent : undefined;
@@ -40,8 +43,10 @@ export function shareCardPlan(project:ShareArtworkProject) {
   const unchanged = !!seed && title===seed.name && art===seed.cover && !settings?.hero && !supporting && !settings?.accent && !settings?.cardStyle && accent===seed.accent;
   const fallback = '/social/rmt-'+SOCIAL_IMAGE_VERSION+'.jpg';
   if (settings?.cardMode==='fallback' || !art || !title) return {kind:'fallback' as const,path:fallback};
+  if (reviewed && title===reviewed.name && art===reviewed.cover && !project.artwork && !settings?.hero && !supporting && !settings?.accent && !settings?.cardStyle)
+    return {kind:'classic' as const,path:reviewed.card};
   if (unchanged && classicCards.has(project.id)) return {kind:'classic' as const,path:'/social/'+encodeURIComponent(project.slug)+'-'+SOCIAL_IMAGE_VERSION+'.jpg'};
-  const style = settings?.cardStyle ?? (Object.hasOwn(defaultStyles,project.id) ? defaultStyles[project.id] : art===logo?.url || art===project.logo ? 'portrait' : 'panorama');
+  const style = settings?.cardStyle ?? (Object.hasOwn(defaultStyles,project.id) ? defaultStyles[project.id] : art===logo?.url || art===project.logo || art===communityCardMark ? 'portrait' : 'panorama');
   const baked = unchanged && artDirectedProjects.some(id=>id===project.id)
     && (!project.links || seed.links.every(link=>project.links!.some(item=>item.url===link.url)));
   // URL revisions are cache keys, never credentials. The route independently

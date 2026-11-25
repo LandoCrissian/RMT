@@ -1,0 +1,15 @@
+[
+  {
+    "id": "community-a03d19b5-8cb0-47b6-97a8-23ecf5e5f194",
+    "slug": "project-a03d19b5-8cb0-47b6-97a8-23ecf5e5f194",
+    "name": "APEX Rising",
+    "website": "https://apexrising.io/",
+    "cover": "/projects/apex-rising-44ac45fd.webp",
+    "coverAspectRatio": 1.7777777777777777,
+    "coverSource": "https://apexrising.io/art/v15/hero-season1.webp",
+    "logo": "/projects/apex-rising-69f95abc.png",
+    "logoSource": "https://apexrising.io/icons/apex-swap-180.png",
+    "card": "/social/apex-rising-01cba99c.jpg",
+    "cardSource": "https://apexrising.grok.me/og.jpg"
+  }
+]

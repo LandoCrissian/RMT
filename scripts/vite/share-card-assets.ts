@@ -2,6 +2,8 @@ import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import type {Plugin} from 'vite';
 import {seedProjects} from '../../lib/catalog';
+import reviewed from '../../lib/reviewed-community-artwork.json';
+import {communityCardMark} from '../../lib/reviewed-community-artwork';
 import experiences from '../../lib/experience-artwork.json';
 
 // Convert reviewed local images at build time. The Worker uses only bundled
@@ -14,7 +16,7 @@ export function shareCardAssets():Plugin {
     async load(source) {
       if(source!=='\0'+id) return;
       const sharp=(await import('sharp')).default;
-      const paths=new Set([...seedProjects.flatMap(project=>[project.cover,project.logo]),...experiences.map(item=>item.image)]);
+      const paths=new Set([communityCardMark,...reviewed.flatMap(item=>[item.cover,item.logo]),...seedProjects.flatMap(project=>[project.cover,project.logo]),...experiences.map(item=>item.image)]);
       const art:Record<string,string>={};
       for(const path of paths) {
         if(!path?.startsWith('/')) continue;

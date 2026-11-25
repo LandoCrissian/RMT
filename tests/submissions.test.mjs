@@ -163,6 +163,16 @@ test('approved catalog exposes public links but no application or account detail
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM review_events').get().count, 1);
 });
 
+test('community claimed status requires an active permission record', async t => {
+  const db = database(); t.after(() => db.close());
+  const created = await api.createSubmission(db, user, input());
+  await api.reviewSubmission(db, 'reviewer', created.id, decision('approve', 1));
+  const projectId = 'community-' + created.id;
+  db.raw.prepare('DELETE FROM project_owners WHERE project_id=?').run(projectId);
+  const project = (await api.catalog(db)).projects.find(row => row.id === projectId);
+  assert.equal(project.claimed, false);
+});
+
 test('stale review cannot overwrite a decision or create an extra audit record', async t => {
   const db = database(); t.after(() => db.close());
   const created = await api.createSubmission(db, user, input());
@@ -574,5 +584,41 @@ test('a collection claim on each expansion listing goes to review before ownersh
     assert.equal(claim.status,'pending');
     assert.equal((await api.claimOptions(db,projectId)).claimed,false);
   }
+  assert.equal((await api.ownedProjects(db,user.userId)).projects.length,0);
+});
+
+test('first publication binds the public listing to the applicant and a single approval across concurrent requests',async t=>{
+  const db=database();t.after(()=>db.close());
+  const original=await api.catalog(db), created=await api.createSubmission(db,user,input('publication'));
+  const approvals=await Promise.allSettled(['reviewer-a','reviewer-b'].map(id=>api.reviewSubmission(db,id,created.id,decision('approve',1))));
+  assert.equal(approvals.filter(r=>r.status==='fulfilled').length,1);
+  assert.equal(approvals.find(r=>r.status==='rejected').reason.status,409);
+  const directory=await api.catalog(db), id='community-'+created.id, row=directory.projects.find(p=>p.id===id);
+  assert.equal(directory.projects.length,original.projects.length+1);assert.equal(row.slug,'project-'+created.id);assert.equal(row.claimed,true);
+  const event=db.raw.prepare("SELECT created_at FROM review_events WHERE submission_id=? AND next_status='approved'").all(created.id);
+  assert.equal(event.length,1);assert.equal(row.listedAt,new Date(event[0].created_at).toISOString());
+  assert.equal(db.raw.prepare("SELECT COUNT(*) n FROM project_owners o JOIN submissions s ON o.user_id=s.user_id WHERE s.id=? AND o.project_id=? AND o.status='active'").get(created.id,id).n,1);
+  assert.equal((await api.ownedProjects(db,user.userId)).projects[0].project.id,id);
+  assert.equal((await api.ownedProjects(db,'unrelated-member')).projects.length,0);
+});
+
+test('an existing conflicting manager prevents a first approval, without a partial publication or audit',async t=>{
+  const db=database();t.after(()=>db.close());
+  const created=await api.createSubmission(db,user,input('conflicting-manager')),id='community-'+created.id;
+  db.raw.prepare("INSERT INTO project_owners(project_id,user_id,status,revision,created_at,updated_at) VALUES(?,'other-manager','active',1,1,1)").run(id);
+  await assert.rejects(api.reviewSubmission(db,'reviewer',created.id,decision('approve',1)),rejection(409));
+  assert.equal(db.raw.prepare('SELECT status FROM submissions WHERE id=?').get(created.id).status,'pending');
+  assert.equal(db.raw.prepare('SELECT COUNT(*) n FROM review_events WHERE submission_id=?').get(created.id).n,0);
+  assert.equal(db.raw.prepare('SELECT user_id FROM project_owners WHERE project_id=?').get(id).user_id,'other-manager');
+  assert.equal((await api.catalog(db)).projects.some(p=>p.id===id),false);
+});
+
+test('restoring a suspended listing preserves a legitimately transferred active manager',async t=>{
+  const db=database();t.after(()=>db.close());const created=await api.createSubmission(db,user,input('restore-owner')),id='community-'+created.id;
+  const approved=await api.reviewSubmission(db,'reviewer',created.id,decision('approve',1));
+  const suspended=await api.reviewSubmission(db,'reviewer',created.id,decision('suspend',approved.revision));
+  db.raw.prepare("UPDATE project_owners SET user_id='new-manager',revision=revision+1 WHERE project_id=?").run(id);
+  await api.reviewSubmission(db,'reviewer',created.id,decision('approve',suspended.revision));
+  assert.equal((await api.ownedProjects(db,'new-manager')).projects[0].project.id,id);
   assert.equal((await api.ownedProjects(db,user.userId)).projects.length,0);
 });

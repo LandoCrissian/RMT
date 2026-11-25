@@ -1,3 +1,4 @@
+import {applyReviewedCommunityArtwork} from '@/lib/reviewed-community-artwork';
 import {currentPresentation} from '@/lib/project-presentation';
 import type { Project } from "@/lib/catalog";
 import { getSeedProjects } from "@/lib/catalog";
@@ -46,7 +47,7 @@ export function publicProject(row: PublicSubmissionRow): Project {
       {label: "Launch", url: row.launch_url},
       ...(row.x_profile ? [{label: "X", url: row.x_profile}] : []),
     ],
-    initials, accent: "#c6ff42", cover: "community", claimed: true, source: "community",
+    initials, accent: "#c6ff42", cover: "community", claimed: false, source: "community",
     ...(listedAt ? {listedAt} : {}),
   };
 }
@@ -173,6 +174,7 @@ async function buildCatalog(db:D1Database,includeHidden=false) {
         officialXProfile:edit.xProfile || undefined,website:edit.website,launchUrl:edit.launchUrl,links:approvedDestinationLinks(edit)}:{}),
       ...(artwork?{artwork,cover:banner?.url||logo!.url,coverFit:banner?'cover' as const:'contain' as const,
         coverAspectRatio:banner?banner.width/banner.height:logo!.width/logo!.height}:{})};
+    if (!control?.artwork_override) applyReviewedCommunityArtwork(merged);
     if(control?.presentation_json)merged.presentation=currentPresentation(merged,JSON.parse(control.presentation_json));
     return merged;
   });
@@ -213,23 +215,29 @@ export async function reviewSubmission(db: D1Database, reviewerId: string, id: s
   if (row.revision !== decision.expectedRevision || !transition.from.includes(row.status)) {
     throw new InputError("This application changed or is not ready for that action. Refresh the review queue.", 409);
   }
-  const now = Date.now();
-  // D1 batch executes atomically. Both statements are guarded by the same old
-  // revision, preventing lost updates and audit entries for failed decisions.
+  const now = Date.now(), eventId = crypto.randomUUID(), projectId = `community-${id}`;
+  // On first publication the applicant must receive management. A previously
+  // transferred active manager remains in place when restoring a suspended listing.
+  const initialApproval = decision.action === 'approve' && row.status === 'pending';
+  const ownershipGuard = initialApproval ? `AND NOT EXISTS (
+    SELECT 1 FROM project_owners o WHERE o.project_id=? AND o.status='active' AND o.user_id<>submissions.user_id)` : '';
+  const audited = 'EXISTS(SELECT 1 FROM review_events e WHERE e.id=? AND e.submission_id=submissions.id AND e.revision=submissions.revision+1)';
   const results = await db.batch([
     db.prepare(`INSERT INTO review_events (id,submission_id,reviewer_id,previous_status,next_status,note,revision,created_at)
-      SELECT ?,id,?,status,?,?,revision+1,? FROM submissions WHERE id = ? AND revision = ? AND status = ?`)
-      .bind(crypto.randomUUID(), reviewerId, transition.to, decision.note, now, id, row.revision, row.status),
-    db.prepare("UPDATE submissions SET status = ?, review_note = ?, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ? AND status = ?")
-      .bind(transition.to, decision.note, now, id, row.revision, row.status),
+      SELECT ?,id,?,status,?,?,revision+1,? FROM submissions WHERE id=? AND revision=? AND status=? ${ownershipGuard}`)
+      .bind(eventId,reviewerId,transition.to,decision.note,now,id,row.revision,row.status,...(initialApproval?[projectId]:[])),
     ...(decision.action === 'approve' ? [db.prepare(`
       INSERT INTO project_owners (project_id,user_id,claim_id,status,revision,created_at,updated_at)
-      SELECT ?,user_id,NULL,'active',1,?,? FROM submissions WHERE id=? AND revision=? AND status='approved'
+      SELECT ?,user_id,NULL,'active',1,?,? FROM submissions WHERE id=? AND ${audited}
       ON CONFLICT(project_id) DO UPDATE SET user_id=excluded.user_id,claim_id=NULL,status='active',revision=project_owners.revision+1,updated_at=excluded.updated_at
       WHERE project_owners.status='revoked'
-    `).bind(`community-${id}`,now,now,id,row.revision+1)] : []),
+    `).bind(projectId,now,now,id,eventId)] : []),
+    db.prepare(`UPDATE submissions SET status=?,review_note=?,revision=revision+1,updated_at=?
+      WHERE id=? AND revision=? AND status=? AND ${audited}`)
+      .bind(transition.to,decision.note,now,id,row.revision,row.status,eventId),
   ]);
-  if (results[1]?.meta.changes !== 1 || results[0]?.meta.changes !== 1) throw new InputError("Another reviewer changed this application. Refresh the queue.", 409);
+  if (results[0]?.meta.changes !== 1 || results.at(-1)?.meta.changes !== 1)
+    throw new InputError("The application or its project manager changed. Refresh the review queue and check management before approving.", 409);
   const updated = await db.prepare("SELECT * FROM submissions WHERE id = ?").bind(id).first<SubmissionRow>();
   if (!updated) throw new Error("Reviewed application was not readable");
   return privateSubmission(updated, true);

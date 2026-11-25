@@ -123,3 +123,14 @@ test('source extraction drops active content and challenge pages; network bounda
   for(const ip of ['127.0.0.1','10.0.0.1','169.254.169.254','192.168.0.1','100.64.5.20','fc00::1','::ffff:127.0.0.1']) assert.equal(publicAddress(ip),false,ip);
   assert.equal(publicAddress('1.1.1.1'),true);
 });
+
+test('approved community websites yield bounded first-party artwork suggestions without fetching images',async()=>{
+  const site='https://published-studio.dev/';
+  const requested=[];
+  const rows=await collectProject({source:'community',cover:'community',website:site,links:[]},async url=>{
+    requested.push(url);
+    return '<head><title>Studio</title><meta property="og:image" content="https://outside.dev/image.jpg"><meta name="twitter:image" content="/card.webp"><link rel="icon" href="/bad.svg"><link rel="icon" href="/private.png?token=x"><link rel="apple-touch-icon" href="/logo.png"></head>';
+  });
+  assert.deepEqual(requested,[site]);
+  assert.deepEqual(rows[0].artworkCandidates,[{kind:'share',url:site+'card.webp'},{kind:'logo',url:site+'logo.png'}]);
+});

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ArrowUpRight, Check, CheckCircle2, Clock3, Copy, Inbox, LoaderCircle, LockKeyhole, MessageSquare, Pause, RefreshCw, X, ClipboardList, KeyRound, FilePenLine, Bell, Megaphone } from "lucide-react";
 import { formattedDate, readApiResponse, statusLabel, stageLabel, type StudioProps, type Submission } from "./studio-shared";
+import { announceCatalogChange } from "@/lib/client/catalog-changes";
 import { ClaimReview, EditReview } from "./ClaimReview";
 import NotificationSettings from "./NotificationSettings";
 import ProjectUpdatesReview from "./ProjectUpdatesReview";
@@ -64,6 +65,7 @@ export default function ReviewQueue({ session, onToast }: StudioProps) {
         headers: { "Content-Type": "application/json", "X-RMT-Account":session.userId||"" },
         body: JSON.stringify({ action: nextAction, note: note.trim(), checkedLinks, confirmedOwnership, expectedRevision: selected.revision }),
       }));
+      if(nextAction==="approve"||nextAction==="suspend")announceCatalogChange();
       onToast(({ approve: "Project approved and published.", reject: "Application marked not approved.", request_changes: "Changes requested. The applicant can update their submission.", suspend: "Project suspended and removed from the directory." })[nextAction]);
       setSelectedId(null);
       await loadQueue();

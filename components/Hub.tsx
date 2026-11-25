@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { type Project } from '@/lib/catalog';
 import { normalizeProjectQuery, searchProjects } from '@/lib/project-search';
+import { listenForCatalogChanges } from '@/lib/client/catalog-changes';
 import { discoverProjects, recentProjects, type DirectorySort } from '@/lib/project-discovery';
 import { projectPath, projectShareUrl, projectSocialImagePath, projectXIntentUrl } from '@/lib/project-sharing';
 import {ProjectFollow,FollowingLibrary} from './Following';
@@ -171,6 +172,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   }
 
   function browseNewest() {
+    void refreshCatalog();
     setQuery(''); setCategory('All projects'); setDirectorySort('recent');
     focusDirectory();
   }
@@ -201,6 +203,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   }, [mobileMenu]);
 
   function go(next: Section) {
+    if (['discover','games','music','tools','library'].includes(next)) void refreshCatalog();
     setSection(next); setMemberHandle(''); setQuery(''); setCategory('All projects'); setDirectoryPaging({ key: '', page: 1 }); setMobileMenu(false); setSelected(null); setClaimProject(null);
     window.history.pushState(null, '', '/#' + next);
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -232,16 +235,18 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
     }
   }
 
-  async function refreshCatalog(){
+  async function refreshCatalog(replacePending=false){
+    if(catalogRequest.current&&!replacePending)return;
     catalogRequest.current?.abort();const controller=new AbortController();catalogRequest.current=controller;
-    try{const response=await fetch('/api/catalog',{cache:'no-store',credentials:'same-origin',signal:controller.signal});if(!response.ok)throw new Error();const data=await response.json() as {projects?:Project[]};if(!Array.isArray(data.projects))throw new Error();if(!controller.signal.aborted){setProjects(data.projects);setCatalogError(false);}}catch{if(!controller.signal.aborted){setProjects([]);setCatalogError(true);}}finally{if(!controller.signal.aborted)setCatalogLoaded(true);}
+    try{const response=await fetch('/api/catalog',{cache:'no-store',credentials:'same-origin',signal:controller.signal});if(!response.ok)throw new Error();const data=await response.json() as {projects?:Project[]};if(!Array.isArray(data.projects))throw new Error();if(!controller.signal.aborted){setProjects(data.projects);setCatalogError(false);}}catch{if(!controller.signal.aborted){setProjects([]);setCatalogError(true);}}finally{if(catalogRequest.current===controller){catalogRequest.current=null;if(!controller.signal.aborted)setCatalogLoaded(true);}}
   }
 
   useEffect(() => {
     if (window.self !== window.top) setFramedOrigin(window.location.origin);
     void refreshSession();
     void refreshCatalog();
-    const changed=()=>{void refreshCatalog();void refreshSession();};
+    const changed=()=>{void refreshCatalog(true);void refreshSession();};
+    const stopCatalogListener=listenForCatalogChanges(()=>{if(document.visibilityState==='visible')void refreshCatalog(true);});
     window.addEventListener('rmt-control-changed',changed);
     const onShortcut = (event: KeyboardEvent) => {
       if (event.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes((event.target as HTMLElement).tagName)) {
@@ -250,7 +255,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
     };
     const onInstall = (event: Event) => { event.preventDefault(); setInstallPrompt(event); };
     const recheckAccount = () => { if (document.visibilityState === 'visible') {void refreshSession();void refreshCatalog();} };
-    const restoreAccount = (event: PageTransitionEvent) => { if (event.persisted) void refreshSession(); };
+    const restoreAccount = (event: PageTransitionEvent) => { if (event.persisted) {void refreshSession();void refreshCatalog(true);} };
     const hideAccount = () => { sessionRequest.current?.abort(); setSessionStatus('loading'); };
     window.addEventListener('keydown', onShortcut);
     window.addEventListener('beforeinstallprompt', onInstall);
@@ -269,6 +274,8 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
       if (toastTimer.current) clearTimeout(toastTimer.current);
       sessionRequest.current?.abort();
       catalogRequest.current?.abort();
+      catalogRequest.current=null;
+      stopCatalogListener();
       window.removeEventListener('rmt-control-changed',changed);
       copyRequest.current += 1;
     };
@@ -472,6 +479,11 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   const searchScope = section === 'library' ? (activeCategory === 'All projects' ? 'your library' : activeCategory.toLowerCase() + ' in your library') : activeCategory.toLowerCase();
   const matchesOutsideScope = hasSearch && isSearchScoped ? searchProjects(projects, { query }).length - page.total : 0;
   const isDirectory = !['studio', 'review', 'claim', 'account', 'activity', 'profile', 'member', 'control'].includes(section);
+  useEffect(()=>{
+    if(!isDirectory)return;
+    const timer=window.setInterval(()=>{if(document.visibilityState==='visible')void refreshCatalog();},60_000);
+    return()=>window.clearInterval(timer);
+  },[isDirectory]);
   const featuredProjects = orderedSpotlights(projects);
   const publicPaused=maintenance&&!['account','control'].includes(section);
   useEffect(()=>{if(section==='control')setControlOpened(true);},[section]);
@@ -553,7 +565,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
     <div className="workspace" inert={mobileMenu}>
       <header className="topbar">
         <div className="mobile-brand"><button ref={menuTrigger} aria-expanded={mobileMenu} aria-controls="main-navigation" className="icon-button" onClick={() => setMobileMenu(!mobileMenu)} aria-label="Open navigation"><Menu size={21} /></button><button className="mobile-rmt-home" onClick={() => go('discover')} aria-label="RMT home"><img src="/icons/rmt-mark-v5.png" alt="" width="29" height="29" /><span className="mobile-rmt-word">RMT<span>.</span></span></button></div>
-        <div className="search-box" role="search"><Search size={18} aria-hidden="true" /><label htmlFor="project-search" className="sr-only">Search projects and experiences</label><input id="project-search" type="search" ref={searchRef} value={query} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="search" onChange={event => { const value = event.target.value; if (!isDirectory) go('discover'); setQuery(value); }} placeholder="Search projects, games, tools…" /><kbd>/</kbd>{query && <button type="button" className="search-clear" aria-label="Clear search" onClick={() => { setQuery(''); searchRef.current?.focus(); }}><X size={15} /></button>}</div>
+        <div className="search-box" role="search"><Search size={18} aria-hidden="true" /><label htmlFor="project-search" className="sr-only">Search projects and experiences</label><input id="project-search" type="search" ref={searchRef} onFocus={()=>void refreshCatalog()} value={query} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="search" onChange={event => { const value = event.target.value; if (!isDirectory) go('discover'); setQuery(value); }} placeholder="Search projects, games, tools…" /><kbd>/</kbd>{query && <button type="button" className="search-clear" aria-label="Clear search" onClick={() => { setQuery(''); searchRef.current?.focus(); }}><X size={15} /></button>}</div>
         <div className="topbar-actions"><button className="button button-small button-outline submit-project-topbar" onClick={() => go('studio')} aria-label="Submit a project"><Plus size={16} /><span className="submit-label">Submit a project</span></button>{sessionStatus === 'loading' ? <span className="topbar-account-loading" role="status" aria-label="Checking your account"><LoaderCircle className="rmt-spin" size={17} /></span> : session.authenticated || sessionStatus === 'error' ? <button className="topbar-account" onClick={() => go('account')} aria-label="Open your RMT account" title={session.displayName || 'My account'}><span className="topbar-account-avatar"><UserRound size={14} /></span><span>{session.displayName?.split(' ')[0] || 'Account'}</span></button> : <a className="topbar-signin" href={signInHref(returnTo)} target="_top"><UserRound size={15} /> Sign in</a>}</div>
       </header>
       <FirebaseSessionBridge onChange={() => void refreshSession()} /><main id="main-content" tabIndex={-1} className={'main-content' + (isDirectory ? ' discovery-main' : '') + (hasSearch ? ' search-mode' : '')}>

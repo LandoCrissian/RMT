@@ -14,6 +14,8 @@ The read-only **Review published project sources** GitHub workflow runs weekly o
 
 The workflow produces a review artifact for changed suggestions. To preview a release locally, run `node scripts/collect-project-evidence.mjs source-review.json`; append one or more published project IDs to narrow the refresh. Review each proposed field against the linked official document. Generic titles, stale counts, campaign language and unverified release claims should be omitted. Merge the accepted records into `lib/reviewed-source-metadata.json` and run the normal tested release. An artifact is a candidate and cannot publish site data. `lib/enrichment-sources.json` contains source-attributed editorial summaries when official metadata requires interpretation. Images must already have passed the existing artwork or source review.
 
+An approved community listing immediately gets a card with its public name and the RMT mark. The next scheduled source review picks up eligible public listings and records same-origin raster logo and share-image suggestions from the approved homepage. Reviewers can upload approved artwork through Control Center or include reviewed static assets in a release. Static community artwork is bound to its listing ID, slug and approved website in `lib/reviewed-community-artwork.json`. APEX Rising’s hero, shield and share card come from the source URLs in that record. Existing moderation, administrators’ artwork settings and approved builder uploads retain precedence.
+
 ## Release 22 research
 
 | Project | Automatically collected and reviewed | Source-grounded editorial selection |

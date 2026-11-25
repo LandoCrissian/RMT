@@ -60,11 +60,36 @@ function plain(value,max) {
   // Skip markup, entity fragments and overlong/truncated assertions.
   return text.length<=max && !/[<>\u0000-\u001f]|&(?:#\d+|\w+);/.test(text) ? text : '';
 }
+function sourceHead(html) {
+  return html.split(/<\/head\s*>|<body[\s>]/i,1)[0].replace(/<!--[\s\S]*?-->|<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,'');
+}
+function tagAttributes(tag) {
+  return new Map([...tag.matchAll(/\s([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)].map(m=>[m[1].toLowerCase(),m[2]??m[3]??m[4]]));
+}
+// Suggestions remain in the review artifact. A website cannot instruct the
+// Worker to fetch an arbitrary image or publish a change to a listing.
+function artworkCandidates(html,website) {
+  const found=new Map();
+  for(const tag of sourceHead(html).match(/<(?:meta|link)\b[^>]{1,4096}>/gi) ?? []) {
+    const attrs=tagAttributes(tag);
+    const prop=(attrs.get('property')||attrs.get('name')||'').toLowerCase();
+    const rel=(attrs.get('rel')||'').toLowerCase().split(/\s+/);
+    const kind=prop==='og:image' || prop==='twitter:image' ? 'share' : rel.includes('apple-touch-icon') || rel.includes('icon') ? 'logo' : '';
+    const value=attrs.get(kind==='share'?'content':'href');
+    if(!kind || found.has(kind) || !value || value.length>512) continue;
+    try {
+      const target=validTarget(new URL(value,website).href);
+      if(target?.origin===website.origin && !target.search && !target.hash && /\.(?:png|jpe?g|webp)$/i.test(target.pathname))
+        found.set(kind,{kind,url:target.href});
+    } catch { /* Unsupported URLs are omitted from the review. */ }
+  }
+  return [...found.values()];
+}
 export function pageMetadata(html) {
-  const head = html.split(/<\/head\s*>|<body[\s>]/i,1)[0].replace(/<!--[\s\S]*?-->|<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,'');
+  const head=sourceHead(html);
   const values=new Map();
   for(const tag of head.match(/<meta\b[^>]{1,4096}>/gi) ?? []) {
-    const attributes=new Map([...tag.matchAll(/\s([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)].map(m=>[m[1].toLowerCase(),m[2]??m[3]??m[4]]));
+    const attributes=tagAttributes(tag);
     const key=(attributes.get('property') || attributes.get('name'))?.toLowerCase();
     if (key && !values.has(key)) values.set(key,attributes.get('content'));
   }
@@ -90,13 +115,18 @@ export async function collectProject(project,fetchPublic=readPublic) {
     }).slice(0,10);
     for(const url of pages) {
       try {
-        const meta=pageMetadata(await fetchPublic(url));
+        const html=await fetchPublic(url);
+        const meta=pageMetadata(html);
         if(!usable(meta.title) && !usable(meta.description)) continue;
         if((meta.title && !usable(meta.title)) || (meta.description && !usable(meta.description))) continue;
         const snapshot={kind:'website',url};
         if(url===project.website) {
           if(meta.description) snapshot.shortDescription=meta.description;
           if(meta.accent) snapshot.accent=meta.accent;
+          if(project.source==='community' && (!project.logo || project.cover==='community')) {
+            const candidates=artworkCandidates(html,website);
+            if(candidates.length) snapshot.artworkCandidates=candidates;
+          }
         }
         if(links.some(link=>link.url===url) && (meta.title||meta.description)) snapshot.destinations={[url]:{...(meta.title ? {label:meta.title} : {}),...(meta.description ? {copy:meta.description} : {})}};
         if(Object.keys(snapshot).length>2) snapshots.push(snapshot);

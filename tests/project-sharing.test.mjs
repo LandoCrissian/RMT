@@ -8,7 +8,7 @@ import sharp from 'sharp';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const compiled = await build({
-  stdin: {contents: `export * from './lib/project-sharing'; export * from './lib/server/project-showcase'; export {createSubmission, reviewSubmission} from './lib/server/repository'; export {validateSubmission, validateDecision} from './lib/submission-validation'; export {seedProjects} from './lib/catalog';`, resolveDir: root, loader: 'ts'},
+  stdin: {contents: `export * from './lib/project-sharing'; export * from './lib/reviewed-community-artwork'; export * from './lib/server/project-showcase'; export {createSubmission, reviewSubmission} from './lib/server/repository'; export {validateSubmission, validateDecision} from './lib/submission-validation'; export {seedProjects} from './lib/catalog';`, resolveDir: root, loader: 'ts'},
   absWorkingDir: root, bundle: true, write: false, platform: 'node', format: 'esm', target: 'node24',
 });
 const api = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
@@ -121,6 +121,11 @@ test('showcases stay unavailable until approved and disappear after suspension',
   await api.reviewSubmission(db, 'reviewer', created.id, approval);
   const approved = await api.projectShowcase(db, slug);
   assert.equal(approved.project.name, 'A new showcase');
+  const card=api.shareCardPlan(approved.project);
+  assert.equal(card.kind,'composed');
+  assert.equal(card.art,api.communityCardMark);
+  assert.equal(card.title,approved.project.name);
+  assert.equal(api.projectMetadata(approved.project).openGraph.images[0].url,api.RMT_PUBLIC_ORIGIN+card.path);
   const visible = JSON.stringify({...approved, metadata: api.projectMetadata(approved.project)});
   for (const privateValue of ['private-builder-id', 'private-account@example.dev', 'private-contact@example.dev', input.ownershipEvidence, created.verificationCode]) {
     assert.equal(visible.includes(privateValue), false, privateValue);
@@ -173,5 +178,33 @@ test('each destination preview belongs to its listed project and a local decodab
     unique.add(project + destination);
     const metadata = await sharp(await readFile(new URL('../public' + image, import.meta.url))).metadata();
     assert.ok(metadata.width > 0 && metadata.height > 0);
+  }
+});
+
+test('APEX artwork is reviewed for this exact approved listing and yields a complete publisher card',async()=>{
+  const [record]=JSON.parse(await readFile(new URL('../lib/reviewed-community-artwork.json',import.meta.url),'utf8'));
+  const base={id:record.id,slug:record.slug,name:record.name,website:record.website,source:'community',cover:'community'};
+  for(const change of [{website:'https://elsewhere.dev/'},{id:'unknown'},{slug:'similar-project'},{source:'curated'}]){
+    const other={...base,...change};
+    api.applyReviewedCommunityArtwork(other);
+    assert.equal(other.cover,'community');
+    assert.notEqual(api.shareCardPlan(other).path,record.card);
+  }
+  const project={...base};
+  api.applyReviewedCommunityArtwork(project);
+  assert.equal(project.cover,record.cover);
+  assert.equal(project.logo,record.logo);
+  assert.equal(api.shareCardPlan(project).path,record.card);
+  assert.equal(api.shareCardPlan({...project,presentation:{cardStyle:'editorial'}}).kind,'composed');
+  assert.equal(api.shareCardPlan({...project,presentation:{cardMode:'fallback'}}).kind,'fallback');
+  const changed={...base,artwork:{logo:{url:'/media/approved'}},cover:'/media/approved'};
+  api.applyReviewedCommunityArtwork(changed);
+  assert.equal(changed.cover,'/media/approved');
+  const {createHash}=await import('node:crypto');
+  for(const [asset,width,height] of [[record.cover,1600,900],[record.logo,180,180],[record.card,1200,630]]){
+    const bytes=await readFile(new URL('../public'+asset,import.meta.url));
+    const info=await sharp(bytes).metadata();
+    assert.deepEqual([info.width,info.height],[width,height]);
+    assert.ok(asset.includes(createHash('sha256').update(bytes).digest('hex').slice(0,8)));
   }
 });
