@@ -27,7 +27,7 @@ jobs:
           "$RUNNER_TEMP/rmt-browser/node_modules/.bin/playwright" install --with-deps chromium webkit
           export PLAYWRIGHT_MODULE="$RUNNER_TEMP/rmt-browser/node_modules/playwright/index.mjs"
           state="$RUNNER_TEMP/rmt-guide-d1"
-          node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to "$state" --ip 127.0.0.1 --port 5178 --inspector-port 0 >"$RUNNER_TEMP/rmt-guide.log" 2>&1 &
+          node tests/browser/serve-worker.mjs "$state" >"$RUNNER_TEMP/rmt-guide.log" 2>&1 &
           worker=$!
           trap 'kill "$worker" 2>/dev/null || true' EXIT
           for attempt in {1..60}; do
