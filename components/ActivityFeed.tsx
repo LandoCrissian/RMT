@@ -50,7 +50,7 @@ function ActivityCard({item, onProject}: {item: ActivityItem; onProject: (id: st
   </article>;
 }
 
-type View = 'for-you' | 'following' | 'all' | 'notifications';
+export type View = 'for-you' | 'following' | 'all' | 'notifications';
 const tabs = [{id:'for-you', label:'For You'}, {id:'following', label:'Following'}, {id:'all', label:'All Activity'}] as const;
 const criteria: Record<View,string> = {
   'for-you':'Updates from projects you follow, projects matching your interests, and RMT’s editorial picks. Newest first.',
@@ -77,10 +77,10 @@ function InterestPicker({page,busy,onSave}:{page:DiscoveryPage;busy:boolean;onSa
   </section>;
 }
 
-export default function ActivityFeed({account,signIn,onProject,onBuilder,onProfile}:{
-  account:string|null;signIn:string;onProject:(id:string,updates:boolean)=>boolean;onBuilder:()=>void;onProfile:()=>void
+export default function ActivityFeed({account,requestedView,onView,signIn,onProject,onBuilder,onProfile}:{
+  account:string|null;requestedView:View|null;onView:(view:View)=>void;signIn:string;onProject:(id:string,updates:boolean)=>boolean;onBuilder:()=>void;onProfile:()=>void
 }) {
-  const [view,setView]=useState<View>(account?'for-you':'all');
+  const view=requestedView??(account?'for-you':'all');
   const [filter,setFilter]=useState<Filter>('all');
   const [cursors,setCursors]=useState<(string|null)[]>([null]);
   const [page,setPage]=useState<DiscoveryPage|null>(null);
@@ -113,7 +113,7 @@ export default function ActivityFeed({account,signIn,onProject,onBuilder,onProfi
     document.addEventListener('visibilitychange',recheck);
     return ()=>{window.removeEventListener('pageshow',restore);window.removeEventListener('pagehide',hide);window.removeEventListener('rmt-follow-changed',recheck);document.removeEventListener('visibilitychange',recheck);};
   },[]);
-  function choose(next:View){if(view===next)return;setView(next);setCursors([null]);setPage(null);setFeedback('');setError('');}
+  function choose(next:View){if(view===next)return;onView(next);setCursors([null]);setPage(null);setFeedback('');setError('');}
   function move(next:(string|null)[]){setPage(null);setCursors(next);heading.current?.focus({preventScroll:true});heading.current?.scrollIntoView({block:'start'});}
   async function change(action:Parameters<typeof saveDiscovery>[1],confirmation:string) {
     if(!account||lock.current)return false;
