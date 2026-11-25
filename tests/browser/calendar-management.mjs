@@ -79,10 +79,11 @@ try{
   const type=(await api(controlPath,admin,200)).types.find(t=>t.id===unique);await api(controlPath,admin,200,{id:unique,action:'type',name:type.name,archived:true,expectedRevision:type.revision,reason:'Archive fixture event type.'},'PATCH');
   const destination=new URL('/events/'+unique,project.website).href,sourceUrl=project.website;
   const imported={...record,title:'Suggest '+unique,destination,sourceUrl,sourceKey:createHash('sha256').update('vamps\n'+destination).digest('hex')};
-  await mod.getByText('Official-source suggestions',{exact:true}).click();
-  await mod.getByLabel('Calendar suggestions file').setInputFiles({name:'calendar-suggestions.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({version:1,suggestions:[imported]}))});
-  await mod.getByRole('button',{name:'Review VAMPS · '+imported.title}).click();
-  await mod.getByRole('button',{name:'Send suggestion to review'}).click();await confirm('suggest');
+  await api(controlPath,admin,200,{action:'suggest',projectId:'vamps',sourceKey:imported.sourceKey,sourceUrl,fields:imported,reason:'Reviewed official source fixture.'},'PATCH');
+  await mod.reload();await mod.getByRole('button',{name:'Calendar',exact:true}).click();
+  await mod.getByRole('link',{name:'Official source evidence'}).first().waitFor();
+  await mod.getByText('Project enrichment suggestions',{exact:true}).click();
+  await mod.getByText('No pending source evidence.').waitFor();
   assert.ok((await api(controlPath,admin,200)).events.some(e=>e.title===imported.title&&e.status==='pending'));
   assert.ok(!(await api(publicPath,null,200)).events.some(e=>e.title===imported.title));
   const final=await api(controlPath,admin,200);assert.equal(final.stats.saved,initial.stats.saved);assert.equal(final.stats.reminders,initial.stats.reminders);

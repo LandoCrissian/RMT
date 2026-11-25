@@ -62,3 +62,9 @@ test('external, encoded, malformed, and unapproved continuations fail closed', (
   assert.equal(studioSectionFromSearch('?studio=projects&studio=claims'), 'add');
   assert.equal(studioSectionFromSearch('?studio=admin'), 'add');
 });
+
+test('authorized calendar review links return to the calendar workspace after sign-in',()=>{
+  const path='/?workspace=calendar#control',account=new URL(signInHref(path),'https://rmt.example');
+  assert.equal(continuationFromSearch(account.search).href,path);
+  assert.equal(accountContinuation('/?workspace=calendar&next=//example.net#control'),null);
+});

@@ -302,14 +302,20 @@ export const calendarTypes = sqliteTable('calendar_types',{
 export const calendarEvents = sqliteTable('calendar_events',{
   id:text('id').primaryKey(),projectId:text('project_id').notNull(),typeId:text('type_id').notNull().references(()=>calendarTypes.id),
   draft:text('draft').notNull(),published:text('published'),publishedAt:integer('published_at'),status:text('status').notNull(),
-  revision:integer('revision').notNull(),featured:integer('featured').notNull().default(0),source:text('source'),
+  revision:integer('revision').notNull(),featured:integer('featured').notNull().default(0),source:text('source'),sourceHash:text('source_hash'),
   actor:text('actor').notNull(),createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull()
 },t=>[index('calendar_project_events').on(t.projectId,t.status),uniqueIndex('calendar_source').on(t.projectId,t.source)]);
 export const calendarHistory=sqliteTable('calendar_history',{
   id:integer('id').primaryKey({autoIncrement:true}),eventId:text('event_id').notNull(),actor:text('actor').notNull(),action:text('action').notNull(),
   reason:text('reason').notNull(),revision:integer('revision').notNull(),snapshot:text('snapshot').notNull(),createdAt:integer('created_at').notNull()
-});
+},t=>[index('calendar_history_event_action_revision').on(t.eventId,t.action,t.revision)]);
 export const calendarMembers=sqliteTable('calendar_members',{
   userId:text('user_id').notNull(),eventId:text('event_id').notNull().references(()=>calendarEvents.id),
   reminder:integer('reminder').notNull().default(0)
 },t=>[primaryKey({columns:[t.userId,t.eventId]})]);
+
+export const sourceSuggestions=sqliteTable('source_suggestions',{
+  id:text('id').primaryKey(),projectId:text('project_id').notNull(),projectName:text('project_name').notNull(),
+  sourceUrl:text('source_url').notNull(),evidence:text('evidence').notNull(),status:text('status').notNull().default('pending'),
+  revision:integer('revision').notNull().default(1),updatedAt:integer('updated_at').notNull()
+},t=>[index('source_suggestion_queue').on(t.status,t.updatedAt)]);

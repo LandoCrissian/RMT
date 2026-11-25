@@ -5,6 +5,7 @@ import {ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, ChevronUp, Bell, Calen
 import type {ActivityItem} from '@/lib/activity';
 import {readDiscovery,saveDiscovery,type DiscoveryPage} from '@/lib/client/discovery';
 import InterestPicker from './InterestPicker';
+import WeeklyDigestPreview from './WeeklyDigestPreview';
 import './activity.css';
 import {recordSiteMetric} from '@/lib/client/site-metrics';
 
@@ -115,6 +116,7 @@ export default function ActivityFeed({account,requestedView,onView,signIn,onProj
       {view==='notifications'&&<h2 className="inbox-title">Notifications</h2>}
       <p className="feed-criteria">{view==='for-you'&&!account?'RMT’s editorial picks, newest first. Sign in to personalize this feed.':criteria[view]}</p>
       {view==='all'&&<div className="activity-filterbar"><div className="activity-filters" role="group" aria-label="Filter activity">{filters.map(item=><button key={item.id} type="button" aria-pressed={filter===item.id} onClick={()=>{setPage(null);setCursors([null]);setFilter(item.id);setRefresh(v=>v+1);}}>{item.label}</button>)}</div></div>}
+      {view==='notifications'&&page?.member&&account&&<WeeklyDigestPreview key={account} account={account}/>}
       {view==='notifications'&&page?.member&&<label className="inbox-preference"><input type="checkbox" role="switch" checked={page.notificationsEnabled} disabled={saving} onChange={event=>void change({action:'notifications',enabled:event.target.checked},'Notification preference saved.')}/> Followed-project notifications</label>}
       <div className="feed-messages"><p role="status">{saving?'Saving…':feedback}</p>{!mustSignIn&&<button className="activity-refresh" type="button" aria-label="Refresh activity" onClick={()=>setRefresh(value=>value+1)} disabled={!page&&!error}><RefreshCw size={16}/></button>}</div>
       {!!page?.calendarEvents?.length && <section className="feed-calendar" aria-label={view==='notifications'?'Event reminders':'Upcoming events'}>

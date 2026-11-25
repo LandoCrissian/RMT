@@ -281,3 +281,35 @@ test('mutating tool notifications without a request ID are refused before any wr
   assert.equal((await api.POST(req)).status, 400);
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM review_alert_receipts').get().count, 0);
 });
+
+test('Dot receives one alert per submitted calendar revision and pending enrichment item, with private evidence omitted', async t=>{
+  const db=database(t),monitor='dot-only',suggestion='a'.repeat(64);
+  environment.RMT_REVIEW_MONITOR_USER_IDS=monitor;
+  const insertEvent=(id,project='vamps',state='pending')=>db.raw.prepare(
+    "INSERT INTO calendar_events(id,project_id,type_id,draft,status,revision,actor,created_at,updated_at) VALUES(?,?,'community',?,?,2,'PRIVATE builder',?,?)"
+  ).run(id,project,'{"description":"PRIVATE event description","title":"PRIVATE pending title"}',state,now,now);
+  const history=(action,revision)=>db.raw.prepare(
+    "INSERT INTO calendar_history(event_id,actor,action,reason,revision,snapshot,created_at) VALUES('event-one','PRIVATE actor',?,'PRIVATE reason',?,'PRIVATE snapshot',?)"
+  ).run(action,revision,now+revision);
+  insertEvent('event-one');history('submit',2);
+  insertEvent('hidden-project','removed-project');insertEvent('not-submitted','vamps','draft');
+  db.raw.prepare('INSERT INTO source_suggestions(id,project_id,project_name,source_url,evidence,updated_at) VALUES(?,?,?,?,?,?)')
+    .run(suggestion,'vamps','VAMPS','https://private.example/source','PRIVATE imported evidence',now);
+  const eventKey='calendar:event-one:revision:2:pending',sourceKey='enrichment:'+suggestion+':revision:1:pending';
+  const digest=async user=>(await call('rmt_review_digest',{},user)).data;
+  const first=await digest(monitor);
+  assert.deepEqual(first.items.map(i=>i.eventKey),[sourceKey,eventKey]);
+  assert.equal(first.pendingCount,2);assert.equal(first.newPendingCount,2);
+  for(const i of first.items){assert.equal(i.projectName,'VAMPS');assert.equal(i.reviewUrl,'https://rmt.example/?workspace=calendar#control');}
+  for(const no of ['PRIVATE','private.example','not-submitted','hidden-project'])assert.ok(!JSON.stringify(first).includes(no),no);
+  const receipt=()=>call('rmt_acknowledge_review_alerts',{eventKeys:[eventKey,sourceKey]},monitor);
+  const concurrent=await Promise.all([receipt(),receipt()]);assert.equal(concurrent.reduce((n,r)=>n+r.data.acknowledgedCount,0),2);
+  db.raw.exec("UPDATE calendar_events SET featured=1,revision=3 WHERE id='event-one'");history('feature',3);
+  assert.equal((await digest(monitor)).newPendingCount,0);assert.equal((await digest('reviewer')).newPendingCount,2);
+  db.raw.exec("UPDATE calendar_events SET revision=4 WHERE id='event-one'");history('submit',4);
+  const next=await digest(monitor);assert.deepEqual(next.items.map(i=>i.eventKey),['calendar:event-one:revision:4:pending']);
+  db.raw.exec("UPDATE calendar_events SET status='published' WHERE id='event-one'; UPDATE source_suggestions SET status='reviewed',revision=2");
+  assert.equal((await call('rmt_acknowledge_review_alerts',{eventKeys:[next.items[0].eventKey]},monitor)).data.acknowledgedCount,0);
+  assert.equal((await digest(monitor)).pendingCount,0);assert.equal((await api.sessionGET(request('tools/list',null,monitor))).status,200);
+  assert.equal((await call('rmt_review_digest',{},'visitor')).result.isError,true);
+});

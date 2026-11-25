@@ -5,6 +5,7 @@ import {overviewResponse,type ControlCapability,type ControlOverview} from '@/li
 import {useControlApi,useControlResource} from '@/lib/client/use-control';
 import type {StudioSession} from './studio-shared';
 import ControlCalendar from './control-calendar';
+import {signInHref} from '@/lib/account-navigation';
 import ControlTaxonomy from './control-taxonomy';
 import ControlDiscovery from './control-discovery';
 import ControlMembers from './control-members';
@@ -30,13 +31,14 @@ const sections:{id:Section;label:string;capability:ControlCapability;icon:typeof
   {id:'audit',label:'History',capability:'audit',icon:History},
   {id:'health',label:'System',capability:'health',icon:Activity},
 ];
+function calendarRequested(){return typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('workspace')==='calendar';}
 export default function ControlCenter(props:Props){
-  if(!props.session.authenticated||!props.session.isAdmin||props.session.emailVerified===false)return <section className="cc-shell cc-access-gate"><span className="cc-gate-symbol"><LockKeyhole size={29}/></span><span className="cc-eyebrow">RMT CONTROL CENTER</span><h1>Your site, under your control.</h1><p>Sign in with an authorized RMT administrator account to manage the community, projects, and site settings.</p><a className="cc-button cc-primary" href="/?continue=%2F%23control#account">Open your account<ArrowUpRight size={16}/></a></section>;
+  if(!props.session.authenticated||!props.session.isAdmin||props.session.emailVerified===false)return <section className="cc-shell cc-access-gate"><span className="cc-gate-symbol"><LockKeyhole size={29}/></span><span className="cc-eyebrow">RMT CONTROL CENTER</span><h1>Your site, under your control.</h1><p>Sign in with an authorized RMT administrator account to manage the community, projects, and site settings.</p><a className="cc-button cc-primary" href={signInHref(calendarRequested()?'/?workspace=calendar#control':'/#control')}>Open your account<ArrowUpRight size={16}/></a></section>;
   return <ControlWorkspace key={props.session.userId} {...props}/>;
 }
 function ControlWorkspace({spotlights,session,onToast,onRetrySession,onReview}:Props){
   const api=useControlApi(session),overview=useControlResource(api,'/api/control/overview',overviewResponse);
-  const [section,setSection]=useState<Section>('overview'),[dirty,setDirty]=useState(false),[nextSection,setNextSection]=useState<Section|null>(null);
+  const [section,setSection]=useState<Section>(()=>calendarRequested()?'calendar':'overview'),[dirty,setDirty]=useState(false),[nextSection,setNextSection]=useState<Section|null>(null);
   const capabilities=overview.data?.capabilities.filter(capability=>!session.controlCapabilities||session.controlCapabilities.includes(capability))??[];
   const available=sections.filter(item=>capabilities.includes(item.capability));
   const pending=overview.data?overview.data.metrics.pendingSubmissions+overview.data.metrics.pendingClaims+overview.data.metrics.pendingEdits+overview.data.metrics.pendingUpdates:0;

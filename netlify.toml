@@ -9,3 +9,8 @@
 [build.environment]
   NODE_VERSION = "24"
   NETLIFY_NEXT_PLUGIN_SKIP = "true"
+
+# The deploy-preview scanner flags Firebase's intentionally public browser ID.
+# Match that single reviewed value; all other values and files remain scanned.
+[context.deploy-preview.environment]
+  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyDxzd7IG2ntLP1Y7R13EiKrXx8ez63KsPQ"

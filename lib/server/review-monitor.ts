@@ -1,10 +1,12 @@
+import { getSeedProjects } from "@/lib/catalog";
+import { publicProjectSql } from "./control-visibility";
 import { InputError } from "@/lib/submission-validation";
 import { notificationReviewUrl, type NotificationEnvironment } from "./notifications";
 
 export const REVIEW_ALERT_BATCH_SIZE = 50;
 
 // This projection deliberately excludes contact details, evidence, and draft content.
-const pendingEventsSql = `
+const existingQueueSql = `
   SELECT 'submission:' || id || ':revision:' || revision || ':pending' AS event_key,
     'submission' AS kind, id AS entity_id, name AS project_name, revision, updated_at
     FROM submissions WHERE status = 'pending'
@@ -19,15 +21,45 @@ const pendingEventsSql = `
     'update', id, project_name, revision, updated_at FROM project_updates WHERE status = 'pending'
 `;
 
+const seedNames=new Map(getSeedProjects().map(project=>[project.id,project.name]));
+// The calendar's editor and its editorial picks share a revision counter. A pick
+// made while an edit awaits review must not re-alert the monitor about that edit.
+const calendarQueueSql = `
+  SELECT 'calendar:'||id||':revision:'||revision||':pending' AS event_key,
+    'calendar' AS kind,id AS entity_id,project_name,revision,updated_at,project_id
+  FROM (
+    SELECT e.id,e.project_id,
+      COALESCE(NULLIF(pc.name_override,''),s.name,json_extract(pc.definition_json,'$.name')) AS project_name,
+      COALESCE(h.revision,e.revision) AS revision,COALESCE(h.created_at,e.updated_at) AS updated_at
+    FROM calendar_events e
+    LEFT JOIN project_controls pc ON pc.project_id=e.project_id
+    LEFT JOIN submissions s ON s.id=substr(e.project_id,11) AND e.project_id='community-'||s.id AND s.status='approved'
+    LEFT JOIN calendar_history h ON h.id=(
+      SELECT latest.id FROM calendar_history latest WHERE latest.event_id=e.id
+      AND latest.action IN ('submit','suggest') AND latest.revision<=e.revision
+      ORDER BY latest.revision DESC LIMIT 1)
+    WHERE e.status='pending' AND ${publicProjectSql('e.project_id')}
+  )
+  UNION ALL
+  SELECT 'enrichment:'||q.id||':revision:'||q.revision||':pending','enrichment',
+    q.id,q.project_name,q.revision,q.updated_at,q.project_id FROM source_suggestions q
+    WHERE q.status='pending' AND ${publicProjectSql('q.project_id')}
+`;
+// D1 allows five terms in one compound SELECT. Each independent subquery and
+// the outer union remain below that limit as the original four queues grow to six.
+const pendingEventsSql = `SELECT legacy.*,NULL AS project_id FROM (${existingQueueSql}) legacy
+  UNION ALL SELECT * FROM (${calendarQueueSql})`;
+
 type PendingEvent = {
-  event_key: string; kind: "submission" | "claim" | "edit" | "update";
-  entity_id: string; project_name: string; revision: number; updated_at: number;
+  event_key: string; kind: "submission" | "claim" | "edit" | "update" | "calendar" | "enrichment";
+  entity_id: string; project_id:string|null; project_name: string|null; revision: number; updated_at: number;
 };
 
 /** Read only: reading a digest never marks anything notified, reviewed, or approved. */
 export async function reviewDigest(db: D1Database, reviewerId: string, env: NotificationEnvironment) {
   const reviewUrl = notificationReviewUrl(env);
   if (!reviewUrl) throw new InputError("The review website address needs configuration.", 503);
+  const calendarUrl=new URL(reviewUrl);calendarUrl.searchParams.set('workspace','calendar');calendarUrl.hash='control';
   const [events, totals] = await Promise.all([
     db.prepare(`WITH pending_events AS (${pendingEventsSql})
       SELECT * FROM pending_events p WHERE NOT EXISTS (
@@ -47,7 +79,8 @@ export async function reviewDigest(db: D1Database, reviewerId: string, env: Noti
     moreAvailable: Number(totals?.new_count ?? 0) > events.results.length,
     items: events.results.map(row => ({
       eventKey: row.event_key, kind: row.kind, entityId: row.entity_id,
-      projectName: row.project_name.replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 80),
+      reviewUrl: row.kind==='calendar'||row.kind==='enrichment'?calendarUrl.href:reviewUrl,
+      projectName: (row.project_name??seedNames.get(row.project_id??'')??'Project').replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 80),
       revision: row.revision, submittedAt: row.updated_at,
     })),
   };
@@ -59,7 +92,7 @@ export function validateAlertAcknowledgement(input: unknown): string[] {
   if (Object.keys(body).length !== 1 || !Array.isArray(body.eventKeys) || !body.eventKeys.length || body.eventKeys.length > REVIEW_ALERT_BATCH_SIZE) {
     throw new InputError(`Acknowledge between 1 and ${REVIEW_ALERT_BATCH_SIZE} event keys at a time.`);
   }
-  if (body.eventKeys.some(key => typeof key !== "string" || !/^(submission|claim|edit|update):[a-z\d_-]{1,128}:revision:[1-9]\d{0,8}:pending$/i.test(key))) {
+  if (body.eventKeys.some(key => typeof key !== "string" || !/^(submission|claim|edit|update|calendar|enrichment):[a-z\d_-]{1,128}:revision:[1-9]\d{0,8}:pending$/i.test(key))) {
     throw new InputError("An alert event key is invalid.");
   }
   return [...new Set(body.eventKeys as string[])];

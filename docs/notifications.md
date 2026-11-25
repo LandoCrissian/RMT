@@ -11,8 +11,10 @@ The site exposes three tools through its owner-private Sites plugin:
 | Tool | Access and behavior |
 | --- | --- |
 | `rmt_identity` | Any authenticated visitor can read their own site-specific account reference, display name, reviewer-access status, and separate monitor permission. It does not return email or grant permission. |
-| `rmt_review_digest` | An authorized reviewer or separately configured monitor can read new pending applications, claims, edits and updates. Returns up to 50 names, event keys, IDs, revisions, times, and the review URL. No contact addresses, ownership evidence, or draft descriptions are returned. |
+| `rmt_review_digest` | An authorized reviewer or separately configured monitor can read new pending applications, claims, edits, updates, calendar events and enrichment suggestions. Returns up to 50 names, event keys, IDs, revisions, times, and the review URL. No contact addresses, ownership evidence, or draft descriptions are returned. |
 | `rmt_acknowledge_review_alerts` | An authorized reviewer or monitor can mark the exact event keys included in a monitor notice as acknowledged. This changes monitor receipts only. It never approves, rejects, publishes, or marks a review complete. |
+
+Calendar and enrichment items link to the Calendar workspace in the Control Center. Calendar alerts follow the submitted revision so changing an editorial pick does not send a second notice for the same pending edit. The digest includes the public project name and omits the draft event, source URL, suggested content and submitting account.
 
 Reading a digest is read-only. Acknowledgement receipts are stored per reviewer and event revision in D1. A later resubmission gets a new key; an old acknowledgement cannot hide that revision. If an item was already reviewed, acknowledging its stale key does nothing. The digest includes remaining/new counts and `moreAvailable` so a scheduled agent can continue with another bounded batch without silently dropping records.
 

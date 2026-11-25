@@ -14,7 +14,7 @@ export function accountContinuation(value: unknown): AccountContinuation | null 
   }
   if (value === '/#library') return {href: value, label: 'Continue to your library', context: 'Return to your saved projects after sign-in.'};
   if (value === '/#profile') return {href: value, label: 'Continue to your profile', context: 'Choose what to share on your RMT profile after sign-in.'};
-  if (value === '/#control') return {href:value,label:'Open the Control Center',context:'Return to RMT site management after sign-in. Your account must have administrator access.'};
+  if (value === '/#control' || value === '/?workspace=calendar#control') return {href:value,label:'Open the Control Center',context:'Return to RMT site management after sign-in. Your account must have administrator access.'};
   if (value === '/#activity') return {href: value, label: 'Continue to activity', context: 'Return to the latest project activity after sign-in.'};
   if (/^\/u\/[a-z0-9][a-z0-9_-]{1,22}[a-z0-9]$/.test(value)) return {href: value, label: 'Continue to this profile', context: 'Return to the member profile you were exploring after sign-in.'};
   if (/^\/#(?:discover|games|music|tools)$/.test(value)) return {href: value, label: 'Continue exploring', context: 'Return to the directory you were exploring after sign-in.'};

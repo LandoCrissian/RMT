@@ -9,6 +9,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const environment = {};
 globalThis.__RMT_ACTIVITY_TEST_ENV__ = environment;
 const bundle = await build({stdin: {contents: `
+  export * from './lib/server/weekly-digest'; export * from './lib/weekly-digest'; export {GET as previewDigest} from './app/api/discovery/weekly-digest/route';
   export * from './lib/server/discovery'; export {GET as discover,POST as modify} from './app/api/discovery/route'; export * from './lib/activity'; export * from './lib/server/activity';
   export * from './lib/client/activity'; export {getSeedProjects} from './lib/catalog';
   export {InputError} from './lib/submission-validation';
@@ -288,4 +289,50 @@ test('upcoming events respect discovery scopes, legacy pagination, saved reminde
   assert.equal(JSON.stringify(first).includes('private draft'),false);
   await api.changeDiscovery(db,'fan',{action:'notifications',enabled:false});
   assert.deepEqual(ids(await feed('notifications','fan')),[]);
+});
+
+test('weekly digest enforces moderation, subscription timing, week bounds and account isolation',async t=>{
+  const db=database(t);owner(db);
+  const week=api.weekMs,now=at+100;
+  insert(db,'project_follows',{user_id:'alice',project_id:'vamps',followed_at:at-100});
+  update(db,'included');
+  update(db,'late',{published_at:now+1});
+  update(db,'pre-follow',{published_at:at-1000});
+  update(db,'private',{status:'pending',title:'PRIVATE'});
+  const newId=community(db,'new-addition','approved',at);
+  community(db,'past-addition','approved',now-week-1);
+  community(db,'held-addition','pending',at);
+  const addEvent=(id,startsAt,status='published',project='vamps')=>insert(db,'calendar_events',{
+    id,project_id:project,type_id:'community',status,revision:1,created_at:at,updated_at:at,actor:'private',
+    draft:'{"title":"PRIVATE"}',published:JSON.stringify({title:id,startsAt}),published_at:at});
+  addEvent('in-window',now+week);
+  addEvent('later',now+week+1);
+  addEvent('cancelled',now+100,'cancelled');
+  addEvent('other-project',now+1,'published','lammbs');
+  const digest=await api.weeklyDigest(db,'alice',now);
+  assert.deepEqual(digest.updates.map(r=>r.id),['update-included']);
+  assert.deepEqual(digest.events.map(r=>r.id),['in-window']);
+  assert.ok(digest.additions.some(r=>r.id==='listing-'+newId));
+  assert.ok(!JSON.stringify(digest).includes('PRIVATE'));
+  assert.ok(!JSON.stringify(digest).includes('past-addition'));
+  const other=await api.weeklyDigest(db,'bob',now);
+  assert.deepEqual(other.updates,[]);assert.deepEqual(other.events,[]);assert.deepEqual(other.additions,digest.additions);
+  assert.deepEqual(await api.weeklyDigest(db,'alice',now),digest);
+  assert.match(api.digestText(digest),/https:\/\/rmtlaunch\.fun\/events\/in-window/);
+  assert.throws(()=>api.digestEntryUrl('//invalid.example/'));
+  assert.throws(()=>api.digestEntryUrl('javascript:invalid'));
+  db.raw.exec("UPDATE project_updates SET status='archived' WHERE id='included'");
+  assert.deepEqual((await api.weeklyDigest(db,'alice',now)).updates,[]);
+});
+
+test('weekly preview enforces verified account and no-store responses without sending mail',async t=>{
+  const db=database(t),url='https://rmt.dev/api/discovery/weekly-digest';
+  assert.equal((await api.previewDigest(new Request(url))).status,401);
+  function request(id){return new Request(url,{headers:{'oai-authenticated-user-id':'alice','oai-authenticated-user-email':'alice@example.test','x-rmt-account':id}});}
+  assert.equal((await api.previewDigest(request('bob'))).status,409);
+  const response=await api.previewDigest(request('alice'));
+  assert.equal(response.status,200);assert.equal(response.headers.get('Cache-Control'),'no-store');
+  db.raw.exec("UPDATE control_members SET status='suspended' WHERE user_id='alice'");
+  assert.equal((await api.previewDigest(request('alice'))).status,403);
+  assert.equal(db.raw.prepare("SELECT count(*) n FROM notification_outbox").get().n,0);
 });

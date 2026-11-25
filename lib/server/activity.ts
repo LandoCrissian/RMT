@@ -22,7 +22,7 @@ function activityProject(project: Project): ActivityProject {
   };
 }
 
-export async function publicActivity(db: D1Database, page: ActivityPageInput, scope?: {projects:Project[]; inboxUser?:string}): Promise<ActivityPage> {
+export async function publicActivity(db: D1Database, page: ActivityPageInput, scope?: {projects:Project[]; inboxUser?:string; publishedWindow?:{from:number;through:number}}): Promise<ActivityPage> {
   const projects = scope?.projects ?? (await catalog(db)).projects;
   const projectsById = new Map(projects.map(project => [project.id, project]));
   // Only actual first-listing dates become events. Legacy entries without a
@@ -37,6 +37,10 @@ export async function publicActivity(db: D1Database, page: ActivityPageInput, sc
   if (scope?.inboxUser) {
     where += ' AND update_id IS NOT NULL AND EXISTS(SELECT 1 FROM project_follows f WHERE f.user_id=? AND f.project_id=events.project_id AND f.followed_at<=events.happened_at)';
     binds.push(scope.inboxUser);
+  }
+  if (scope?.publishedWindow) {
+    where += ' AND happened_at>=? AND happened_at<=?';
+    binds.push(scope.publishedWindow.from,scope.publishedWindow.through);
   }
   if (page.cursor) {
     where += ' AND (happened_at<? OR (happened_at=? AND id<?))';

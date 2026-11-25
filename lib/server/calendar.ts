@@ -6,7 +6,7 @@ import {catalog,findPublicProject} from './repository';
 import {publicProjectSql} from './control-visibility';
 import {activeControlMemberSql} from './control-sql';
 
-type Row={id:string;project_id:string;draft:string;published:string|null;published_at:number|null;status:string;revision:number;featured:number;updated_at:number};
+type Row={source?:string|null;id:string;project_id:string;draft:string;published:string|null;published_at:number|null;status:string;revision:number;featured:number;updated_at:number};
 const visible=publicProjectSql('calendar_events.project_id');
 const authorizedOwner="EXISTS(SELECT 1 FROM project_owners o WHERE o.project_id=? AND o.user_id=? AND o.status='active' AND "+activeControlMemberSql('o.user_id')+")";
 const publicRows="published IS NOT NULL AND status<>'removed' AND "+visible;
@@ -15,14 +15,14 @@ export function object(value:unknown):Record<string,unknown>{
 }
 function string(v:unknown,max:number,required=true){if(typeof v!=='string'||v.trim().length>max||(required&&!v.trim()))throw new InputError('Check the event details and field lengths.');return v.trim();}
 function choices(p:Project){return [...new Set([p.artwork?.banner?.url,p.artwork?.logo?.url,p.cover,p.logo].filter((a):a is string=>!!a&&a.startsWith('/')&&!a.startsWith('//')))];}
-function official(raw:unknown,p:Project){
+export function official(raw:unknown,p:Project){
   const value=string(raw,2048);let u:URL;try{u=new URL(value);}catch{throw new InputError('Enter an official HTTPS destination.');}
-  const links=[p.website,p.launchUrl,p.officialXProfile,...p.links.map(l=>l.url)].filter(Boolean);
+  const links=[p.website,p.launchUrl,p.officialXProfile,...(p.collections??[]).map(c=>c.url),...p.links.map(l=>l.url)].filter(Boolean);
   if(u.protocol!=='https:'||u.username||u.password||!links.some(link=>{try{const v=new URL(link!);return u.origin===v.origin&&(u.pathname===v.pathname||u.pathname.startsWith(v.pathname.replace(/\/$/,'')+'/'));}catch{return false;}}))throw new InputError('Use a destination on the reviewed project listing.');
   return u.href;
 }
 function timestamp(v:unknown){if(typeof v!=='number'||!Number.isSafeInteger(v)||v<=0||v>4_102_444_800_000)throw new InputError('Enter a valid date and time.');return v;}
-function fields(value:unknown,p:Project):EventFields{
+export function eventFields(value:unknown,p:Project):EventFields{
   const b=object(value),startsAt=timestamp(b.startsAt),endsAt=b.endsAt==null?null:timestamp(b.endsAt);
   if(endsAt!==null&&endsAt<=startsAt)throw new InputError('End must follow start.');
   const artwork=string(b.artwork??'',2048,false);if(artwork&&!choices(p).includes(artwork))throw new InputError('Choose approved project artwork.');
@@ -31,7 +31,7 @@ function fields(value:unknown,p:Project):EventFields{
 async function types(db:D1Database){return (await db.prepare('SELECT * FROM calendar_types ORDER BY name').all<CalendarType>()).results.map(t=>({...t,archived:!!t.archived}));}
 function projectEvent(row:Row,p:Project,privateView=false):CalendarEvent{
   const f:EventFields=JSON.parse((privateView?row.draft:row.published)!);
-  return {...f,id:row.id,projectId:p.id,projectName:p.name,projectSlug:p.slug,categories:p.classification?[p.classification.primary,...p.classification.secondary]:[],
+  return {...f,...(privateView&&row.source?{sourceUrl:JSON.parse(row.source)[0] as string}:{}),id:row.id,projectId:p.id,projectName:p.name,projectSlug:p.slug,categories:p.classification?[p.classification.primary,...p.classification.secondary]:[],
     artwork:choices(p).includes(f.artwork)?f.artwork:choices(p)[0]??'',status:privateView?row.status:row.status==='cancelled'?'cancelled':'published',
     revision:row.revision,featured:!!row.featured,hasPublished:!!row.published,updatedAt:privateView?row.updated_at:row.published_at!};
 }
@@ -93,7 +93,7 @@ export async function changeEvent(db:D1Database,user:string,input:unknown,contro
   if(!control&&!await db.prepare('SELECT 1 WHERE '+guard).bind(...args).first())throw new InputError('Project manager access required.',403);
   const edit=['suggest','draft','submit'].includes(action);
   if(!row&&!edit||row&&action==='suggest'||row&&['removed','cancelled'].includes(row.status)&&action!=='remove')throw new InputError('Action unavailable.',409);
-  const data=edit?fields(b.fields??(row?JSON.parse(row.draft):null),p):action==='approve'?fields(JSON.parse(row!.draft),p):JSON.parse(row!.draft) as EventFields;
+  const data=edit?eventFields(b.fields??(row?JSON.parse(row.draft):null),p):action==='approve'?eventFields(JSON.parse(row!.draft),p):JSON.parse(row!.draft) as EventFields;
   const draft=JSON.stringify(data),source=b.sourceUrl?JSON.stringify([official(b.sourceUrl,p),string(b.sourceKey??data.destination,2048)]):null;
   const typeGuard=edit||action==='approve'?'EXISTS(SELECT 1 FROM calendar_types WHERE id=? AND archived=0)':'1';
   const where=guard+' AND '+available+' AND '+typeGuard, params=[...args,projectId,...(typeGuard==='1'?[]:[data.typeId])];

@@ -7,6 +7,9 @@ export function json(value: unknown, status = 200): Response {
 
 export async function readMutation(request: Request): Promise<unknown> {
   if (!hasSameOrigin(request)) throw new InputError("Please submit from the RMT website.", 403);
+  return readJsonBody(request);
+}
+export async function readJsonBody(request:Request):Promise<unknown>{
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers.get("content-type") || "")) throw new InputError("Send application/json.", 415);
   const length = request.headers.get("content-length");
   const limit = 16_384;
