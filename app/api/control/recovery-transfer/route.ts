@@ -41,14 +41,17 @@ function activeConfig(config:Config) {
   if(!id || !captureIdPattern.test(id) || !key) return null;
   return {owner,mode,key,id,open} as const;
 }
-async function checkOwner(request:Request,owner:string) {
+async function checkOwner(request:Request,owner:string,mode:TransferMode) {
   const token=cookieValue(request,sessionCookie);
   if(!token || token.length>8192) throw new InputError('Sign in again.',401);
   const identity=await verifyFirebaseToken(token);
   if(identity.firebaseUid!==owner || !identity.emailVerified || !['password','google.com'].includes(identity.signInProvider)) {
     throw new InputError('Owner required.',403);
   }
-  const validUntil=identity.authTime*1000+300_000;
+  // Metadata-only preflight cannot download database rows or artwork. Keep the
+  // stricter five-minute reauthentication requirement on both extract modes.
+  const maxAuthAgeMs=mode==='preflight'?30*60_000:5*60_000;
+  const validUntil=identity.authTime*1000+maxAuthAgeMs;
   if(!Number.isFinite(validUntil) || Date.now()>=validUntil) throw new InputError('Sign in again.',401);
   await checkFirebaseAccount(token,identity.firebaseUid,identity.authTime);
   return ()=>Date.now()<validUntil;
@@ -74,7 +77,7 @@ export async function GET(request:Request) {
   try {
     const config=activeConfig(runtime());
     if(!config) return closed();
-    const fresh=await checkOwner(request,config.owner);
+    const fresh=await checkOwner(request,config.owner,config.mode);
     if(!config.open() || !fresh()) return closed();
     const detail=config.mode==='preflight'?'Run an aggregate count and size check. No records are returned.':'Download an encrypted '+config.mode+' archive. Keep the private key off this site.';
     const label=config.mode==='preflight'?'Check transfer capacity':'Download encrypted '+config.mode;
@@ -90,7 +93,7 @@ export async function POST(request:Request) {
     if(!config) return closed();
     if(!hasSameOrigin(request)) return rejected(403);
     if(!await requestedMode(request,config.mode)) return closed();
-    const fresh=await checkOwner(request,config.owner);
+    const fresh=await checkOwner(request,config.owner,config.mode);
     const active=()=>config.open()&&fresh()&&!request.signal.aborted;
     if(!active()) return closed();
     if(config.mode==='preflight'){

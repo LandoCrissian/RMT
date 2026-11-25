@@ -136,7 +136,7 @@ function restoreDatabase(path,privateKey,root,headerRead){
         return 'r'+bits.toString('hex');
       }));
       if(!same(actual.map(normalize).sort(),all.map(normalize).sort())) throw new Error('Restored row content or storage type differs');
-      if(['d1_migrations','__drizzle_migrations'].includes(plan.name)) ledgers[plan.name]=actual.length;
+      if(['d1_migrations','__drizzle_migrations','__appgarden_migrations'].includes(plan.name)) ledgers[plan.name]=actual.length;
       else if(plan.name!=='sqlite_sequence') appTables++;
       total+=all.length;
       current=undefined;

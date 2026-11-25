@@ -1,11 +1,11 @@
 'use client';
 import {useEffect,useState} from 'react';
 import {ArrowUpRight} from 'lucide-react';
-import {ROBINHOOD_EXPLORER,formatUnits,type AssetTotals,type RoyaltyReceipt} from '@/lib/lammb-vault';
-import {Amounts,VaultTop} from './LammbVault';
+import {BRAIINS_HASHPOWER,BRAIINS_MONITORING_DOCS,ROBINHOOD_EXPLORER,SAFE_WALLET,formatUnits,type AssetTotals,type MiningStatus,type RoyaltyReceipt} from '@/lib/lammb-vault';
+import {Amounts,MiningActivity,VaultTop} from './LammbVault';
 
 type Treasury={address:string|null;revision:number;updatedAt:number|null};
-type ManagerState={account:string;treasury:Treasury;totals:AssetTotals;count:number};
+type ManagerState={account:string;treasury:Treasury;totals:AssetTotals;count:number;mining:MiningStatus};
 const endpoint='/api/admin/lammb-vault';
 async function call<T>(options:RequestInit={}):Promise<T>{
   const response=await fetch(endpoint,{credentials:'same-origin',cache:'no-store',...options});
@@ -76,6 +76,21 @@ export default function LammbVaultManager(){
         <p>{state.count} verified {state.count===1?'receipt':'receipts'}</p>
         <Amounts totals={state.totals} empty="No receipts have been logged."/>
       </form>
+    </div>}
+    {state&&<div className="lv-manager-grid">
+      <article className="lv-card"><h2>Mining monitor</h2>
+        <p>Use a dedicated account at Braiins Pool. Create a read-only access profile and store the token in the RMT hosting secrets. Do not enter it into this page.</p>
+        <MiningActivity mining={state.mining??{status:'unconfigured'}}/>
+        <a href={BRAIINS_MONITORING_DOCS} target="_blank" rel="noreferrer">Pool monitoring setup <ArrowUpRight size={14}/></a>
+      </article>
+      <article className="lv-card"><h2>Start a capped mining pilot</h2>
+        <p>A standard Braiins Hashpower spot bid can deliver rented SHA-256 compute to the dedicated pooled worker. Choose a capped speed and budget. RMT does not place the order, fund it, or use the solo-mining option.</p>
+        <a href={BRAIINS_HASHPOWER} target="_blank" rel="noreferrer">Open Braiins Hashpower <ArrowUpRight size={14}/></a>
+      </article>
+      <article className="lv-card"><h2>Use an existing treasury wallet</h2>
+        <p>Safe supports Robinhood Chain. A separate Safe can receive creator earnings without deploying a custom LAMMB payout contract. Confirm its signers and test receipt before setting it in OpenSea.</p>
+        <a href={SAFE_WALLET} target="_blank" rel="noreferrer">Open Safe Wallet <ArrowUpRight size={14}/></a>
+      </article>
     </div>}
     {busy&&<p role="status">{busy}</p>}
   </main>;

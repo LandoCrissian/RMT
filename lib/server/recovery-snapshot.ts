@@ -1,10 +1,10 @@
-import {recoveryTables} from './recovery-capacity';
+import {recoveryMigrationLedgers,recoveryTables} from './recovery-capacity';
 
 export const snapshotMaxRows = 10_000;
 export const snapshotMaxWireBytes = 8 * 1024 * 1024;
 const snapshotMaxRowBytes = 1024 * 1024;
 const snapshotMaxSchemaBytes = 256 * 1024;
-const allowedTables = new Set<string>([...recoveryTables, 'd1_migrations', '__drizzle_migrations', 'sqlite_sequence']);
+const allowedTables = new Set<string>([...recoveryTables, ...recoveryMigrationLedgers, 'sqlite_sequence']);
 const platformNames = ['_cf_METADATA', '_cf_KV', 'sqlite_stat1', 'sqlite_stat2', 'sqlite_stat3', 'sqlite_stat4'];
 const ignored = platformNames.map(name => "'" + name + "'").join(',');
 const schemaQuery = `SELECT type, name, tbl_name, sql FROM sqlite_schema WHERE sql IS NOT NULL AND name COLLATE NOCASE NOT IN (${ignored}) AND tbl_name COLLATE NOCASE NOT IN (${ignored}) ORDER BY type,name`;
@@ -128,15 +128,19 @@ export async function assessDatabaseTransfer(db:D1Database) {
     const present=new Set(catalog.map(row=>row.name));
     const tables=recoveryTables.filter(name=>present.has(name));
     const missingApplicationTables=recoveryTables.filter(name=>!present.has(name));
-    const unknownApplicationTableCount=[...present].filter(name=>!allowedTables.has(name)&&
-      !platformNames.some(platform=>platform.toLowerCase()===name.toLowerCase())).length;
+    const unknownApplicationTables=[...present].filter(name=>!allowedTables.has(name)&&
+      !platformNames.some(platform=>platform.toLowerCase()===name.toLowerCase()));
+    // Fixed-format owner-only schema diagnostics, never content, SQL or provider errors.
+    const unrecognizedSchemaIdentifiers=unknownApplicationTables.slice(0,12)
+      .filter(name=>/^[A-Za-z_][A-Za-z0-9_]{0,79}$/.test(name));
     const outputs=await db.batch<{n:number}>(tables.map(name=>db.prepare(
       `SELECT count(*) AS n FROM (SELECT 1 FROM ${ident(name)} LIMIT ${snapshotMaxRows+1})`,
     )));
     const counts=batchResults(outputs,tables.length).map(rows=>rows[0]?.n);
     if(counts.some(n=>!Number.isSafeInteger(n)||n===undefined||n<0||n>snapshotMaxRows+1)) throw new Error('Incomplete fallback count');
     return {...limits,measurement:'application_counts_only',sizingUnavailableAt:error.stage, fits:null,wireBytes:null,transferBudgetBytes:null,
-      expectedApplicationTableCount:recoveryTables.length,missingApplicationTables,unknownApplicationTableCount,
+      expectedApplicationTableCount:recoveryTables.length,missingApplicationTables,
+      unknownApplicationTableCount:unknownApplicationTables.length,unrecognizedSchemaIdentifiers,
       countsCapped:counts.some(n=>n>snapshotMaxRows),
       tables:tables.map((name,i)=>({name,rows:counts[i],wireBytes:null,largestRowBytes:null,countCapped:counts[i]>snapshotMaxRows}))};
   }

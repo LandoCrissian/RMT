@@ -1,9 +1,10 @@
-import {database,requireAdmin} from '@/lib/server/runtime';
+import {database,requireAdmin,runtime} from '@/lib/server/runtime';
 import {handle,json,readMutation} from '@/lib/server/http';
 import {controlObject} from '@/lib/server/control-access';
 import {InputError} from '@/lib/submission-validation';
 import {importRoyalty,royaltySummary} from '@/lib/server/lammb-royalties';
 import {configureTreasury,readTreasuryConfig} from '@/lib/server/lammb-treasury';
+import {miningStatus} from '@/lib/server/lammb-mining';
 import {verifyLimit} from '@/lib/server/lammb-wallet';
 export const dynamic='force-dynamic';
 async function requireOwner(request:Request){
@@ -14,8 +15,8 @@ async function requireOwner(request:Request){
 export function GET(request:Request) {
   return handle(async()=>{
     const owner=await requireOwner(request),db=database();
-    const [treasury,summary]=await Promise.all([readTreasuryConfig(db),royaltySummary(db)]);
-    return json({account:owner.userId,treasury,...summary});
+    const [treasury,summary,mining]=await Promise.all([readTreasuryConfig(db),royaltySummary(db),miningStatus(runtime())]);
+    return json({account:owner.userId,treasury,...summary,mining});
   });
 }
 export function POST(request:Request) {

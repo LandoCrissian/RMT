@@ -1,6 +1,6 @@
 # LAMMB Vault on RMT
 
-The Vault is linked from the LAMMBs project at `/projects/lammbs`. Its public view is at `/lammb-vault`. The public view distinguishes the observed ERC-2981 setting, imported royalties, and the balances of a configured Robinhood Chain treasury address. A proposed 50/30/20 plan is display-only. No mining provider, on-chain allocation, payouts, or financial transactions are enabled by the release.
+The Vault is linked from the LAMMBs project at `/projects/lammbs`. Its public view is at `/lammb-vault`. The public view distinguishes the observed ERC-2981 setting, imported royalties, and the balances of a configured Robinhood Chain treasury address. An optional read-only mining monitor is available to verified holders and the owner. See [the mining pilot runbook](lammb-mining-pilot.md). No automated on-chain allocation, payouts, or spending are enabled.
 
 ## Holder access
 

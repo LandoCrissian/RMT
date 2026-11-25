@@ -14,6 +14,7 @@ const {outputFiles}=await build({stdin:{contents:`
  export * from './app/api/lammb-vault/route';
  export {GET as ownerGet,POST as ownerPost} from './app/api/admin/lammb-vault/route';
  export * from './lib/server/lammb-signature';
+ export * from './lib/server/lammb-mining';
  export * from './lib/server/lammb-royalties';
  export * from './lib/lammb-vault';
  export {maintenanceProtectedPath} from './lib/server/site-availability';
@@ -36,7 +37,7 @@ function database(t){
   async run(){return this.execute();}
  };}
  const db={prepare,async batch(statements){raw.exec('BEGIN');try{const values=statements.map(s=>s.execute());raw.exec('COMMIT');return values;}catch(e){raw.exec('ROLLBACK');throw e;}}};
- Object.assign(env,{DB:db,RMT_ADMIN_USER_IDS:'vault-test-owner'});
+ Object.assign(env,{DB:db,RMT_ADMIN_USER_IDS:'vault-test-owner',RMT_LAMMB_BRAIINS_ACCOUNT:undefined,RMT_LAMMB_BRAIINS_READ_TOKEN:undefined});
  return raw;
 }
 const hex=n=>'0x'+n.toString(16),word=n=>n.toString(16).padStart(64,'0'),aw=a=>a.slice(2).padStart(64,'0');
@@ -67,9 +68,15 @@ function makeReceipt({offer=false,wrongAmount=false,token=vault.ASSETS.WETH.addr
 }
 function fixture(t){
  let state={balance:0,stale:false,offline:false,wrongChain:false,code:'0x',erc:null,receipt:makeReceipt(),
-  lastFinal:300,redirected:false,beforeReceiver:receiver,blockHash:canonical,calls:[]};
+  lastFinal:300,pool:null,poolCalls:0,redirected:false,beforeReceiver:receiver,blockHash:canonical,calls:[]};
  const now=Math.floor(Date.now()/1000);
- t.mock.method(globalThis,'fetch',async (_url,init)=>{
+ t.mock.method(globalThis,'fetch',async (url,init)=>{
+   if(url==='https://pool.braiins.com/accounts/profile/json/btc/'){
+     assert.equal(init.method,'GET');assert.equal(init.redirect,'manual');
+     assert.equal(init.headers['Pool-Auth-Token'],env.RMT_LAMMB_BRAIINS_READ_TOKEN);
+     state.poolCalls++;
+     return state.pool?Response.json(state.pool):new Response(null,{status:401});
+   }
    assert.equal(init.redirect,'manual');
    if(state.redirected)return new Response(null,{status:302,headers:{Location:'https://untrusted.example/'}});
    if(state.offline)throw Error('provider unavailable');
@@ -262,4 +269,52 @@ test('nonce production and D1 attempt ceilings hold under repeated challenge cre
   assert.notEqual(next.challenge.challengeId,start.challenge.challengeId);
  }
  assert.equal((await post({action:'challenge',address},{cookie:start.cookie})).status,429);
+});
+
+test('mining telemetry uses only a dedicated pool account and remains behind the live five-NFT check',async t=>{
+ database(t);const rpc=fixture(t);
+ const token='fixture-read-only-secret';env.RMT_LAMMB_BRAIINS_READ_TOKEN=token;env.RMT_LAMMB_BRAIINS_ACCOUNT='lammb-fixture';
+ rpc.pool={username:'lammb-fixture',token,privateWorker:'rack-02',btc:{hash_rate_unit:'Gh/s',hash_rate_60m:235000,
+  hash_rate_24h:'211500.25',ok_workers:1,all_time_reward:'0.00001101',payoutAddress:'not-for-the-member-view'}};
+ const pub=await (await vault.GET(new Request(uri))).json();
+ assert.equal(Object.hasOwn(pub,'mining'),false);
+ assert.equal((await read()).status,401);
+ assert.equal(rpc.poolCalls,0);
+ const beginAtFour=await begin();rpc.balance=4;
+ assert.equal((await (await verify(beginAtFour)).json()).eligible,false);
+ assert.equal(rpc.poolCalls,0);
+ rpc.balance=5;
+ const start=await begin(address,{cookie:beginAtFour.cookie}),session=jar(await verify(start));
+ const member=(await (await read(session)).json()).member;
+ assert.equal(rpc.poolCalls,1);
+ assert.deepEqual(member.mining,{status:'reported',provider:'Braiins Pool',hashrate1hTH:235,
+  hashrate24hTH:211.50025,workersOk:1,cumulativePoolRewardBTC:'0.00001101',checkedAt:member.mining.checkedAt});
+ assert.ok(Number.isSafeInteger(member.mining.checkedAt));
+ for(const hidden of [token,'privateWorker','lammb-fixture','not-for-the-member-view'])assert.equal(JSON.stringify(member).includes(hidden),false);
+ assert.equal((await (await read(session)).json()).member.mining.status,'reported');
+ assert.equal(rpc.poolCalls,1,'valid observations can be reused briefly');
+ env.RMT_LAMMB_BRAIINS_READ_TOKEN='rotated-valid-read-token';
+ rpc.pool={...rpc.pool,username:'other-account'};
+ assert.equal((await (await read(session)).json()).member.mining.status,'unavailable');
+ assert.equal(rpc.poolCalls,2);
+ rpc.balance=4;
+ const locked=await (await read(session)).json();
+ assert.equal(Object.hasOwn(locked,'member'),false);
+ assert.equal(rpc.poolCalls,2);
+});
+test('invalid or unavailable pool data never becomes fake hashrate or earnings',async t=>{
+ database(t);const rpc=fixture(t);
+ assert.deepEqual(await vault.miningStatus({}),{status:'unconfigured'});
+ const valid={username:'key',btc:{hash_rate_unit:'TH/s',hash_rate_60m:0,hash_rate_24h:0,ok_workers:0,all_time_reward:'0.00000000'}};
+ for(const mutate of [x=>{delete x.btc.hash_rate_60m;},x=>x.btc.hash_rate_unit='constructor',x=>x.btc.hash_rate_24h=-1,
+  x=>x.btc.ok_workers=0.5,x=>x.btc.all_time_reward='not money']) {
+   const copy=structuredClone(valid);mutate(copy);
+   assert.deepEqual(vault.interpretBraiinsProfile(copy,'key',100),{status:'unavailable'});
+ }
+ const okay=vault.interpretBraiinsProfile(valid,'key',100);
+ assert.equal(okay.status,'reported');assert.equal(okay.hashrate1hTH,0);
+ env.RMT_LAMMB_BRAIINS_READ_TOKEN='other-fixture-read-token';
+ env.RMT_LAMMB_BRAIINS_ACCOUNT='lammb-fixture';
+ assert.deepEqual(await vault.miningStatus(env),{status:'unavailable'});
+ assert.equal(rpc.poolCalls,1);
 });

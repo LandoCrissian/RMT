@@ -1,4 +1,4 @@
-import {database} from '@/lib/server/runtime';
+import {database,runtime} from '@/lib/server/runtime';
 import {cookieValue} from '@/lib/server/firebase-auth';
 import {handle,json,readMutation} from '@/lib/server/http';
 import {InputError} from '@/lib/submission-validation';
@@ -6,6 +6,7 @@ import {BROWSER_COOKIE,SESSION_COOKIE,COOKIE_AGE,TOKEN_RE,vaultToken,
   issueVaultChallenge,confirmVaultWallet,disconnectVault,withVaultMember} from '@/lib/server/lammb-wallet';
 import {publicVault,readTreasuryConfig} from '@/lib/server/lammb-treasury';
 import {royaltyLedger} from '@/lib/server/lammb-royalties';
+import {miningStatus} from '@/lib/server/lammb-mining';
 
 export const dynamic='force-dynamic';
 function token(request:Request,name:string) {
@@ -27,7 +28,8 @@ export function GET(request:Request){
     const ctx=context(request,browser);
     return json(await withVaultMember(ctx,session,async()=>{
       const {address}=await readTreasuryConfig(ctx.db);
-      return royaltyLedger(ctx.db,address);
+      const [ledger,mining]=await Promise.all([royaltyLedger(ctx.db,address),miningStatus(runtime())]);
+      return {...ledger,mining};
     }));
   });
 }

@@ -30,17 +30,17 @@ test('actual 19 migrations, lossless SQLite values and matching R2 artwork survi
   t.after(()=>rmSync(dir,{recursive:true,force:true}));
   const migrations=readdirSync('drizzle').filter(name=>name.endsWith('.sql')).sort();
   assert.equal(migrations.length,19);
-  await db.prepare('CREATE TABLE d1_migrations(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL UNIQUE)').run();
+  await db.prepare('CREATE TABLE __appgarden_migrations(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL UNIQUE)').run();
   for(const migration of migrations) {
     const statements=readFileSync(join('drizzle',migration),'utf8').split('--> statement-breakpoint').map(s=>s.trim()).filter(Boolean);
-    await db.batch([...statements.map(sql=>db.prepare(sql)),db.prepare('INSERT INTO d1_migrations(name) VALUES (?)').bind(migration)]);
+    await db.batch([...statements.map(sql=>db.prepare(sql)),db.prepare('INSERT INTO __appgarden_migrations(name) VALUES (?)').bind(migration)]);
   }
   await db.batch([
     db.prepare("INSERT INTO account_links(legacy_user_id,firebase_uid,created_at) VALUES ('fixture-user','fixture-firebase',1)"),
     db.prepare("INSERT INTO profiles(user_id,bio,created_at,updated_at) VALUES ('fixture-user',CAST(x'4100FF' AS TEXT),1,1)"),
     db.prepare("INSERT INTO analytics_meta(id,start_ms,active_day,accepted) VALUES (1,9223372036854775807,'2026-11-25',1)"),
     db.prepare("INSERT INTO analytics_meta(id,start_ms,active_day,accepted) VALUES (2,1.2345678901234567,'2026-11-25',x'0041FF')"),
-    db.prepare("UPDATE sqlite_sequence SET seq=999 WHERE name='d1_migrations'"),
+    db.prepare("UPDATE sqlite_sequence SET seq=999 WHERE name='__appgarden_migrations'"),
     db.prepare("INSERT INTO project_owners(project_id,user_id,created_at,updated_at) VALUES ('vamps','fixture-user',1,1)"),
     db.prepare("INSERT INTO saved_projects(user_id,project_id,created_at) VALUES ('fixture-user','lammbs',1)"),
   ]);
@@ -65,7 +65,7 @@ test('actual 19 migrations, lossless SQLite values and matching R2 artwork survi
   const restored=join(dir,'restored');
   const receipt=restoreRecovery(key,dbPath,artPath,restored);
   assert.equal(receipt.database.applicationTables,51);
-  assert.deepEqual(receipt.database.ledgers,{d1_migrations:19});
+  assert.deepEqual(receipt.database.ledgers,{__appgarden_migrations:19});
   assert.equal(receipt.database.sequences,true);
   assert.equal(receipt.artwork.objects,1);
   assert.equal(receipt.verifiedArtworkReferences,1);
@@ -79,7 +79,7 @@ test('actual 19 migrations, lossless SQLite values and matching R2 artwork survi
     assert.equal(restoredDb.prepare('SELECT CAST(start_ms AS TEXT) AS n FROM analytics_meta WHERE id=1').get().n,'9223372036854775807');
     assert.equal(restoredDb.prepare('SELECT hex(accepted) AS value FROM analytics_meta WHERE id=2').get().value,'0041FF');
     assert.equal(restoredDb.prepare('SELECT COUNT(*) AS n FROM lammb_vault_receipts').get().n,5);
-    assert.equal(restoredDb.prepare("SELECT seq FROM sqlite_sequence WHERE name='d1_migrations'").get().seq,999);
+    assert.equal(restoredDb.prepare("SELECT seq FROM sqlite_sequence WHERE name='__appgarden_migrations'").get().seq,999);
   }finally{restoredDb.close();}
   const inventory=JSON.parse(readFileSync(join(restored,'artwork','inventory.json')));
   assert.equal(inventory[0].httpMetadata.contentType,'image/png');
@@ -186,6 +186,7 @@ test('known Cloudflare metadata is excluded and a sizing error yields counts wit
   assert.equal(unknown.sizingUnavailableAt,'schema_validation');
   assert.equal(unknown.fits,null);
   assert.equal(unknown.unknownApplicationTableCount,1);
+  assert.deepEqual(unknown.unrecognizedSchemaIdentifiers,['unknown_application_data']);
   await assert.rejects(base.captureDatabase(compatible),/Unexpected database schema/);
   catalog.exec('DROP TABLE wallet_claim_evidence');
   const missing=await base.assessDatabaseTransfer(compatible);
@@ -217,7 +218,7 @@ test('transfer route is fail-closed, mode-bound and inaccessible to non-owner or
     export const sessionCookie='__Host-rmt-session';
     export const cookieValue=request=>request.headers.get('cookie');
     export async function verifyFirebaseToken(token){return {firebaseUid:token==='reviewer'?'reviewer':'owner',emailVerified:token!=='unverified',
-      signInProvider:'google.com',authTime:Math.floor(Date.now()/1000)-(token==='stale'?301:0)};}
+      signInProvider:'google.com',authTime:Math.floor(Date.now()/1000)-(token==='expired-preflight'?1801:token==='stale'?301:0)};}
     export async function checkFirebaseAccount(token){if(token==='revoked')throw new Error('fixture-private-details');}
   `;
   const route=await load("export * from './app/api/control/recovery-transfer/route';export {config} from '@/lib/server/runtime';",[
@@ -259,7 +260,10 @@ test('transfer route is fail-closed, mode-bound and inaccessible to non-owner or
   route.config.RMT_TRANSFER_MODE='preflight';
   delete route.config.RMT_TRANSFER_PUBLIC_KEY;
   assert.equal((await route.POST(req('owner'))).status,404);
-  const assessed=await route.POST(req('owner','action=preflight'));
+  assert.equal((await route.POST(req('expired-preflight','action=preflight'))).status,401);
+  assert.equal((await route.POST(req('reviewer','action=preflight'))).status,403);
+  assert.equal((await route.POST(req('stale','action=database'))).status,404);
+  const assessed=await route.POST(req('stale','action=preflight'));
   assert.equal(assessed.status,200);
   const aggregate=await assessed.text();
   assert.doesNotMatch(aggregate,/fixture-private-row/);

@@ -2,7 +2,8 @@ import {InputError} from '@/lib/submission-validation';
 
 export const recoveryTables = ["account_links","analytics_daily","analytics_events","analytics_meta","calendar_events","calendar_history","calendar_members","calendar_types","claim_eligibility_cache","claim_review_events","claim_rpc_usage","control_audit_events","control_content","control_installation","control_members","control_metric_events","control_project_artwork","control_roles","control_settings","discovery_config","discovery_members","discovery_reads","edit_review_events","lammb_vault_limits","lammb_vault_receipts","lammb_vault_treasury","lammb_vault_wallets","notification_outbox","profile_artwork","profile_events","profiles","project_artwork","project_categories","project_claims","project_controls","project_edits","project_follows","project_overrides","project_owners","project_update_events","project_updates","review_alert_receipts","review_events","saved_projects","source_suggestions","submissions","taxonomy_categories","taxonomy_reviews","wallet_claim_challenges","wallet_claim_checks","wallet_claim_evidence"] as const;
 const applicationTables = new Set<string>(recoveryTables);
-const ledgers = new Set(['d1_migrations','__drizzle_migrations']);
+export const recoveryMigrationLedgers = ['d1_migrations','__drizzle_migrations','__appgarden_migrations'] as const;
+const ledgers = new Set<string>(recoveryMigrationLedgers);
 const inventoryQuery = "SELECT name FROM sqlite_schema WHERE type='table' AND name <> '_cf_METADATA' ORDER BY name";
 const rowLimit = 2000;
 const approaching = 1600;

@@ -1,8 +1,9 @@
 'use client';
 import {useEffect,useRef,useState} from 'react';
 import {ArrowDown,ArrowLeft,ArrowUpRight,Check,LockKeyhole,ShieldCheck,Wallet} from 'lucide-react';
-import {ALLOCATION_PLAN,ASSETS,GENESIS_CONTRACT,GENESIS_OPENSEA,ROBINHOOD_CHAIN_ID,ROBINHOOD_EXPLORER,
-  ROBINHOOD_RPC,VAULT_MINIMUM,VAULT_PATH,formatUnits,type Asset,type AssetTotals,type VaultMember,type VaultPublic} from '@/lib/lammb-vault';
+import {ASSETS,GENESIS_CONTRACT,GENESIS_OPENSEA,ROBINHOOD_CHAIN_ID,ROBINHOOD_EXPLORER,
+  ROBINHOOD_RPC,VAULT_MINIMUM,VAULT_PATH,formatUnits,type Asset,type AssetTotals,type MiningStatus,type VaultMember,type VaultPublic} from '@/lib/lammb-vault';
+import {MONEY_LAB_PATH} from '@/lib/lammb-money-lab';
 import './lammb-vault.css';
 
 type Provider={request:(options:{method:string;params?:unknown[]})=>Promise<unknown>;
@@ -40,6 +41,20 @@ export function VaultTop({manage=false}:{manage?:boolean}){
 export function Amounts({totals,empty}:{totals:AssetTotals;empty:string}){
   const present=(Object.keys(ASSETS) as Asset[]).filter(asset=>totals[asset]!==undefined);
   return present.length?<ul className="lv-amounts">{present.map(asset=><li key={asset}><strong>{formatUnits(totals[asset]!,asset)}</strong> <span>{asset}</span></li>)}</ul>:<p className="lv-empty">{empty}</p>;
+}
+export function MiningActivity({mining}:{mining:MiningStatus}){
+  if(mining.status!=='reported')return <div><p className="lv-empty">{mining.status==='unconfigured'?'No LAMMB mining account connected.':'Mining data is temporarily unavailable.'}</p>
+    <p>No hashrate or earnings are reported until RMT receives data from the LAMMB mining account.</p></div>;
+  const hashrate=new Intl.NumberFormat('en-US',{maximumSignificantDigits:4});
+  return <div>
+    <ul className="lv-amounts">
+      <li><strong>{hashrate.format(mining.hashrate1hTH)} TH/s</strong> <span>1-hour average</span></li>
+      <li><strong>{hashrate.format(mining.hashrate24hTH)} TH/s</strong> <span>24-hour average</span></li>
+      <li><strong>{mining.workersOk}</strong> <span>healthy workers reported</span></li>
+      <li><strong>{mining.cumulativePoolRewardBTC} BTC</strong> <span>lifetime pool reward</span></li>
+    </ul>
+    <p>{mining.provider} · Checked {new Date(mining.checkedAt).toISOString().slice(0,16).replace('T',' ')} UTC. Pool rewards are not verified wallet payouts or net profit.</p>
+  </div>;
 }
 export default function LammbVault(){
   const [overview,setOverview]=useState<VaultPublic|null>(null);
@@ -190,7 +205,7 @@ export default function LammbVault(){
         <div className="lv-eyebrow"><span/> RMT × LAMMBs Genesis</div>
         <h1>LAMMB <em>Vault.</em></h1>
         <p>Follow the creator royalties. Open the detailed ledger with five Genesis NFTs in one wallet.</p>
-        <div className="lv-hero-actions"><a className="lv-btn primary" href="#wallet-access"><LockKeyhole size={17}/> Holder access</a><a className="lv-btn" href="#treasury"><ArrowDown size={17}/> Public treasury</a></div>
+        <div className="lv-hero-actions"><a className="lv-btn primary" href="#wallet-access"><LockKeyhole size={17}/> Holder access</a><a className="lv-btn" href="#treasury"><ArrowDown size={17}/> Public treasury</a><a className="lv-btn" href={MONEY_LAB_PATH}><ArrowUpRight size={17}/> Open Money Lab</a></div>
       </div>
       <div className="lv-seal" aria-hidden="true"><span>GENESIS</span><strong>5<em>+</em></strong><span>WALLET ACCESS</span></div>
     </header>
@@ -230,7 +245,7 @@ export default function LammbVault(){
       <div className="lv-member-grid">
         <article className="lv-card"><h3>Received by the treasury</h3><Amounts totals={member.member.treasuryReceipts} empty="No verified receipts to a configured treasury."/>
           <p>Only separately identified royalty payments logged to the configured address. This is not the wallet balance.</p></article>
-        <article className="lv-card"><h3>Mining activity</h3><p className="lv-empty">No verified mining activity to report.</p><p>RMT does not collect capital or distribute mining rewards through this Vault.</p></article>
+        <article className="lv-card"><h3>Mining activity</h3><MiningActivity mining={member.member.mining??{status:'unconfigured'}}/></article>
       </div>
       <div className="lv-ledger">
         <h3>Latest verified royalty receipts</h3>
@@ -265,8 +280,8 @@ export default function LammbVault(){
       {publicState==='error'&&<button className="lv-btn" onClick={()=>void refreshOverview()}>Retry treasury check</button>}
     </section>
     <section className="lv-plan" aria-labelledby="lv-plan-title">
-      <div><div className="lv-eyebrow"><span/> Proposed, not active</div><h2 id="lv-plan-title">Where royalties could go.</h2><p>Illustrative use of treasury funds. RMT never moves funds or promises holder payouts.</p></div>
-      <ol>{ALLOCATION_PLAN.map(({label,weight})=><li key={label}><strong>{weight}%</strong><span>{label}</span><i style={{width:weight*2+'%'}}/></li>)}</ol>
+      <div><div className="lv-eyebrow"><span/> Project treasury</div><h2 id="lv-plan-title">How funds are handled.</h2></div>
+      <p>The treasury and any future mining expenses are controlled outside RMT. No automatic royalty split or holder payouts are active.</p>
     </section>
     <footer className="lv-footer"><a href={source} target="_blank" rel="noreferrer">Genesis contract <ArrowUpRight size={14}/></a>
       <a href={VAULT_PATH+'/manage'}>Owner console <Check size={14}/></a></footer>

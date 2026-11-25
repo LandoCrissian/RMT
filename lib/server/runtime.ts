@@ -6,7 +6,7 @@ import {controlRole,capabilitiesForRole,memberSuspended} from './control-access'
 import {observeMember} from './control-members';
 import { verifyFirebaseToken, cookieValue, sessionCookie, checkFirebaseAccount } from "./firebase-auth";
 
-type RmtEnvironment = {DB?: D1Database; BUCKET?: R2Bucket; RMT_ADMIN_USER_IDS?: string; RMT_REVIEW_MONITOR_USER_IDS?: string};
+type RmtEnvironment = {DB?: D1Database; BUCKET?: R2Bucket; RMT_ADMIN_USER_IDS?: string; RMT_REVIEW_MONITOR_USER_IDS?: string; RMT_LAMMB_BRAIINS_READ_TOKEN?:string; RMT_LAMMB_BRAIINS_ACCOUNT?:string;};
 export function runtime(): RmtEnvironment { return env as RmtEnvironment; }
 export function database(): D1Database {
   const db = runtime().DB;
