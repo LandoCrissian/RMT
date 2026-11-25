@@ -9,4 +9,4 @@ if(!response.ok)throw Error('Market collector failed (HTTP '+response.status+').
 const result=await response.json();
 // Report only aggregate status; never log identity tokens or provider responses.
 console.log(JSON.stringify({status:result.status,covered:result.covered,tracked:result.tracked,eligible:result.eligible,failures:result.failures}));
-if(!['observed','recent'].includes(result.status))throw Error('Live market coverage is not verified.');
+if(!['observed','recent'].includes(result.status)||!result.tracked||result.covered!==result.tracked)throw Error('Live market coverage is not verified.');
