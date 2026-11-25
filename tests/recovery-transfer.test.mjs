@@ -136,6 +136,57 @@ test('D1 stays internally consistent and fails closed after drift beyond budget 
   await assert.rejects(base.captureDatabase(db),/Unexpected database schema/);
 });
 
+test('known Cloudflare metadata is excluded and a sizing error yields counts without an export go-ahead',async t=>{
+  const {db}=await makeWorker(t);
+  const catalog=new DatabaseSync(':memory:');
+  t.after(()=>catalog.close());
+  const appTables=base.recoveryTables.map(name=>`CREATE TABLE "${name}"(id INTEGER PRIMARY KEY,data TEXT)`);
+  catalog.exec(appTables.join(';')+';CREATE TABLE "_cf_KV"(k TEXT PRIMARY KEY,v BLOB);CREATE TABLE "_cf_METADATA"(k TEXT PRIMARY KEY,v BLOB)');
+  await db.batch(appTables.map(sql=>db.prepare(sql)));
+  await db.prepare("INSERT INTO profiles VALUES (1,'fixture-private-row')").run();
+  const catalogStatements=new WeakSet();
+  const prepare=(sql)=>{
+    if(!sql.includes('FROM sqlite_schema')) return db.prepare(sql);
+    const stmt={all:async()=>({success:true,results:catalog.prepare(sql).all()})};
+    catalogStatements.add(stmt);
+    return stmt;
+  };
+  const compatible={prepare,async batch(statements){
+    // Simulate extra platform catalog entries only. The real Miniflare transaction
+    // and concurrent-writer behavior are covered by the preceding tests.
+    if(catalogStatements.has(statements[0])) return [await statements[0].all(),...await db.batch(statements.slice(1))];
+    return db.batch(statements);
+  }};
+  const assessed=await base.assessDatabaseTransfer(compatible);
+  assert.equal(assessed.measurement,'wire_size');
+  assert.equal(assessed.fits,true);
+  assert.equal(assessed.tables.length,47);
+  assert.equal(assessed.tables.some(x=>x.name.toLowerCase().startsWith('_cf_')),false);
+  const snapshot=await base.captureDatabase(compatible);
+  assert.equal(snapshot.tables.length,47);
+  assert.equal(snapshot.schema.some(x=>x.name.startsWith('_cf_')),false);
+
+  let calls=0;
+  const limited={prepare,async batch(statements){
+    if(++calls===2) throw new Error('fixture-private-provider-diagnostic');
+    return db.batch(statements);
+  }};
+  const fallback=await base.assessDatabaseTransfer(limited);
+  assert.equal(fallback.measurement,'application_counts_only');
+  assert.equal(fallback.sizingUnavailableAt,'wire_sizing');
+  assert.equal(fallback.fits,null);
+  assert.equal(fallback.wireBytes,null);
+  assert.equal(fallback.tables.find(x=>x.name==='profiles').rows,1);
+  assert.doesNotMatch(JSON.stringify(fallback),/fixture-private/);
+
+  // Unexpected application data remains a hard export failure.
+  catalog.exec('CREATE TABLE unknown_application_data (id INTEGER PRIMARY KEY)');
+  const unknown=await base.assessDatabaseTransfer(compatible);
+  assert.equal(unknown.sizingUnavailableAt,'schema_validation');
+  assert.equal(unknown.fits,null);
+  await assert.rejects(base.captureDatabase(compatible),/Unexpected database schema/);
+});
+
 test('artwork paging archives all listed versions and refuses a mid-capture change',async t=>{
   const {bucket}=await makeWorker(t);
   await bucket.put('asset','first version');
