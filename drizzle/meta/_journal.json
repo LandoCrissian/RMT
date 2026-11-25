@@ -92,6 +92,13 @@
       "when": 1795569474120,
       "tag": "0012_personalized_discovery",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1795570429438,
+      "tag": "0013_wallet_claim_evidence",
+      "breakpoints": true
     }
   ]
 }

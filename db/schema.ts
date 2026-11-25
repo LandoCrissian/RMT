@@ -43,6 +43,7 @@ export const reviewEvents = sqliteTable("review_events", {
 }, table => [index("review_events_submission").on(table.submissionId, table.createdAt)]);
 
 export const projectClaims = sqliteTable('project_claims', {
+  proofMethod:text('proof_method').notNull().default('manual'),
   id: text('id').primaryKey(), projectId: text('project_id').notNull(), projectName: text('project_name').notNull(),
   userId: text('user_id').notNull(), accountEmail: text('account_email').notNull(), method: text('method').notNull(),
   officialChannelUrl: text('official_channel_url').notNull(), verificationCode: text('verification_code').notNull(),
@@ -247,3 +248,23 @@ export const discoveryReads = sqliteTable('discovery_reads', {
 export const discoveryConfig = sqliteTable('discovery_config', {
   id: text('id').primaryKey(), payloadJson: text('payload_json').notNull(), revision: integer('revision').notNull(),
 });
+
+export const walletClaimChallenges=sqliteTable('wallet_claim_challenges',{
+  id:text('id').primaryKey(),claimId:text('claim_id').notNull().references(()=>projectClaims.id),
+  projectId:text('project_id').notNull(),userId:text('user_id').notNull(),address:text('address').notNull(),contract:text('contract').notNull(),
+  origin:text('origin').notNull(),browserHash:text('browser_hash').notNull(),message:text('message').notNull(),revision:integer('revision').notNull(),
+  createdAt:integer('created_at').notNull(),expiresAt:integer('expires_at').notNull(),consumedAt:integer('consumed_at'),
+  outcome:text('outcome').notNull().default('issued'),signature:text('signature'),
+},t=>[index('wallet_challenge_account_time').on(t.userId,t.createdAt),index('wallet_challenge_time').on(t.createdAt)]);
+export const walletClaimEvidence=sqliteTable('wallet_claim_evidence',{
+  claimId:text('claim_id').primaryKey().references(()=>projectClaims.id),challengeId:text('challenge_id').notNull().unique().references(()=>walletClaimChallenges.id),
+  evidenceJson:text('evidence_json').notNull(),recheckJson:text('recheck_json'),
+});
+export const walletClaimChecks=sqliteTable('wallet_claim_checks',{
+  id:text('id').primaryKey(),claimId:text('claim_id').notNull().references(()=>projectClaims.id),
+  challengeId:text('challenge_id').notNull().references(()=>walletClaimChallenges.id),reviewerId:text('reviewer_id').notNull(),
+  revision:integer('revision').notNull(),resultJson:text('result_json').notNull(),checkedAt:integer('checked_at').notNull(),
+},t=>[index('wallet_checks_claim').on(t.claimId,t.checkedAt)]);
+export const claimRpcUsage=sqliteTable('claim_rpc_usage',{
+  id:text('id').primaryKey(),userId:text('user_id').notNull(),createdAt:integer('created_at').notNull(),
+},t=>[index('claim_rpc_member_time').on(t.userId,t.createdAt),index('claim_rpc_time').on(t.createdAt)]);

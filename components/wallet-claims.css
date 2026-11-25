@@ -1,0 +1,10 @@
+.wc-methods .st-method-option{height:auto;text-align:left;min-height:55px;color:inherit}
+.wc-methods .st-method-option[aria-pressed=true]{border-color:var(--lime,#c7f649)}
+.wc-methods .st-method-option:disabled{opacity:.68;cursor:default}
+.st-claim-page code,.st-review-detail code{overflow-wrap:anywhere;white-space:normal;word-break:break-word}
+.st-claim-page pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.8rem}
+.st-claim-page details summary{cursor:pointer;min-height:44px}
+.st-claim-page .st-field select{max-width:100%;width:100%;min-height:44px;color:inherit;background:#141b20;border:1px solid #46514d;border-radius:8px;padding:8px}
+.wc-evidence dd{overflow-wrap:anywhere}
+.wc-evidence details{margin-top:12px}
+.wc-evidence summary{cursor:pointer;padding:8px 0}

@@ -2,17 +2,28 @@ import type { Project } from '@/lib/catalog';
 import { InputError, normalizeHost, optionalXProfile, type ClaimMethod } from '@/lib/submission-validation';
 import type { PlatformIdentity } from './auth';
 import { findPublicProject } from './repository';
+import {claimContract} from '@/lib/claim-contracts';
+import {recheckForApproval,type AuthorityEvidence,type Recheck} from './claim-recheck';
+import {publicProjectSql} from './control-visibility';
+import {activeControlMemberSql} from './control-sql';
 import { pendingNotifications } from './outbox-events';
 
 export type ClaimRow = {
   id:string;project_id:string;project_name:string;user_id:string;account_email:string;method:ClaimMethod;
   official_channel_url:string;verification_code:string;proof_url:string;note:string;status:'draft'|'pending'|'approved'|'rejected'|'revoked';
+  proof_method:'wallet'|'manual'; evidence_json?:string|null; recheck_json?:string|null;
   review_note:string;revision:number;expires_at:number;created_at:number;updated_at:number;
 };
 export type OwnerRow = {project_id:string;user_id:string;claim_id:string|null;status:'active'|'revoked';revision:number;created_at:number;updated_at:number};
+const privateClaimQuery=`SELECT c.*,e.evidence_json,e.recheck_json FROM project_claims c
+  LEFT JOIN wallet_claim_evidence e ON e.claim_id=c.id`;
 export function privateClaim(row:ClaimRow, admin=false) {
+  const verification=row.proof_method==='wallet'&&row.evidence_json?JSON.parse(row.evidence_json) as AuthorityEvidence & {source?:string;codeHash?:string}:null;
   const expired = ['draft','pending'].includes(row.status) && row.expires_at <= Date.now();
   return {id:row.id,projectId:row.project_id,projectName:row.project_name,method:row.method,officialChannelUrl:row.official_channel_url,
+    proofMethod:row.proof_method, walletEvidence:verification?{
+      source:verification.source??claimContract(row.project_id)?.source,verification,
+      lastRecheck:row.recheck_json?JSON.parse(row.recheck_json) as Recheck:null}:null,
     verificationCode:row.verification_code,proofUrl:row.proof_url,note:row.note,status:expired?'expired':row.status,
     reviewNote:row.review_note,revision:row.revision,expiresAt:row.expires_at,createdAt:row.created_at,updatedAt:row.updated_at,
     ...(admin?{userId:row.user_id,accountEmail:row.account_email}:{})};
@@ -38,7 +49,7 @@ export function projectClaimMethods(project:Project) {
 export async function claimOptions(db:D1Database,projectId:string) {
   const project=await findPublicProject(db,projectId);
   const owner=await db.prepare("SELECT * FROM project_owners WHERE project_id=? AND status='active'").bind(projectId).first<OwnerRow>();
-  return {projectId,projectName:project.name,claimed:!!owner||project.claimed,methods:projectClaimMethods(project)};
+  return {projectId,projectName:project.name,claimed:!!owner||project.claimed,methods:projectClaimMethods(project),walletContract:claimContract(projectId)??null};
 }
 
 export function proofMatchesChannel(method:ClaimMethod,channelUrl:string,proofUrl:string):boolean {
@@ -77,22 +88,35 @@ export async function createClaim(db:D1Database,user:PlatformIdentity,input:{pro
   return privateClaim(row);
 }
 export async function ownClaims(db:D1Database,userId:string) {
-  const result=await db.prepare('SELECT * FROM project_claims WHERE user_id=? ORDER BY updated_at DESC LIMIT 100').bind(userId).all<ClaimRow>();
+  const result=await db.prepare(privateClaimQuery+' WHERE c.user_id=? ORDER BY c.updated_at DESC LIMIT 100').bind(userId).all<ClaimRow>();
   return result.results.map(row=>privateClaim(row));
 }
 export async function claimsQueue(db:D1Database) {
-  const result=await db.prepare("SELECT * FROM project_claims ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,updated_at DESC LIMIT 200").all<ClaimRow>();
+  const result=await db.prepare(privateClaimQuery+" ORDER BY CASE c.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END,updated_at DESC LIMIT 200").all<ClaimRow>();
   return result.results.map(row=>privateClaim(row,true));
 }
+
+export async function claimCheckHistory(db:D1Database,id:string,before:string|null){
+  if(!await db.prepare('SELECT id FROM project_claims WHERE id=?').bind(id).first())throw new InputError('Claim not found.',404);
+  const cursor=before?await db.prepare('SELECT id,checked_at FROM wallet_claim_checks WHERE claim_id=? AND id=?').bind(id,before).first<{id:string;checked_at:number}>():null;
+  if(before&&!cursor)throw new InputError('Invalid review history cursor.');
+  const guard=cursor?' AND (checked_at<? OR (checked_at=? AND id<?))':'';
+  const rows=await db.prepare('SELECT id,reviewer_id,revision,result_json,checked_at FROM wallet_claim_checks WHERE claim_id=?'+guard+' ORDER BY checked_at DESC,id DESC LIMIT 21')
+    .bind(id,...(cursor?[cursor.checked_at,cursor.checked_at,cursor.id]:[])).all<{id:string;reviewer_id:string;revision:number;result_json:string;checked_at:number}>();
+  const checks=rows.results.slice(0,20).map(r=>({id:r.id,reviewerId:r.reviewer_id,revision:r.revision,result:JSON.parse(r.result_json) as Recheck,checkedAt:r.checked_at}));
+  return {checks,nextCursor:rows.results.length>20?checks[19].id:null};
+}
+
 export async function submitClaim(db:D1Database,user:PlatformIdentity,id:string,input:{proofUrl:string;note:string;expectedRevision:number}) {
   const row=await db.prepare('SELECT * FROM project_claims WHERE id=? AND user_id=?').bind(id,user.userId).first<ClaimRow>();
   if(!row)throw new InputError('This claim was not found.',404);
   const now=Date.now();
   if(row.status!=='draft'||row.revision!==input.expectedRevision)throw new InputError('Refresh this claim before submitting it. Only a draft can be submitted.',409);
   if(row.expires_at<=now)throw new InputError('This challenge expired. Start a new claim with a new code.',409);
+  if(row.proof_method!=='manual')throw new InputError('Wallet evidence must pass the wallet verification check.',409);
   if(!proofMatchesChannel(row.method,row.official_channel_url,input.proofUrl))throw new InputError('The proof link must belong to the official channel shown on this challenge.');
   const results=await db.batch([
-    db.prepare("UPDATE project_claims SET proof_url=?,note=?,status='pending',revision=revision+1,updated_at=? WHERE id=? AND user_id=? AND revision=? AND status='draft' AND expires_at>?")
+    db.prepare("UPDATE project_claims SET proof_url=?,note=?,status='pending',revision=revision+1,updated_at=? WHERE id=? AND user_id=? AND revision=? AND status='draft' AND proof_method='manual' AND expires_at>?")
       .bind(input.proofUrl,input.note,now,id,user.userId,row.revision,now),
     ...pendingNotifications(db,{kind:'claim',id,projectName:row.project_name,revision:row.revision+1,now}),
   ]);
@@ -101,25 +125,37 @@ export async function submitClaim(db:D1Database,user:PlatformIdentity,id:string,
   if(!updated)throw new Error('Submitted claim was not readable');
   return privateClaim(updated);
 }
-export async function reviewClaim(db:D1Database,reviewerId:string,id:string,decision:{action:'approve'|'reject'|'revoke';note:string;expectedRevision:number}) {
+export async function reviewClaim(db:D1Database,reviewerId:string,id:string,decision:{action:'approve'|'reject'|'revoke';note:string;expectedRevision:number},reviewerRole?:string) {
   const row=await db.prepare('SELECT * FROM project_claims WHERE id=?').bind(id).first<ClaimRow>();
   if(!row)throw new InputError('This claim was not found.',404);
-  const now=Date.now(),oldStatus=decision.action==='revoke'?'approved':'pending';
+  const oldStatus=decision.action==='revoke'?'approved':'pending';
   if(row.status!==oldStatus||row.revision!==decision.expectedRevision)throw new InputError('This claim changed or is not ready for that decision. Refresh the queue.',409);
-  if(decision.action==='approve'&&row.expires_at<=now)throw new InputError('This challenge expired. The applicant must submit a fresh claim.',409);
+  if(decision.action==='approve'&&row.expires_at<=Date.now())throw new InputError('This challenge expired. The applicant must submit a fresh claim.',409);
+  const auditId=crypto.randomUUID();
+  let walletChecks:D1PreparedStatement[]=[];
+  if(decision.action==='approve' && row.proof_method==='wallet'){
+    if(reviewerRole!=='owner'&&reviewerRole!=='admin')throw new InputError('An administrator must approve a wallet ownership claim.',403);
+    if(reviewerId===row.user_id)throw new InputError('A different administrator must review your claim.',403);
+    walletChecks=await recheckForApproval(db,row,reviewerId,auditId);
+  }
+  const now=Date.now();
+  if(decision.action==='approve'&&row.expires_at<=now)throw new InputError('This claim expired during review. Request fresh evidence.',409);
   const nextStatus=decision.action==='approve'?'approved':decision.action==='reject'?'rejected':'revoked';
-  const audit=(extra='')=>db.prepare(`INSERT INTO claim_review_events (id,claim_id,reviewer_id,previous_status,next_status,note,revision,created_at)
+  const audit=(extra='',args:(string|number)[]=[])=>db.prepare(`INSERT INTO claim_review_events (id,claim_id,reviewer_id,previous_status,next_status,note,revision,created_at)
     SELECT ?,id,?,status,?,?,revision+1,? FROM project_claims WHERE id=? AND revision=? AND status=? ${extra}`)
-    .bind(crypto.randomUUID(),reviewerId,nextStatus,decision.note,now,id,row.revision,row.status);
+    .bind(auditId,reviewerId,nextStatus,decision.note,now,id,row.revision,row.status,...args);
   let statements:D1PreparedStatement[];
   if(decision.action==='approve'){
-    const unowned="AND expires_at>"+now+" AND NOT EXISTS(SELECT 1 FROM project_owners WHERE project_id=project_claims.project_id AND status='active')";
-    statements=[audit(unowned),
+    const unowned="AND expires_at>? AND NOT EXISTS(SELECT 1 FROM project_owners WHERE project_id=project_claims.project_id AND status='active')";
+    const walletEligible=row.proof_method==='wallet'?` AND ${activeControlMemberSql('project_claims.user_id')} AND ${publicProjectSql('project_claims.project_id')}
+      AND EXISTS(SELECT 1 FROM wallet_claim_checks wc WHERE wc.id=? AND wc.claim_id=project_claims.id AND wc.revision=project_claims.revision)`:'';
+    statements=[...walletChecks,audit(unowned+walletEligible,row.proof_method==='wallet'?[now,auditId]:[now]),
       db.prepare(`INSERT INTO project_owners (project_id,user_id,claim_id,status,revision,created_at,updated_at)
         SELECT project_id,user_id,id,'active',1,?,? FROM project_claims WHERE id=? AND revision=? AND status='pending' AND expires_at>?
         AND NOT EXISTS(SELECT 1 FROM project_owners WHERE project_id=project_claims.project_id AND status='active')
+        AND EXISTS(SELECT 1 FROM claim_review_events WHERE id=? AND claim_id=project_claims.id)
         ON CONFLICT(project_id) DO UPDATE SET user_id=excluded.user_id,claim_id=excluded.claim_id,status='active',revision=project_owners.revision+1,updated_at=excluded.updated_at
-        WHERE project_owners.status='revoked'`).bind(now,now,id,row.revision,now),
+        WHERE project_owners.status='revoked'`).bind(now,now,id,row.revision,now,auditId),
       db.prepare(`UPDATE project_claims SET status='approved',review_note=?,revision=revision+1,updated_at=? WHERE id=? AND revision=? AND status='pending' AND expires_at>?
         AND EXISTS(SELECT 1 FROM project_owners WHERE project_id=project_claims.project_id AND claim_id=project_claims.id AND user_id=project_claims.user_id AND status='active')`)
         .bind(decision.note,now,id,row.revision,now),
@@ -144,8 +180,8 @@ export async function reviewClaim(db:D1Database,reviewerId:string,id:string,deci
       .bind(decision.note,now,id,row.revision)];
   }
   const results=await db.batch(statements);
-  if(results[0]?.meta.changes!==1||results.at(-1)?.meta.changes!==1)throw new InputError('The claim changed or another builder already owns this project. Refresh the queue.',409);
-  const updated=await db.prepare('SELECT * FROM project_claims WHERE id=?').bind(id).first<ClaimRow>();
+  if(results[walletChecks.length]?.meta.changes!==1||results.at(-1)?.meta.changes!==1)throw new InputError('The claim changed or another builder already owns this project. Refresh the queue.',409);
+  const updated=await db.prepare(privateClaimQuery+' WHERE c.id=?').bind(id).first<ClaimRow>();
   if(!updated)throw new Error('Reviewed claim was not readable');
   return privateClaim(updated,true);
 }

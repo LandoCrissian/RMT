@@ -116,7 +116,10 @@ test('updates migration preserves existing accounts, ownership, artwork, library
   // This starts with the deployed schema and real historical row shapes. A fresh
   // database-only test cannot catch a dropped column, lost row, or reset retry.
   db.exec(upgradeSchema);
-  for (const table of tables) assert.deepEqual(snapshot(db, table), records[table], `${table} must survive the upgrade unchanged`);
+  for (const table of tables) {
+    const expected = table === 'project_claims' ? records[table].map(row => ({...row, proof_method:'manual'})) : records[table];
+    assert.deepEqual(snapshot(db, table), expected, `${table} historical data must survive the upgrade`);
+  }
   assert.deepEqual(db.prepare('PRAGMA table_info(notification_outbox)').all(), oldOutboxColumns);
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
   assert.equal(db.prepare('PRAGMA integrity_check').get().integrity_check, 'ok');

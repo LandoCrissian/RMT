@@ -38,7 +38,12 @@ export type Submission = {
 };
 
 export type ClaimMethod = "website" | "x" | "opensea";
+export type WalletAuthorityEvidence = {
+  chainId:4663;contract:string;address:string;authority:string;blockNumber:number;blockHash:string;blockTimestamp:number;checkedAt:number;model:string;signatureType:"eoa"|"erc1271";
+};
 export type ProjectClaim = {
+  proofMethod?:"wallet"|"manual";
+  walletEvidence?:{source?:string;verification:WalletAuthorityEvidence;lastRecheck:({outcome:"verified"} & WalletAuthorityEvidence)|{outcome:"failed";checkedAt:number;concern:string}|null}|null;
   id: string;
   projectId: string;
   projectName: string;
