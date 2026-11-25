@@ -7,6 +7,11 @@ const unsupportedHost=/(?:^|\.)(?:opensea\.io|x\.com|twitter\.com|discord\.(?:gg
 const horizon=366*86400000;
 const apexId='community-a03d19b5-8cb0-47b6-97a8-23ecf5e5f194';
 const apexSeason='https://apexrising.io/season';
+const apeFightClub='https://fightclub.suitedapes.com/';
+function sourceRoot(project,page){
+  if(project.id==='suited-apes' && project.links?.some(link=>link.url===apeFightClub) && validTarget(page)?.origin===new URL(apeFightClub).origin)return validTarget(apeFightClub);
+  return validTarget(project.website);
+}
 const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -61,7 +66,7 @@ function officialSeason(project,html,now) {
 }
 
 export function sourceEvents(project,page,html,now=Date.now()) {
-  const site=validTarget(project.website);
+  const site=sourceRoot(project,page);
   if(!site||!officialUrl(page,site))return [];
   const rows=[];
   const noComments=html.slice(0,512000).replace(/<!--[\s\S]*?-->/g,'');
@@ -103,6 +108,7 @@ export async function collectCalendar(projects,read=readPublic,now=Date.now()) {
     if(!site||unsupportedHost.test(site.hostname))continue;
     const pages=new Set([site.href]);
     if(project.id===apexId&&site.origin==='https://apexrising.io')pages.add(apexSeason);
+    if(project.id==='suited-apes'&&project.links?.some(link=>link.url===apeFightClub))pages.add(apeFightClub);
     for(const link of project.links??[]){
       const u=officialUrl(link.url,site);
       if(u&&/(?:^|\/)(?:events?|calendar|agenda)(?:\/|$)/i.test(u.pathname))pages.add(u.href);
