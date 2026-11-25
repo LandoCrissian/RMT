@@ -7,6 +7,13 @@ const token=(await identity.json()).value;
 const response=await fetch(endpoint,{method:'POST',redirect:'error',headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(180000)});
 if(!response.ok)throw Error('Market collector failed (HTTP '+response.status+').');
 const result=await response.json();
-// Report only aggregate status; never log identity tokens or provider responses.
-console.log(JSON.stringify({status:result.status,covered:result.covered,tracked:result.tracked,eligible:result.eligible,failures:result.failures}));
+// Report only allowlisted rotation metadata, never credentials or raw provider responses.
+const r=result.rotation;
+const rotation=['current','rotated','deferred','failed'].includes(r?.status)?{status:r.status,
+  expiresAt:Number.isSafeInteger(r.expiresAt)?new Date(r.expiresAt).toISOString():undefined,
+  nextAttemptAt:Number.isSafeInteger(r.nextAttemptAt)?new Date(r.nextAttemptAt).toISOString():undefined}:undefined;
+console.log(JSON.stringify({status:result.status,covered:result.covered,tracked:result.tracked,eligible:result.eligible,failures:result.failures,rotation}));
+if(rotation&&['failed','deferred'].includes(rotation.status)&&(!r.expiresAt||r.expiresAt-Date.now()<24*3_600_000)){
+  throw Error('OpenSea credential renewal needs attention. Existing credentials were not overwritten.');
+}
 if(!['observed','recent'].includes(result.status)||!result.tracked||result.covered!==result.tracked)throw Error('Live market coverage is not verified.');
