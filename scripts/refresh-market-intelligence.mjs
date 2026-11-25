@@ -4,9 +4,23 @@ identityUrl.searchParams.set('audience',endpoint);
 const identity=await fetch(identityUrl,{headers:{authorization:'Bearer '+process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN},redirect:'error',signal:AbortSignal.timeout(10000)});
 if(!identity.ok)throw Error('Cannot obtain workflow identity (HTTP '+identity.status+').');
 const token=(await identity.json()).value;
-const response=await fetch(endpoint,{method:'POST',redirect:'error',headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(180000)});
-if(!response.ok)throw Error('Market collector failed (HTTP '+response.status+').');
-const result=await response.json();
+const shadow=process.argv.includes('--chain-shadow');
+async function request(chain){
+  const response=await fetch(endpoint,{method:'POST',redirect:'error',headers:{authorization:'Bearer '+token,
+    ...(chain?{'x-rmt-market-operation':'chain-shadow'}:{})},signal:AbortSignal.timeout(chain?85_000:180_000)});
+  if(!response.ok)throw Error('Market collector failed (HTTP '+response.status+').');
+  return response.json();
+}
+const chainJob=shadow?null:request(true).then(r=>{
+  console.log('Chain shadow',JSON.stringify({status:r.status,provider:r.provider,from:r.from,through:r.through,finalized:r.finalized,indexed:r.indexed,cached:r.cached}));
+}).catch(()=>console.log('Chain shadow unavailable; OpenSea result checked separately.'));
+let result;
+try{result=await request(shadow);}finally{await chainJob;}
+if(shadow){
+  console.log(JSON.stringify({status:result.status,provider:result.provider,from:result.from,through:result.through,finalized:result.finalized,indexed:result.indexed,cached:result.cached}));
+  if(!['observed','recent'].includes(result.status))throw Error('Chain shadow indexing unavailable.');
+  process.exit(0);
+}
 // Report only allowlisted rotation metadata, never credentials or raw provider responses.
 const r=result.rotation;
 const rotation=['current','rotated','deferred','failed'].includes(r?.status)?{status:r.status,
