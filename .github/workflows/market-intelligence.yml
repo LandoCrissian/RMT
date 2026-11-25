@@ -2,6 +2,7 @@ name: Refresh RMT market intelligence
 on:
   schedule:
     - cron: '17 * * * *'
+    - cron: '2,32,47 * * * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,4 +22,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: node scripts/refresh-market-intelligence.mjs
+      - name: Refresh OpenSea and chain shadow
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 * * * *'
+        run: node scripts/refresh-market-intelligence.mjs
+      - name: Advance chain shadow only
+        if: github.event.schedule == '2,32,47 * * * *'
+        run: node scripts/refresh-market-intelligence.mjs --chain-shadow
