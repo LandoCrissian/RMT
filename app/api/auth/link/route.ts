@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     const existing = await db.prepare('SELECT firebase_uid, legacy_user_id FROM account_links WHERE firebase_uid = ? OR legacy_user_id = ?')
       .bind(user.firebaseUid, legacy.userId).all<{firebase_uid: string; legacy_user_id: string}>();
     if (existing.results.some(link => link.firebase_uid !== user.firebaseUid || link.legacy_user_id !== legacy.userId)) throw new InputError('One of these accounts is already linked. Contact RMT.', 409);
-    const activity = await db.prepare(`SELECT 1 AS found WHERE EXISTS(SELECT 1 FROM saved_projects WHERE user_id = ?)
+    const activity = await db.prepare(`SELECT 1 AS found WHERE EXISTS(SELECT 1 FROM project_follows WHERE user_id = ?) OR EXISTS(SELECT 1 FROM saved_projects WHERE user_id = ?)
       OR EXISTS(SELECT 1 FROM submissions WHERE user_id = ?)
       OR EXISTS(SELECT 1 FROM project_claims WHERE user_id = ?)
       OR EXISTS(SELECT 1 FROM project_edits WHERE user_id = ?)
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       OR EXISTS(SELECT 1 FROM profiles WHERE user_id = ?)
       OR EXISTS(SELECT 1 FROM profile_artwork WHERE user_id = ?)
       OR EXISTS(SELECT 1 FROM project_owners WHERE user_id = ?)`)
-      .bind(user.userId, user.userId, user.userId, user.userId, user.userId, user.userId, user.userId, user.userId, user.userId).first();
+      .bind(user.userId, user.userId, user.userId, user.userId, user.userId, user.userId, user.userId, user.userId, user.userId,user.userId).first();
     // Linking changes the canonical identity. Keep any existing profile,
     // uploaded image, or draft reachable instead of silently orphaning it.
     if (activity) throw new InputError('This new account already has saved activity. Contact RMT to combine accounts without losing records.', 409);
@@ -43,13 +43,13 @@ export async function POST(request: Request) {
     await db.prepare(`INSERT INTO account_links (firebase_uid, legacy_user_id, created_at) SELECT ?,?,?
       WHERE NOT EXISTS(SELECT 1 FROM control_members WHERE user_id IN (?,?) AND status='suspended')
       AND NOT EXISTS(SELECT 1 FROM control_roles WHERE user_id=? AND role<>'member')
-      AND NOT EXISTS(SELECT 1 FROM saved_projects WHERE user_id=?) AND NOT EXISTS(SELECT 1 FROM submissions WHERE user_id=?)
+      AND NOT EXISTS(SELECT 1 FROM project_follows WHERE user_id=?) AND NOT EXISTS(SELECT 1 FROM saved_projects WHERE user_id=?) AND NOT EXISTS(SELECT 1 FROM submissions WHERE user_id=?)
       AND NOT EXISTS(SELECT 1 FROM project_claims WHERE user_id=?) AND NOT EXISTS(SELECT 1 FROM project_edits WHERE user_id=?)
       AND NOT EXISTS(SELECT 1 FROM project_updates WHERE user_id=?) AND NOT EXISTS(SELECT 1 FROM project_artwork WHERE user_id=?)
       AND NOT EXISTS(SELECT 1 FROM profiles WHERE user_id=?) AND NOT EXISTS(SELECT 1 FROM profile_artwork WHERE user_id=?)
       AND NOT EXISTS(SELECT 1 FROM project_owners WHERE user_id=?) ON CONFLICT DO NOTHING`)
       .bind(user.firebaseUid,legacy.userId,Date.now(),user.userId,legacy.userId,user.userId,
-        user.userId,user.userId,user.userId,user.userId,user.userId,user.userId,user.userId,user.userId,user.userId).run();
+        user.userId,user.userId,user.userId,user.userId,user.userId,user.userId,user.userId,user.userId,user.userId,user.userId).run();
     const saved = await db.prepare('SELECT legacy_user_id FROM account_links WHERE firebase_uid = ?').bind(user.firebaseUid).first<{legacy_user_id: string}>();
     if (saved?.legacy_user_id !== legacy.userId) throw new InputError('Account linking changed. Try again.', 409);
     await observeMember(db,{...user,userId:legacy.userId,provider:'firebase'});

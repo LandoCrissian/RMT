@@ -1,0 +1,10 @@
+.project-follow{display:flex;align-items:center;justify-content:space-between;gap:.65rem;flex-wrap:wrap;margin:1rem 0;color:var(--text,#f2f4ec)}
+.project-follow>div,.following-library h2{display:flex;align-items:center;gap:.6rem}
+.project-follow>div svg,.following-library h2 svg{color:#caff36}
+.project-follow .button,.following-library li button{min-height:44px}
+.project-follow [role=alert]{flex-basis:100%}
+.following-library h2{font-size:1.1rem;margin:0}
+.following-library p{color:#b6bbaa;margin:.6rem 0 0}
+.following-library ul{display:flex;flex-wrap:wrap;gap:.5rem;list-style:none;padding:0;margin:.85rem 0 0}
+.following-library li{max-width:100%}
+.following-library li button{display:flex;align-items:center;gap:.5rem;border:1px solid #474d40;border-radius:.6rem;background:#20241d;color:inherit;padding:.55rem .8rem;overflow-wrap:anywhere}

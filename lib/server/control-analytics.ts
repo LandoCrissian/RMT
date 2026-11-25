@@ -28,13 +28,14 @@ export async function recordMetric(db:D1Database,input:MetricInput,now=Date.now(
       .bind(id,day,input.kind,input.projectId,now,day),
   ]);
 }
+import {followTotals} from './following';
 export async function controlAnalytics(db:D1Database,days:7|30,now=Date.now()){
   const end=new Date(now).toISOString().slice(0,10),start=new Date(now-(days-1)*DAY).toISOString().slice(0,10);
-  const [totals,perDay,perProject,first,publicCatalog]=await Promise.all([
+  const [totals,perDay,perProject,first,publicCatalog,followers]=await Promise.all([
     db.prepare('SELECT kind,COUNT(*) AS count FROM control_metric_events WHERE day>=? AND day<=? GROUP BY kind').bind(start,end).all<{kind:MetricKind;count:number}>(),
     db.prepare('SELECT day,kind,COUNT(*) AS count FROM control_metric_events WHERE day>=? AND day<=? GROUP BY day,kind ORDER BY day').bind(start,end).all<{day:string;kind:MetricKind;count:number}>(),
     db.prepare("SELECT project_id,SUM(kind='project_view') AS views,SUM(kind='outbound') AS clicks FROM control_metric_events WHERE day>=? AND day<=? AND project_id<>'' GROUP BY project_id ORDER BY views DESC,clicks DESC,project_id LIMIT 50").bind(start,end).all<{project_id:string;views:number;clicks:number}>(),
-    db.prepare('SELECT MIN(created_at) AS first FROM control_metric_events').first<{first:number|null}>(),catalog(db),
+    db.prepare('SELECT MIN(created_at) AS first FROM control_metric_events').first<{first:number|null}>(),catalog(db),followTotals(db),
   ]);
   const sums={visit:0,project_view:0,outbound:0};for(const row of totals.results)sums[row.kind]=Number(row.count);
   const byDay=new Map<string,{day:string;visits:number;projectViews:number;outboundClicks:number}>();
@@ -42,7 +43,7 @@ export async function controlAnalytics(db:D1Database,days:7|30,now=Date.now()){
   const keys={visit:'visits',project_view:'projectViews',outbound:'outboundClicks'} as const;
   for(const row of perDay.results){const day=byDay.get(row.day);if(day)day[keys[row.kind]]=Number(row.count);}
   const names=new Map([...getSeedProjects(),...publicCatalog.projects].map(project=>[project.id,project.name]));
-  return {days,startedAt:first?.first??null,visits:sums.visit,projectViews:sums.project_view,outboundClicks:sums.outbound,
+  return {days,currentFollows:followers!.follows,followingMembers:followers!.members,startedAt:first?.first??null,visits:sums.visit,projectViews:sums.project_view,outboundClicks:sums.outbound,
     daily:[...byDay.values()],projects:perProject.results.map(row=>({projectId:row.project_id,name:names.get(row.project_id)||row.project_id,views:Number(row.views),clicks:Number(row.clicks)})),
     note:'Anonymous browser sessions, not individual people. Each project view and outbound action counts once per session per UTC day. Collection starts with the Control Center release; only the last 30 days are retained. Browser privacy preferences are respected. These counts are usage indicators, not audited traffic totals.'};
 }

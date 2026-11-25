@@ -230,3 +230,8 @@ export const controlMetricEvents=sqliteTable('control_metric_events',{
 export const controlProjectArtwork=sqliteTable('control_project_artwork',{
  id:text('id').primaryKey(),projectId:text('project_id').notNull(),uploaderId:text('uploader_id').notNull(),objectKey:text('object_key').notNull(),kind:text('kind').notNull(),mime:text('mime').notNull(),width:integer('width').notNull(),height:integer('height').notNull(),byteSize:integer('byte_size').notNull(),digest:text('digest').notNull(),status:text('status').notNull().default('uploading'),createdAt:integer('created_at').notNull(),
 },table=>[uniqueIndex('control_artwork_object_key').on(table.objectKey),index('control_artwork_uploader_created').on(table.uploaderId,table.createdAt),index('control_artwork_project_status').on(table.projectId,table.status),check('control_artwork_kind_valid',sql`${table.kind} IN ('logo','banner')`),check('control_artwork_mime_valid',sql`${table.mime}='image/png'`),check('control_artwork_status_valid',sql`${table.status} IN ('uploading','ready','failed')`)]);
+
+export const projectFollows = sqliteTable('project_follows', {
+  userId:text('user_id').notNull(), projectId:text('project_id').notNull(), followedAt:integer('followed_at').notNull(),
+}, t=>[primaryKey({columns:[t.userId,t.projectId]}),index('project_follow_counts').on(t.projectId,t.userId),
+  index('member_follow_timeline').on(t.userId,t.followedAt,t.projectId)]);

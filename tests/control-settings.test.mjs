@@ -8,6 +8,8 @@ import {build} from 'esbuild';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const environment={};globalThis.__RMT_SETTINGS_ENV__=environment;
 const bundle=await build({stdin:{contents:`
+ export {GET as follows} from './app/api/following/route';
+ export {GET as count,PUT as follow,DELETE as unfollow} from './app/api/following/[projectId]/route';
  export * from './lib/homepage-art'; export {POST as artPOST} from './app/api/control/homepage-art/route';
  export {GET as artGET,HEAD as artHEAD} from './app/media/homepage-art/[file]/route';
  export * from './lib/control-settings'; export * from './lib/server/control-settings';
@@ -142,4 +144,30 @@ test('homepage artwork uses validated content-addressed uploads, authenticated s
  const meta=api.homepageMetadata(saved.homepageArtwork);
  assert.equal(meta.openGraph.images[0].url,'https://rmtlaunch.fun'+path);
  assert.deepEqual(meta.twitter.images,meta.openGraph.images);assert.equal(meta.twitter.card,'summary_large_image');
+});
+
+test('project follows are private, idempotent, account-bound and separate from saved projects',async t=>{
+ const db=database(t),ctx={params:Promise.resolve({projectId:'vamps'})},path='/api/following/vamps';
+ const change=(fn,user,extra={})=>fn(request(path,{method:fn===api.follow?'PUT':'DELETE',user,body:{},...extra}),ctx);
+ const count=async()=> (await api.count(request(path,{user:null}),ctx)).json();
+ assert.deepEqual(await count(),{count:0});
+ assert.equal((await change(api.follow,null)).status,401);
+ assert.equal((await change(api.follow,'member',{account:'other'})).status,409);
+ assert.equal((await change(api.follow,'member',{body:{userId:'other'}})).status,400);
+ const foreign=request(path,{method:'PUT',user:'member',body:{}});foreign.headers.set('origin','https://elsewhere.example');
+ assert.equal((await api.follow(foreign,ctx)).status,403);
+ const both=await Promise.all([change(api.follow,'member'),change(api.follow,'member')]);
+ assert.deepEqual(both.map(r=>r.status),[200,200]);assert.deepEqual(await count(),{count:1});
+ assert.deepEqual(await (await api.follows(request('/api/following',{user:'other'}))).json(),{projectIds:[]});
+ assert.deepEqual(await (await api.follows(request('/api/following',{user:'member'}))).json(),{projectIds:['vamps']});
+ assert.equal(db.raw.prepare('SELECT count(*) n FROM saved_projects').get().n,0);
+ const admin=await api.controlAnalytics(db,7);assert.equal(admin.currentFollows,1);assert.equal(admin.followingMembers,1);
+ assert.equal((await api.analyticsGET(request('/api/control/analytics',{user:'member'}))).status,403);
+ db.raw.prepare("UPDATE control_members SET status='suspended' WHERE user_id='member'").run();
+ assert.deepEqual(await count(),{count:0});assert.equal((await change(api.follow,'member')).status,403);
+ db.raw.prepare("UPDATE control_members SET status='active' WHERE user_id='member'").run();
+ assert.equal((await change(api.unfollow,'other')).status,200);assert.deepEqual(await count(),{count:1});
+ assert.equal((await change(api.unfollow,'member')).status,200);assert.equal((await change(api.unfollow,'member')).status,200);
+ assert.deepEqual(await count(),{count:0});
+ assert.equal((await api.count(request(path,{user:null}),{params:Promise.resolve({projectId:'missing-project'})})).status,404);
 });

@@ -11,6 +11,8 @@ import { type Project } from '@/lib/catalog';
 import { normalizeProjectQuery, searchProjects } from '@/lib/project-search';
 import { discoverProjects, recentProjects, type DirectorySort } from '@/lib/project-discovery';
 import { projectPath, projectShareUrl, projectSocialImagePath, projectXIntentUrl } from '@/lib/project-sharing';
+import {ProjectFollow,FollowingLibrary} from './Following';
+import './following.css';
 import ProjectSpotlights from './ProjectSpotlights';
 import {orderedSpotlights} from '@/lib/spotlight';
 import thumbnails from '@/lib/project-thumbnails.json';
@@ -468,6 +470,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
   useEffect(()=>{if(sessionStatus==='ready'&&!session.isAdmin&&!maintenance)recordSiteMetric('visit');},[sessionStatus,session.isAdmin,maintenance]);
   useEffect(()=>{if(selected&&sessionStatus==='ready'&&!session.isAdmin&&!maintenance)recordSiteMetric('project_view',selected.id);},[selected?.id,sessionStatus,session.isAdmin,maintenance]);
   useEffect(()=>{if(maintenance){setSelected(null);setClaimProject(null);}},[maintenance,selected,claimProject]);
+  const followAccount=sessionStatus==='ready'&&session.authenticated&&session.emailVerified!==false&&!session.suspended?session.userId:null;
   const savedProjects = saved.map(id => projects.find(project => project.id === id)).filter(Boolean) as Project[];
   const unavailableSaved = saved.filter(id => !projects.some(project => project.id === id));
   const returnTo = selected ? projectPath(selected) + (showcaseTab === 'updates' ? '#updates' : '') : section === 'member' && memberHandle ? '/u/' + encodeURIComponent(memberHandle) : '/#' + (claimProject ? 'claim/' + encodeURIComponent(claimProject.id) : section);
@@ -558,6 +561,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
               {savedProjects.length > 0 && <div className="library-launches">{savedProjects.slice(0, 4).map(project => <div className="library-launch-entry" key={project.id}><button type="button" className="library-launch" onClick={() => openProject(project)} aria-label={'Explore ' + project.name} aria-haspopup="dialog"><div className="library-launch-art"><Cover project={project} /></div><div><strong>{project.name}</strong><small>View project · {domain(project.launchUrl)}</small></div><ArrowUpRight size={19} /></button><div className="library-launch-actions"><a className="library-direct-launch" href={project.launchUrl} target="_top" rel="noopener noreferrer" aria-label={'Launch ' + project.name + ' in this tab'}>{project.launchLabel} <ArrowUpRight size={13} /></a><LinkOptions href={project.launchUrl} label={project.name} onOpen={setDestination} /></div></div>)}</div>}
               {!session.authenticated && sessionStatus === 'ready' && <div className="library-account-prompt"><p>A new phone shouldn’t mean starting over. Sign in to save your library with your account.</p><a className="text-link" href={signInHref('/#library')} target="_top">Take it with you <ArrowRight size={14} /></a></div>}
             </section>}
+            {!hasSearch && followAccount && <FollowingLibrary key={followAccount} account={followAccount} projects={projects} onOpen={openProject}/>}
             {!hasSearch && library.pendingImportCount > 0 && <section className="library-import" aria-label="Bring device favorites into your account"><div><h3>{library.pendingImportCount} {library.pendingImportCount === 1 ? 'favorite is' : 'favorites are'} waiting on this device.</h3><p>Choose to add these browser favorites to this account. Your existing account library stays in place.</p></div><div className="library-import-actions"><button className="button button-lime" disabled={library.busy} onClick={() => void importDeviceLibrary()}>{library.busy ? <LoaderCircle size={14} className="rmt-spin" /> : <Cloud size={14} />} Add to my account</button><button disabled={library.busy} onClick={library.dismissImport}>Later</button></div></section>}
             {library.status === 'loading' && <div className="library-load-state" role="status"><LoaderCircle className="rmt-spin" size={18} /><div><strong>Opening your library…</strong><p>Checking where your favorites are saved.</p></div></div>}
             {library.status === 'error' && <div className="library-load-state library-load-error" role="alert"><AlertCircle size={18} /><div><strong>Your library needs a reconnect.</strong><p>{library.error}</p></div><button className="button button-outline" onClick={() => void refreshSession()}><RefreshCw size={14} /> Try again</button></div>}
@@ -612,6 +616,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialPro
             <button className="button button-outline showcase-share" onClick={() => void shareProject(selected)}><Share2 size={16} /><span>Share</span></button>
           </div>
 
+          <ProjectFollow key={JSON.stringify([selected.id,followAccount])} id={selected.id} account={followAccount} canSignIn={sessionStatus==='ready'&&!session.authenticated} signIn={signInHref(projectPath(selected))}/>
           <div className="showcase-columns">
             <div className="showcase-main">
               <div className="showcase-tabs" role="tablist" aria-label="Project sections" onKeyDown={event => {

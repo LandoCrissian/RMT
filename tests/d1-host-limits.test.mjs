@@ -62,7 +62,8 @@ test('D1 compatibility gate enforces the production compound SELECT and LIKE lim
  const db=database(t);
  assert.throws(()=>db.rows('SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6'),/too many terms in compound SELECT/);
  assert.throws(()=>db.rows('SELECT ? LIKE ? AS matched',['sample','x'.repeat(51)]),/LIKE or GLOB pattern too complex/);
- assert.equal(db.rows("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")[0].n,27);
+ assert.equal(db.rows("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")[0].n,28);
+ assert.equal(db.rows('SELECT COUNT(*) AS n FROM project_follows')[0].n,0);
 });
 test('sequential D1 backfill preserves old records and canonical earliest history without inventing sign-ins',t=>{
  const db=database(t,true);
@@ -89,7 +90,7 @@ test('real account-link preflight and atomic insert run within D1 limits and ret
  assert.equal(db.rows('SELECT legacy_user_id FROM account_links')[0].legacy_user_id,'fixture-owner');
 });
 test('member and history searches accept long Unicode and literal wildcard characters under D1 limits',async t=>{
- const db=database(t),query='長'.repeat(20)+'%_needle';assert.ok(Buffer.byteLength(query)>50);
+ const db=database(t),query='é•·'.repeat(20)+'%_needle';assert.ok(Buffer.byteLength(query)>50);
  await api.observeMember(db,{userId:'search-member',email:'member@example.test',displayName:query,emailVerified:true,provider:'legacy'});
  assert.equal((await api.controlMembers(db,new URLSearchParams({q:query}),'fixture-owner')).items.length,1);
  assert.equal((await api.controlMembers(db,new URLSearchParams({q:'%_missing'}),'fixture-owner')).items.length,0);
