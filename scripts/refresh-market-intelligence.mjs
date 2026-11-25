@@ -5,9 +5,9 @@ const identity=await fetch(identityUrl,{headers:{authorization:'Bearer '+process
 if(!identity.ok)throw Error('Cannot obtain workflow identity (HTTP '+identity.status+').');
 const token=(await identity.json()).value;
 const shadow=process.argv.includes('--chain-shadow');
-async function request(chain){
+async function request(chain,operation){
   const response=await fetch(endpoint,{method:'POST',redirect:'error',headers:{authorization:'Bearer '+token,
-    ...(chain?{'x-rmt-market-operation':'chain-shadow'}:{})},signal:AbortSignal.timeout(chain?85_000:180_000)});
+    ...(operation?{'x-rmt-market-operation':operation}:chain?{'x-rmt-market-operation':'chain-shadow'}:{})},signal:AbortSignal.timeout(operation?45_000:chain?85_000:180_000)});
   if(!response.ok)throw Error('Market collector failed (HTTP '+response.status+').');
   return response.json();
 }
@@ -21,6 +21,13 @@ if(shadow){
   if(!['observed','recent'].includes(result.status))throw Error('Chain shadow indexing unavailable.');
   process.exit(0);
 }
+try{
+  // Do not compete with OpenSea sales for burst capacity or retry a rate-limited API.
+  if(!result.failures?.['http-429']&&!result.failures?.['rate-limit-hold']){
+    const floors=await request(false,'directory-floors');
+    console.log('Directory floors',JSON.stringify({status:floors.status,covered:floors.covered,tracked:floors.tracked,eligible:floors.eligible,failures:floors.failures}));
+  }
+}catch{console.log('Directory floor prices temporarily unavailable.');}
 // Report only allowlisted rotation metadata, never credentials or raw provider responses.
 const r=result.rotation;
 const rotation=['current','rotated','deferred','failed'].includes(r?.status)?{status:r.status,
