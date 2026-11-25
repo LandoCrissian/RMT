@@ -8,6 +8,8 @@ import {build} from 'esbuild';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const environment={};globalThis.__RMT_SETTINGS_ENV__=environment;
 const bundle=await build({stdin:{contents:`
+ export * from './lib/homepage-art'; export {POST as artPOST} from './app/api/control/homepage-art/route';
+ export {GET as artGET,HEAD as artHEAD} from './app/media/homepage-art/[file]/route';
  export * from './lib/control-settings'; export * from './lib/server/control-settings';
  export * from './lib/server/control-analytics'; export * from './lib/server/site-availability';
  export {GET as settingsGET,PATCH as settingsPATCH} from './app/api/control/settings/route';
@@ -107,4 +109,37 @@ test('browser privacy preferences suppress measurements and analytics remains ad
 test('review scope catches account switching while retaining compatibility with already-open review tabs',()=>{
  api.reviewAccountScope(new Request('https://rmt.dev'),'owner');
  assert.throws(()=>api.reviewAccountScope(new Request('https://rmt.dev',{headers:{'x-rmt-account':'other'}}),'owner'),error=>error.status===409);
+});
+
+test('homepage artwork uses validated content-addressed uploads, authenticated selection and immutable public bytes',async t=>{
+ const db=database(t),objects=new Map();
+ environment.BUCKET={
+   async put(k,b){objects.set(k,b);},
+   async head(k){return objects.has(k)?{size:objects.get(k).byteLength,httpEtag:'"test"'}:null;},
+   async get(k){const meta=await this.head(k);return meta?{...meta,body:objects.get(k)}:null;},
+ };
+ const sharp=(await import('sharp')).default;
+ const pixels=await sharp({create:{width:1200,height:630,channels:3,background:'#080808'}}).png().toBuffer();
+ const upload=(body,owner)=>api.artPOST(new Request('https://rmt.dev/api/control/homepage-art',{method:'POST',headers:{
+  origin:'https://rmt.dev','content-type':'image/png',...(owner?{'oai-authenticated-user-id':'owner','oai-authenticated-user-email':'private@rmt.dev','x-rmt-account':'owner'}:{})
+ },body}));
+ assert.equal((await upload(pixels,false)).status,401);
+ assert.equal((await upload(await sharp(pixels).resize(1000,500).png().toBuffer(),true)).status,400);
+ const uploaded=await upload(pixels,true);assert.equal(uploaded.status,201);
+ const {path}=await uploaded.json(),file=path.split('/').pop();assert.match(file,/^[a-f0-9]{64}\.png$/);
+ const ctx={params:Promise.resolve({file})};
+ const response=await api.artGET(new Request('https://rmt.dev'+path),ctx);
+ const bytes=Buffer.from(await response.arrayBuffer());
+ assert.equal(file,(await import('node:crypto')).createHash('sha256').update(bytes).digest('hex')+'.png');
+ assert.equal(response.headers.get('content-type'),'image/png');assert.match(response.headers.get('cache-control'),/immutable/);
+ assert.equal((await api.artHEAD(new Request('https://rmt.dev'+path),ctx)).body,null);
+ assert.equal((await api.siteSettings(db)).homepageArtwork,api.flagship);
+ assert.throws(()=>api.homepageArtwork('https://outside.example/card.png'));
+ await assert.rejects(api.changeSiteSettings(db,actor,input({homepageArtwork:api.artworkPrefix+'f'.repeat(64)+'.png'})));
+ await api.changeSiteSettings(db,actor,input({homepageArtwork:path}));
+ const saved=await api.changeSiteSettings(db,actor,input({expectedRevision:1}));
+ assert.equal(saved.homepageArtwork,path,'legacy settings clients preserve the selected image');
+ const meta=api.homepageMetadata(saved.homepageArtwork);
+ assert.equal(meta.openGraph.images[0].url,'https://rmtlaunch.fun'+path);
+ assert.deepEqual(meta.twitter.images,meta.openGraph.images);assert.equal(meta.twitter.card,'summary_large_image');
 });

@@ -5,6 +5,11 @@ import {siteSettings} from '@/lib/server/control-settings';
 import {publicSiteSettings} from '@/lib/control-settings';
 
 export const dynamic='force-dynamic';
+import {flagship,homepageMetadata} from '@/lib/homepage-art';
+export async function generateMetadata(){
+  try{return homepageMetadata((await siteSettings(database())).homepageArtwork);}
+  catch{return homepageMetadata(flagship);}
+}
 export default async function Home() {
   try{
     const db=database(),settings=await siteSettings(db);

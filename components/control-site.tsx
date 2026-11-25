@@ -4,6 +4,8 @@ import {ArrowDownToLine,ArrowUpRight,BarChart3,CheckCircle2,ChevronRight,Databas
 import {analyticsResponse,csvExportResponse,exportResponse,healthResponse,safeControlLink,settingsResponse,type ControlSettings} from '@/lib/client/control';
 import {useControlMutation,useControlResource,type ControlApi} from '@/lib/client/use-control';
 import {ConfirmDialog,Empty,ErrorPanel,Field,Loading,PanelHeading,RefreshButton,SaveNotice,StatCard,controlDate,numberLabel} from './control-primitives';
+import {classic,flagship,homepageArtwork} from '@/lib/homepage-art';
+import {prepareArtworkUpload} from '@/lib/client/project-artwork';
 import NotificationSettings from './NotificationSettings';
 import type {StudioSession} from './studio-shared';
 
@@ -11,14 +13,32 @@ export function ControlAppearance({api,onToast,onDirty}:{api:ControlApi;onToast:
   const result=useControlResource(api,'/api/control/settings',settingsResponse,'settings'),mutation=useControlMutation(api,'settings');
   const [form,setForm]=useState<ControlSettings|null>(null),[confirm,setConfirm]=useState(false),[reloadConfirm,setReloadConfirm]=useState(false);
   useEffect(()=>{if(result.data&&!form)setForm(structuredClone(result.data));},[result.data,form]);
+  const [uploading,setUploading]=useState(false),[uploadError,setUploadError]=useState('');
+  async function upload(file:File){
+    setUploading(true);setUploadError('');
+    try{
+      const png=await prepareArtworkUpload(file,'banner');
+      const path=await api.request('/api/control/homepage-art',value=>homepageArtwork((value as {path:string}).path),'POST',undefined,{rawBody:png});
+      setForm(current=>current?{...current,homepageArtwork:path}:current);
+    }catch(error){setUploadError(error instanceof Error?error.message:'Upload failed. Try again.');}
+    finally{setUploading(false);}
+  }
   const dirty=Boolean(form&&result.data&&JSON.stringify(form)!==JSON.stringify(result.data));
   useEffect(()=>{onDirty(dirty);},[dirty]);useEffect(()=>()=>onDirty(false),[]);
   async function reload(){const next=await result.reload();if(next){setForm(structuredClone(next));mutation.clear();setConfirm(false);setReloadConfirm(false);onDirty(false);}}
   async function save(reason:string){if(!form)return;const {revision,updatedAt,...settings}=form;void updatedAt;const next=await mutation.run('/api/control/settings','PATCH',{...settings,expectedRevision:revision,reason},settingsResponse);if(next){setForm(structuredClone(next));setConfirm(false);onToast('Site settings saved.');onDirty(false);await result.reload();}}
   if(result.error&&!form)return <ErrorPanel message={result.error} onRetry={()=>void reload()}/>;
   if(!form)return <Loading label="Loading site settings…"/>;
-  const locked=mutation.busy||mutation.needsRefresh;
+  const locked=uploading||mutation.busy||mutation.needsRefresh;
   return <div className="cc-section"><PanelHeading eyebrow="APPEARANCE & AVAILABILITY" title="Set the tone. Keep things moving." description="Preview the public notice and choose which community submissions are open." actions={<RefreshButton busy={result.loading||mutation.busy} onClick={()=>dirty?setReloadConfirm(true):void reload()}/>}/><div className="cc-settings-layout"><form className="cc-settings-form" onSubmit={event=>{event.preventDefault();setConfirm(true);}}>
+    <section className="cc-panel"><div className="cc-panel-title"><Image size={20}/><div><h3>Homepage share artwork</h3><p>Shown when someone shares rmtlaunch.fun.</p></div></div>
+      <img src={form.homepageArtwork} alt="Homepage share preview" width="1200" height="630" style={{display:'block',width:'100%',height:'auto'}}/>
+      <Field label="Artwork"><select value={form.homepageArtwork} disabled={locked} onChange={event=>setForm({...form,homepageArtwork:event.target.value})}>
+        <option value={flagship}>Electric lime flagship</option><option value={classic}>Original RMT</option>
+        {![classic,flagship].includes(form.homepageArtwork)&&<option value={form.homepageArtwork}>Uploaded artwork</option>}</select></Field>
+      <Field label="Upload public artwork"><input type="file" accept="image/png,image/jpeg,image/webp" disabled={locked} onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void upload(file);}}/></Field>
+      <p>Use a 1200 × 630 PNG, JPEG or WebP under 2 MiB. Uploads get a public link. Save settings to use the image on the homepage.</p>
+      {uploading&&<p role="status">Uploading artwork…</p>}{uploadError&&<p role="alert">{uploadError}</p>}</section>
     <section className="cc-panel"><div className="cc-panel-title"><MessageSquare size={20}/><div><h3>A message for the community.</h3><p>A short notice shown across the public site.</p></div></div><label className="cc-switch-row"><span><strong>Show site notice</strong><small>Useful for launches, community news, or service updates.</small></span><input type="checkbox" role="switch" checked={form.notice.enabled} disabled={locked} onChange={event=>setForm({...form,notice:{...form.notice,enabled:event.target.checked}})}/></label><Field label="Notice text"><textarea rows={3} value={form.notice.text} maxLength={240} disabled={locked} onChange={event=>setForm({...form,notice:{...form.notice,text:event.target.value}})} placeholder="What should visitors know?"/></Field><div className="cc-fields-two"><Field label="Optional link label"><input value={form.notice.linkLabel} maxLength={40} disabled={locked} onChange={event=>setForm({...form,notice:{...form.notice,linkLabel:event.target.value}})} placeholder="Learn more"/></Field><Field label="Optional HTTPS destination"><input type="url" value={form.notice.linkUrl} maxLength={2048} autoCapitalize="none" autoCorrect="off" disabled={locked} onChange={event=>setForm({...form,notice:{...form.notice,linkUrl:event.target.value}})} placeholder="https://"/></Field></div></section>
     <section className="cc-panel"><div className="cc-panel-title"><Radio size={20}/><div><h3>Keep the doors open.</h3><p>Pause a specific intake when you need time to catch up.</p></div></div>{([{key:'submissionsOpen',title:'New project applications',description:'Let builders submit a new project for review.'},{key:'claimsOpen',title:'Ownership claims',description:'Let builders begin and submit project claims.'},{key:'updatesOpen',title:'Project updates',description:'Let confirmed builders submit announcements and releases.'}] as const).map(item=><label className="cc-switch-row" key={item.key}><span><strong>{item.title}</strong><small>{item.description}</small></span><input type="checkbox" role="switch" checked={form[item.key]} disabled={locked} onChange={event=>setForm({...form,[item.key]:event.target.checked})}/></label>)}</section>
     <section className="cc-panel cc-maintenance-panel"><div className="cc-panel-title"><Pause size={20}/><div><h3>Maintenance mode.</h3><p>Pause the public experience while keeping sign-in and administration available.</p></div></div><label className="cc-switch-row"><span><strong>Enable maintenance</strong><small>Visitors will see the maintenance message instead of the normal public experience.</small></span><input type="checkbox" role="switch" checked={form.maintenance.enabled} disabled={locked} onChange={event=>setForm({...form,maintenance:{...form.maintenance,enabled:event.target.checked}})}/></label><Field label="Message for visitors"><textarea rows={3} value={form.maintenance.message} minLength={5} maxLength={240} required disabled={locked} onChange={event=>setForm({...form,maintenance:{...form.maintenance,message:event.target.value}})} placeholder="RMT will be back shortly. Thanks for your patience."/></Field></section>
