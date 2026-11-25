@@ -1,63 +1,93 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
-import { ArrowRight, BookOpen } from 'lucide-react';
+import {useEffect,useLayoutEffect,useId,useRef,useState,type ReactNode} from 'react';
+import {ArrowLeft,ArrowRight,BookOpen,X} from 'lucide-react';
 
-type Props = {
-  items: { title: string; body: string }[];
-  onOpen?: () => void;
-  onOutcome: (result: 'completed' | 'skipped') => void;
+type Progress={index:number;status:'reading'|'dismissed'|'skipped'|'completed'};
+const beginning:Progress={index:0,status:'reading'};
+
+function readProgress(key:string):Progress{
+  try{
+    const saved=JSON.parse(localStorage.getItem(key)??'null');
+    if(saved&&Number.isSafeInteger(saved.index)&&saved.index>=0&&
+      ['reading','dismissed','skipped','completed'].includes(saved.status))return saved;
+  }catch{/* Browsing works with storage disabled. */}
+  return beginning;
+}
+
+type Props={
+  account:string|null;items:{title:string;body:string}[];error:string;
+  onOpen:()=>void;onOutcome:(result:'completed'|'skipped')=>void;
+  completion?:ReactNode;
 };
-
-export default function DiscoveryGuide({ items, onOpen, onOutcome }: Props) {
-  const [step, setStep] = useState<number | null>(null);
-  const guideId = useId();
-  const start = useRef<HTMLButtonElement>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
-
-  const index = Math.min(step ?? 0, items.length - 1);
-  const lesson = items[index];
-
-  useEffect(() => {
-    if (step !== null && lesson) heading.current?.focus({ preventScroll: true });
-  }, [step, lesson]);
-
-  function open(next: number) {
-    setStep(next);
-
+export default function DiscoveryGuide({account,items,error,onOpen,onOutcome,completion}:Props){
+  const key='rmt.guide.v1.'+(account?'member.'+account:'guest');
+  const [progress,setProgress]=useState<Progress>(beginning);
+  const [opened,setOpened]=useState(false),[finished,setFinished]=useState(false);
+  const trigger=useRef<HTMLButtonElement>(null),dialog=useRef<HTMLDialogElement>(null);
+  const heading=useRef<HTMLHeadingElement>(null),position=useRef({x:0,y:0});
+  const titleId=useId(),dialogId=useId();
+  const index=Math.min(progress.index,Math.max(0,items.length-1)),lesson=items[index];
+  useEffect(()=>{setProgress(readProgress(key));},[key]);
+  function remember(next:Progress){
+    setProgress(next);
+    try{localStorage.setItem(key,JSON.stringify(next));}catch{/* Keep in-memory progress. */}
   }
-
-  function close(outcome: 'completed' | 'skipped') {
-    setStep(null);
-    requestAnimationFrame(() => start.current?.focus({ preventScroll: true }));
-    onOutcome(outcome);
+  function open(){
+    position.current={x:window.scrollX,y:window.scrollY};
+    if(progress.status==='completed')remember(beginning);
+    setFinished(false);setOpened(true);onOpen();
   }
-
-  return (
-    <section aria-label="Beginner guide" className="discovery-guide">
-      {step === null ? (
-        <button type="button" className="button button-outline" aria-expanded={false}
-          ref={start} onClick={() => { onOpen?.(); open(0); }}>
-          <BookOpen size={16} aria-hidden="true" /> Beginner guide
-        </button>
-      ) : !lesson ? (
-        <div><p role="status">Loading guide&hellip;</p><button type="button" className="text-link" onClick={() => close('skipped')}>Skip guide</button></div>
-      ) : (
-        <article aria-labelledby={guideId}>
-          <p>Beginner guide &middot; {index + 1} of {items.length}</p>
-          <h3 id={guideId} tabIndex={-1} ref={heading}>{lesson.title}</h3>
-          <p>{lesson.body}</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '.65rem' }}>
-            {index > 0 && <button type="button" className="button button-outline"
-              onClick={() => open(index - 1)}>Back</button>}
-            <button type="button" className="button button-lime"
-              onClick={() => index + 1 === items.length ? close('completed') : open(index + 1)}>
-              {index + 1 === items.length ? 'Finish guide' : 'Next'} <ArrowRight size={15} aria-hidden="true" />
-            </button>
-            <button type="button" className="text-link" onClick={() => close('skipped')}>Skip guide</button>
-          </div>
-        </article>
-      )}
-    </section>
-  );
+  useLayoutEffect(()=>{
+    if(!opened)return;
+    const panel=dialog.current!,root=document.documentElement,body=document.body;
+    const previousRoot=root.style.overflow,previousBody=body.style.overflow;
+    const {x,y}=position.current;
+    panel.showModal();
+    root.style.overflow='hidden';body.style.overflow='hidden';
+    return ()=>{
+      panel.close();root.style.overflow=previousRoot;body.style.overflow=previousBody;
+      trigger.current?.focus({preventScroll:true});
+      window.scrollTo({left:x,top:y,behavior:'instant'});
+    };
+  },[opened]);
+  useEffect(()=>{
+    if(opened){heading.current?.focus({preventScroll:true});dialog.current?.querySelector('.guide-content')?.scrollTo(0,0);}
+  },[opened,index,lesson?.title,finished]);
+  function close(){
+    if(!finished)remember({index:lesson?index:progress.index,status:'dismissed'});
+    setOpened(false);
+  }
+  function skip(){
+    remember({index:lesson?index:progress.index,status:'skipped'});onOutcome('skipped');setOpened(false);
+  }
+  function next(){
+    if(index+1<items.length){remember({index:index+1,status:'reading'});return;}
+    remember({index,status:'completed'});onOutcome('completed');
+    if(completion)setFinished(true);else setOpened(false);
+  }
+  return <section className="discovery-guide" aria-label="Beginner guide">
+    <button className="guide-entry-button" type="button" ref={trigger} onClick={open}
+      aria-haspopup="dialog" aria-controls={dialogId} aria-expanded={opened}>
+      <BookOpen size={18} aria-hidden="true"/><span>Beginner guide</span>
+      {progress.status==='completed'?<span className="sr-only">Review completed guide</span>:progress.index>0?<span className="sr-only">Resume lesson {progress.index+1}</span>:null}
+      <ArrowRight size={15} aria-hidden="true"/>
+    </button>
+    {opened&&<dialog className="guide-dialog" id={dialogId} ref={dialog} aria-labelledby={titleId}
+      onCancel={event=>{event.preventDefault();close();}}>
+      <div className="guide-shell"><header><span><BookOpen size={18}/> Beginner guide</span>
+        <button type="button" aria-label="Close beginner guide" onClick={close}><X size={20}/>Close</button></header>
+      <div className="guide-content">
+        {finished?<><h2 id={titleId} ref={heading} tabIndex={-1}>Guide complete</h2>{completion}</>:
+        error?<><h2 id={titleId} ref={heading} tabIndex={-1}>Guide unavailable</h2><p role="alert">{error}</p><button className="button button-outline" onClick={onOpen}>Retry</button></>:
+        lesson?<><p className="guide-progress">Lesson {index+1} of {items.length}</p><progress aria-label="Lesson progress" value={index+1} max={items.length}/>
+        <h2 id={titleId} tabIndex={-1} ref={heading}>{lesson.title}</h2><p>{lesson.body}</p></>:
+        <h2 id={titleId} ref={heading} tabIndex={-1} role="status">Loading guide…</h2>}
+      </div>
+      {!finished&&<footer><button className="text-link" type="button" onClick={skip}>Skip guide</button>
+        {lesson&&!error&&<><button className="button button-outline" type="button" disabled={index===0} onClick={()=>remember({index:index-1,status:'reading'})}><ArrowLeft size={15}/> Back</button>
+        <button className="button button-lime" type="button" onClick={next}>{index+1===items.length?'Finish guide':'Next'} <ArrowRight size={15}/></button></>}</footer>}
+      </div>
+    </dialog>}
+  </section>;
 }

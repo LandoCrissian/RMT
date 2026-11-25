@@ -11,7 +11,6 @@ export default function DiscoveryEntry({account,onActivity}:{account:string|null
   const [page,setPage]=useState<DiscoveryPage|null>(null);
   const [saving,setSaving]=useState(false);
   const pending=useRef(false);
-  const [guideComplete,setGuideComplete]=useState(false);
   const [error,setError]=useState('');
   const [message,setMessage]=useState('');
   const active=useRef<AbortController|null>(null);
@@ -22,14 +21,13 @@ export default function DiscoveryEntry({account,onActivity}:{account:string|null
     setError('');setMessage('');
     try {
       const page=await readDiscovery(new URLSearchParams({view:'guide'}),account,controller.signal);
-      if(!controller.signal.aborted)setPage(page);
+      if(!controller.signal.aborted){setPage(page);if(!page.lessons.length)setError('There are no published lessons yet.');}
     } catch {
       if(!controller.signal.aborted)setError('The guide could not load.');
     }
   }
   async function finish(outcome:'skipped'|'completed') {
     active.current?.abort();setError('');setMessage('');
-    setGuideComplete(outcome==='completed');
     if(!account)return;
     try{await saveDiscovery(account,{action:'onboarding',outcome});}
     catch{setMessage('Your guide progress could not be saved. You can reopen it at any time.');}
@@ -46,9 +44,8 @@ export default function DiscoveryEntry({account,onActivity}:{account:string|null
   }
   return <aside className="discovery-entry" aria-label="Explore RMT">
     <div className="discovery-entry-actions"><button type="button" onClick={onActivity}><Radio size={17}/> Project updates <ArrowRight size={15}/></button></div>
-    <DiscoveryGuide items={page?.lessons??[]} onOpen={()=>void openGuide()} onOutcome={outcome=>void finish(outcome)}/>
-    {guideComplete&&page?.member&&account&&<InterestPicker page={page} busy={saving} onSave={saveInterests}/>}
-    {error&&<p role="alert">{error} <button type="button" className="text-link" onClick={()=>void openGuide()}>Retry</button></p>}
+    <DiscoveryGuide account={account} items={page?.lessons??[]} error={error} onOpen={()=>void openGuide()} onOutcome={outcome=>void finish(outcome)}
+      completion={page?.member&&account?<InterestPicker page={page} busy={saving} onSave={saveInterests}/>:null}/>
     {message&&<p role="status">{message}</p>}
   </aside>;
 }
