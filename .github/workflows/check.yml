@@ -18,3 +18,30 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Verify guide reloads against the live isolated Worker
+        env:
+          RMT_TEST_ORIGIN: http://127.0.0.1:5178
+        run: |
+          set -euo pipefail
+          npm install --prefix "$RUNNER_TEMP/rmt-browser" --no-audit --no-fund playwright@1.65.1
+          "$RUNNER_TEMP/rmt-browser/node_modules/.bin/playwright" install --with-deps chromium webkit
+          export PLAYWRIGHT_MODULE="$RUNNER_TEMP/rmt-browser/node_modules/playwright/index.mjs"
+          state="$RUNNER_TEMP/rmt-guide-d1"
+          node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to "$state" --ip 127.0.0.1 --port 5178 --inspector-port 0 >"$RUNNER_TEMP/rmt-guide.log" 2>&1 &
+          worker=$!
+          trap 'kill "$worker" 2>/dev/null || true' EXIT
+          for attempt in {1..60}; do
+            if curl -s --max-time 2 "$RMT_TEST_ORIGIN/api/catalog" -o /dev/null; then break; fi
+            sleep 1
+          done
+          python3 - "$state" <<'PY'
+          import pathlib, sqlite3, sys
+          root = pathlib.Path(sys.argv[1])
+          databases = [p for p in root.rglob('*.sqlite') if p.parent.name == 'miniflare-D1DatabaseObject' and p.name != 'metadata.sqlite']
+          assert len(databases) == 1, 'Expected one isolated D1 database'
+          with sqlite3.connect(databases[0]) as db:
+              for migration in sorted(pathlib.Path('drizzle').glob('*.sql')):
+                  db.executescript(migration.read_text(encoding='utf-8-sig'))
+          PY
+          curl --fail --silent "$RMT_TEST_ORIGIN/api/catalog" -o /dev/null
+          node tests/browser/beginner-guide.mjs
