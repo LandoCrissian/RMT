@@ -23,13 +23,13 @@ async function makeWorker(t) {
   return {db:await worker.getD1Database('DB'),bucket:await worker.getR2Bucket('BUCKET')};
 }
 
-test('actual 18 migrations, lossless SQLite values and matching R2 artwork survive an encrypted restore',async t=>{
+test('actual 19 migrations, lossless SQLite values and matching R2 artwork survive an encrypted restore',async t=>{
   const start=performance.now();
   const {db,bucket}=await makeWorker(t);
   const dir=mkdtempSync(join(tmpdir(),'rmt-recovery-fixture-'));
   t.after(()=>rmSync(dir,{recursive:true,force:true}));
   const migrations=readdirSync('drizzle').filter(name=>name.endsWith('.sql')).sort();
-  assert.equal(migrations.length,18);
+  assert.equal(migrations.length,19);
   await db.prepare('CREATE TABLE d1_migrations(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL UNIQUE)').run();
   for(const migration of migrations) {
     const statements=readFileSync(join('drizzle',migration),'utf8').split('--> statement-breakpoint').map(s=>s.trim()).filter(Boolean);
@@ -64,8 +64,8 @@ test('actual 18 migrations, lossless SQLite values and matching R2 artwork survi
   const key=readFileSync(join(dir,'key.pem'));
   const restored=join(dir,'restored');
   const receipt=restoreRecovery(key,dbPath,artPath,restored);
-  assert.equal(receipt.database.applicationTables,47);
-  assert.deepEqual(receipt.database.ledgers,{d1_migrations:18});
+  assert.equal(receipt.database.applicationTables,51);
+  assert.deepEqual(receipt.database.ledgers,{d1_migrations:19});
   assert.equal(receipt.database.sequences,true);
   assert.equal(receipt.artwork.objects,1);
   assert.equal(receipt.verifiedArtworkReferences,1);
@@ -78,6 +78,7 @@ test('actual 18 migrations, lossless SQLite values and matching R2 artwork survi
     assert.equal(restoredDb.prepare('SELECT hex(CAST(bio AS BLOB)) AS value FROM profiles').get().value,'4100FF');
     assert.equal(restoredDb.prepare('SELECT CAST(start_ms AS TEXT) AS n FROM analytics_meta WHERE id=1').get().n,'9223372036854775807');
     assert.equal(restoredDb.prepare('SELECT hex(accepted) AS value FROM analytics_meta WHERE id=2').get().value,'0041FF');
+    assert.equal(restoredDb.prepare('SELECT COUNT(*) AS n FROM lammb_vault_receipts').get().n,5);
     assert.equal(restoredDb.prepare("SELECT seq FROM sqlite_sequence WHERE name='d1_migrations'").get().seq,999);
   }finally{restoredDb.close();}
   const inventory=JSON.parse(readFileSync(join(restored,'artwork','inventory.json')));
@@ -134,6 +135,64 @@ test('D1 stays internally consistent and fails closed after drift beyond budget 
   await assert.rejects(base.captureDatabase(db),/bounded transfer capacity/);
   await db.prepare('CREATE TABLE unrelated_unexpected (id INTEGER)').run();
   await assert.rejects(base.captureDatabase(db),/Unexpected database schema/);
+});
+
+test('known Cloudflare metadata is excluded and a sizing error yields counts without an export go-ahead',async t=>{
+  const {db}=await makeWorker(t);
+  const catalog=new DatabaseSync(':memory:');
+  t.after(()=>catalog.close());
+  const appTables=base.recoveryTables.map(name=>`CREATE TABLE "${name}"(id INTEGER PRIMARY KEY,data TEXT)`);
+  catalog.exec(appTables.join(';')+';CREATE TABLE "_cf_KV"(k TEXT PRIMARY KEY,v BLOB);CREATE TABLE "_cf_METADATA"(k TEXT PRIMARY KEY,v BLOB)');
+  await db.batch(appTables.map(sql=>db.prepare(sql)));
+  await db.prepare("INSERT INTO profiles VALUES (1,'fixture-private-row')").run();
+  const catalogStatements=new WeakSet();
+  const prepare=(sql)=>{
+    if(!/FROM sqlite_(?:schema|master)/.test(sql)) return db.prepare(sql);
+    const stmt={all:async()=>({success:true,results:catalog.prepare(sql).all()})};
+    catalogStatements.add(stmt);
+    return stmt;
+  };
+  const compatible={prepare,async batch(statements){
+    // Simulate extra platform catalog entries only. The real Miniflare transaction
+    // and concurrent-writer behavior are covered by the preceding tests.
+    if(catalogStatements.has(statements[0])) return [await statements[0].all(),...await db.batch(statements.slice(1))];
+    return db.batch(statements);
+  }};
+  const assessed=await base.assessDatabaseTransfer(compatible);
+  assert.equal(assessed.measurement,'wire_size');
+  assert.equal(assessed.fits,true);
+  assert.equal(assessed.tables.length,51);
+  assert.equal(assessed.tables.some(x=>x.name.toLowerCase().startsWith('_cf_')),false);
+  const snapshot=await base.captureDatabase(compatible);
+  assert.equal(snapshot.tables.length,51);
+  assert.equal(snapshot.schema.some(x=>x.name.startsWith('_cf_')),false);
+
+  let calls=0;
+  const limited={prepare,async batch(statements){
+    if(++calls===2) throw new Error('fixture-private-provider-diagnostic');
+    return db.batch(statements);
+  }};
+  const fallback=await base.assessDatabaseTransfer(limited);
+  assert.equal(fallback.measurement,'application_counts_only');
+  assert.equal(fallback.sizingUnavailableAt,'wire_sizing');
+  assert.equal(fallback.fits,null);
+  assert.equal(fallback.wireBytes,null);
+  assert.equal(fallback.tables.find(x=>x.name==='profiles').rows,1);
+  assert.doesNotMatch(JSON.stringify(fallback),/fixture-private/);
+
+  // Unexpected application data remains a hard export failure.
+  catalog.exec('CREATE TABLE unknown_application_data (id INTEGER PRIMARY KEY)');
+  const unknown=await base.assessDatabaseTransfer(compatible);
+  assert.equal(unknown.sizingUnavailableAt,'schema_validation');
+  assert.equal(unknown.fits,null);
+  assert.equal(unknown.unknownApplicationTableCount,1);
+  await assert.rejects(base.captureDatabase(compatible),/Unexpected database schema/);
+  catalog.exec('DROP TABLE wallet_claim_evidence');
+  const missing=await base.assessDatabaseTransfer(compatible);
+  assert.deepEqual(missing.missingApplicationTables,['wallet_claim_evidence']);
+  assert.equal(missing.expectedApplicationTableCount,51);
+  assert.equal(missing.tables.length,50);
+  assert.equal(missing.fits,null);
 });
 
 test('artwork paging archives all listed versions and refuses a mid-capture change',async t=>{

@@ -319,3 +319,41 @@ export const sourceSuggestions=sqliteTable('source_suggestions',{
   sourceUrl:text('source_url').notNull(),evidence:text('evidence').notNull(),status:text('status').notNull().default('pending'),
   revision:integer('revision').notNull().default(1),updatedAt:integer('updated_at').notNull()
 },t=>[index('source_suggestion_queue').on(t.status,t.updatedAt)]);
+
+export const lammbVaultWallets = sqliteTable('lammb_vault_wallets', {
+  browserHash:text('browser_hash').primaryKey().notNull(),
+  challengeId:text('challenge_id').notNull(),
+  origin:text('origin').notNull(),
+  address:text('address').notNull(),
+  issuedAt:integer('issued_at').notNull(),
+  expiresAt:integer('expires_at').notNull(),
+  usedAt:integer('used_at'),
+  sessionHash:text('session_hash'),
+}, table=>[index('lammb_vault_wallets_expiry').on(table.expiresAt)]);
+export const lammbVaultLimits = sqliteTable('lammb_vault_limits', {
+  key:text('key').primaryKey().notNull(),
+  expiresAt:integer('expires_at').notNull(),
+  count:integer('count').notNull(),
+},table=>[index('lammb_vault_limits_expiry').on(table.expiresAt)]);
+export const lammbVaultReceipts = sqliteTable('lammb_vault_receipts', {
+  hash:text('hash').primaryKey().notNull(),
+  tokenId:text('token_id').notNull(),
+  recipient:text('recipient').notNull(),
+  asset:text('asset').notNull(),
+  amount:text('amount').notNull(),
+  block:integer('block_number').notNull(),
+  blockHash:text('block_hash').notNull(),
+  timestamp:integer('block_timestamp').notNull(),
+  createdAt:integer('created_at').notNull(),
+},table=>[
+  index('lammb_vault_receipts_block').on(table.block),
+  check('lammb_vault_receipts_asset',sql`${table.asset} IN ('ETH','WETH','USDG')`),
+  check('lammb_vault_receipts_positive',sql`length(${table.amount}) BETWEEN 1 AND 78 AND ${table.amount} NOT GLOB '*[^0-9]*' AND substr(${table.amount},1,1) BETWEEN '1' AND '9'`),
+]);
+export const lammbVaultTreasury = sqliteTable('lammb_vault_treasury', {
+  id:integer('id').primaryKey().notNull(),
+  address:text('address'),
+  revision:integer('revision').notNull(),
+  updatedAt:integer('updated_at').notNull(),
+  updatedBy:text('updated_by').notNull(),
+},table=>[check('lammb_vault_treasury_singleton',sql`${table.id}=1`)]);

@@ -21,7 +21,7 @@ test('D1 capacity emits exact counts and metadata, with no individual data', asy
     db.prepare("WITH RECURSIVE n(i) AS (VALUES(1) UNION ALL SELECT i+1 FROM n WHERE i<2001) INSERT INTO analytics_events(data) SELECT 'fixture' FROM n"),
   ]);
   const result=await recoveryCapacity(db);
-  assert.equal(result.applicationTableCount,47);
+  assert.equal(result.applicationTableCount,51);
   assert.equal(result.totalRows,2002);
   assert.deepEqual(result.largest,{table:'analytics_events',rowCount:2001});
   assert.deepEqual(result.exceedingRowLimit,[result.largest]);

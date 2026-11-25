@@ -8,6 +8,7 @@ import {
   UserRound, Cloud, LoaderCircle, RefreshCw, AlertCircle, List, ChevronLeft, ChevronDown, Megaphone, Radio,
 } from 'lucide-react';
 import { type Project } from '@/lib/catalog';
+import {VAULT_PATH} from '@/lib/lammb-vault';
 import {legacyPrimary, type TaxonomyCategory} from '@/lib/taxonomy';
 import { normalizeProjectQuery, projectCategoryLabels, searchProjects } from '@/lib/project-search';
 import { listenForCatalogChanges } from '@/lib/client/catalog-changes';
@@ -667,6 +668,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialCat
             <a className="button button-lime showcase-launch" href={selected.launchUrl} target="_top" rel="noopener noreferrer">{selected.presentation?.labels?.[selected.launchUrl] || (selected.launchUrl === selected.officialXProfile ? 'Visit on X' : selected.launchLabel)} <ArrowUpRight size={18} /></a>
             <LinkOptions href={selected.launchUrl} label={selected.name + ' launch destination'} onOpen={setDestination} />
             <button className={'button button-outline detail-save ' + (saved.includes(selected.id) ? 'is-saved' : '')} disabled={!library.canSave} onClick={() => void toggleSave(selected)} aria-pressed={saved.includes(selected.id)}>{saved.includes(selected.id) ? <Check size={16} /> : <Bookmark size={16} />}{saved.includes(selected.id) ? 'In your library' : 'Save project'}</button>
+            {selected.id==='lammbs'&&<a className="button button-outline" href={VAULT_PATH}><ShieldCheck size={16}/> LAMMB Vault</a>}
             <button className="button button-outline showcase-share" onClick={() => void shareProject(selected)}><Share2 size={16} /><span>Share</span></button>
           </div>
 

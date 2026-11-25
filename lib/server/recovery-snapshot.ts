@@ -5,12 +5,11 @@ export const snapshotMaxWireBytes = 8 * 1024 * 1024;
 const snapshotMaxRowBytes = 1024 * 1024;
 const snapshotMaxSchemaBytes = 256 * 1024;
 const allowedTables = new Set<string>([...recoveryTables, 'd1_migrations', '__drizzle_migrations', 'sqlite_sequence']);
-const platformNames = ['_cf_METADATA', 'sqlite_stat1', 'sqlite_stat2', 'sqlite_stat3', 'sqlite_stat4'];
+const platformNames = ['_cf_METADATA', '_cf_KV', 'sqlite_stat1', 'sqlite_stat2', 'sqlite_stat3', 'sqlite_stat4'];
 const ignored = platformNames.map(name => "'" + name + "'").join(',');
-const schemaQuery = `SELECT type, name, tbl_name, sql FROM sqlite_schema WHERE sql IS NOT NULL AND name NOT IN (${ignored}) AND tbl_name NOT IN (${ignored}) ORDER BY type,name`;
+const schemaQuery = `SELECT type, name, tbl_name, sql FROM sqlite_schema WHERE sql IS NOT NULL AND name COLLATE NOCASE NOT IN (${ignored}) AND tbl_name COLLATE NOCASE NOT IN (${ignored}) ORDER BY type,name`;
 const encoder = new TextEncoder();
 const ident = (value:string) => '"' + value.replace(/"/g, '""') + '"';
-const literal = (value:string) => "'" + value.replace(/'/g, "''") + "'";
 
 export type SchemaEntry={type:string;name:string;tbl_name:string;sql:string};
 type SqlColumn={name:string;pk:number;hidden:number};
@@ -19,6 +18,22 @@ export type SnapshotTable={name:string;columns:string[];rowidAlias:string|null;r
 type TablePlan=Omit<SnapshotTable,'rows'>&{query:string;wire:string;source:string};
 type Count={n:number;bytes:number;largest:number};
 type PackedRow=Count&{wire:string|null};
+
+type SizingStage='schema_read'|'schema_validation'|'column_metadata'|'wire_sizing';
+class SizingError extends Error {
+  constructor(readonly stage:SizingStage, cause:unknown) {
+    super(cause instanceof Error?cause.message:'Database sizing failed',{cause});
+  }
+}
+async function sizingStep<T>(stage:SizingStage, run:()=>T|Promise<T>) {
+  try { return await run(); }
+  catch (error) { throw new SizingError(stage,error); }
+}
+
+function batchResults<T>(results:D1Result<T>[],expected:number) {
+  if(results.length!==expected) throw new Error('Incomplete SQLite batch');
+  return results.map(resultsOf);
+}
 
 function schemaFits(schema:SchemaEntry[]) {
   const names = schema.filter(entry=>entry.type==='table').map(entry=>entry.name);
@@ -72,20 +87,25 @@ function resultsOf<T>(result:D1Result<T>|undefined) {
 async function planDatabase(db:D1Database) {
   // Discovery and sizing are not the snapshot. The final batch retains all data and its schema
   // in one transaction and fails closed if schema or any memory budget changes in the gap.
-  const schema = resultsOf(await db.prepare(schemaQuery).all<SchemaEntry>());
-  const names = schemaFits(schema);
-  const [tableInfo,...columnInfo] = await db.batch<SqlTable|SqlColumn>([
-    db.prepare('PRAGMA table_list'), ...names.map(name=>db.prepare(`PRAGMA table_xinfo(${literal(name)})`)),
-  ]);
-  const tableByName = new Map((resultsOf(tableInfo) as SqlTable[]).map(row=>[row.name,row]));
-  const plans = names.map((name,i)=>planTable(name,tableByName.get(name),resultsOf(columnInfo[i]) as SqlColumn[]));
-  const budgets = (await db.batch<Count>(plans.map(plan=>db.prepare(
-    `${plan.query} SELECT n,bytes,largest FROM totals`,
-  )))).map(result=>resultsOf(result)[0]);
-  if (budgets.length!==plans.length || budgets.some(value=>!value ||
-      !Number.isSafeInteger(value.n) || !Number.isSafeInteger(value.bytes) || !Number.isSafeInteger(value.largest))) {
-    throw new Error('Incomplete SQLite sizing');
-  }
+  const schema = await sizingStep('schema_read',async()=>resultsOf(await db.prepare(schemaQuery).all<SchemaEntry>()));
+  const names = await sizingStep('schema_validation',()=>schemaFits(schema));
+  const plans = await sizingStep('column_metadata',async()=>{
+    const outputs = await db.batch<SqlTable|SqlColumn>([
+      db.prepare('PRAGMA table_list'), ...names.map(name=>db.prepare(`PRAGMA table_xinfo(${ident(name)})`)),
+    ]);
+    const [tableInfo,...columnInfo] = batchResults(outputs,names.length+1);
+    const tableByName = new Map((tableInfo as SqlTable[]).map(row=>[row.name,row]));
+    return names.map((name,i)=>planTable(name,tableByName.get(name),columnInfo[i] as SqlColumn[]));
+  });
+  const budgets = await sizingStep('wire_sizing',async()=>{
+    const outputs=await db.batch<Count>(plans.map(plan=>db.prepare(`${plan.query} SELECT n,bytes,largest FROM totals`)));
+    const values=batchResults(outputs,plans.length).map(result=>result[0]);
+    if(values.some(value=>!value || !Number.isSafeInteger(value.n) || value.n<0 ||
+      !Number.isSafeInteger(value.bytes) || value.bytes<0 || !Number.isSafeInteger(value.largest) || value.largest<0)) {
+      throw new Error('Incomplete SQLite sizing');
+    }
+    return values;
+  });
   const wireBytes = budgets.reduce((sum,box)=>sum+box.bytes,0);
   const transferBudgetBytes = budgets.reduce((sum,box)=>sum+box.bytes+box.n*48,0);
   const fits = budgets.every(countOK)&&transferBudgetBytes<=snapshotMaxWireBytes;
@@ -93,11 +113,33 @@ async function planDatabase(db:D1Database) {
 }
 
 export async function assessDatabaseTransfer(db:D1Database) {
-  const {plans,budgets,wireBytes,transferBudgetBytes,fits}=await planDatabase(db);
-  return {fits,wireBytes,transferBudgetBytes,rowLimit:snapshotMaxRows,byteLimit:snapshotMaxWireBytes,
-    singleRowByteLimit:snapshotMaxRowBytes,countsCapped:budgets.some(b=>b.n>snapshotMaxRows),
-    tables:plans.map((table,i)=>({name:table.name,rows:budgets[i].n,wireBytes:budgets[i].bytes,largestRowBytes:budgets[i].largest,
-      countCapped:budgets[i].n>snapshotMaxRows}))};
+  const limits={rowLimit:snapshotMaxRows,byteLimit:snapshotMaxWireBytes,singleRowByteLimit:snapshotMaxRowBytes};
+  try {
+    const {plans,budgets,wireBytes,transferBudgetBytes,fits}=await planDatabase(db);
+    return {...limits,measurement:'wire_size',fits,wireBytes,transferBudgetBytes,
+      countsCapped:budgets.some(b=>b.n>snapshotMaxRows),
+      tables:plans.map((table,i)=>({name:table.name,rows:budgets[i].n,wireBytes:budgets[i].bytes,largestRowBytes:budgets[i].largest,
+        countCapped:budgets[i].n>snapshotMaxRows}))};
+  } catch(error) {
+    if(!(error instanceof SizingError)) throw error;
+    // This is explicitly a degraded aggregate report, never an approval to export.
+    // Scan only the known application inventory and at most limit+1 rows per table.
+    const catalog=resultsOf(await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all<{name:string}>());
+    const present=new Set(catalog.map(row=>row.name));
+    const tables=recoveryTables.filter(name=>present.has(name));
+    const missingApplicationTables=recoveryTables.filter(name=>!present.has(name));
+    const unknownApplicationTableCount=[...present].filter(name=>!allowedTables.has(name)&&
+      !platformNames.some(platform=>platform.toLowerCase()===name.toLowerCase())).length;
+    const outputs=await db.batch<{n:number}>(tables.map(name=>db.prepare(
+      `SELECT count(*) AS n FROM (SELECT 1 FROM ${ident(name)} LIMIT ${snapshotMaxRows+1})`,
+    )));
+    const counts=batchResults(outputs,tables.length).map(rows=>rows[0]?.n);
+    if(counts.some(n=>!Number.isSafeInteger(n)||n===undefined||n<0||n>snapshotMaxRows+1)) throw new Error('Incomplete fallback count');
+    return {...limits,measurement:'application_counts_only',sizingUnavailableAt:error.stage, fits:null,wireBytes:null,transferBudgetBytes:null,
+      expectedApplicationTableCount:recoveryTables.length,missingApplicationTables,unknownApplicationTableCount,
+      countsCapped:counts.some(n=>n>snapshotMaxRows),
+      tables:tables.map((name,i)=>({name,rows:counts[i],wireBytes:null,largestRowBytes:null,countCapped:counts[i]>snapshotMaxRows}))};
+  }
 }
 
 export async function captureDatabase(db:D1Database) {
