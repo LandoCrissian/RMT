@@ -1,7 +1,8 @@
 name: Refresh RMT market intelligence
 on:
+  schedule:
+    - cron: '17 * * * *'
   workflow_dispatch:
-# Add the hourly schedule only after a successful live provider coverage check.
 permissions:
   contents: read
   id-token: write
