@@ -40,6 +40,8 @@ export function recordSiteMetric(kind:EventKind,projectId='',detail=''){
       listening=true;window.addEventListener('pagehide',flush);
       document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flush();});
     }
-    if(!timer)timer=setTimeout(flush,120);
+    // Begin the keepalive request inside the user gesture before navigation can discard the page.
+    if(kind==='outbound'||kind==='share')flush();
+    else if(!timer)timer=setTimeout(flush,120);
   }catch{/* Storage or telemetry unavailable. */}
 }

@@ -37,13 +37,16 @@ export default function BuilderAnalytics({project,account,onBack}:{project:{id:s
   const [report,setReport]=useState<BuilderReport|null>(null),[error,setError]=useState('');
   useEffect(()=>{
     const controller=new AbortController();setReport(null);setError('');
+    const timer=window.setTimeout(()=>{
+      controller.abort();setError('This report took too long to load. Please try again.');
+    },30_000);
     const params=new URLSearchParams({period});
     fetch('/api/projects/'+encodeURIComponent(project.id)+'/analytics?'+params,{signal:controller.signal,cache:'no-store',credentials:'same-origin',headers:{'X-RMT-Account':account}})
       .then(readApiResponse).then(value=>{
         if(value.projectId!==project.id||value.period!==period||!Array.isArray(value.trend))throw Error('The analytics response was incomplete.');
         if(!controller.signal.aborted)setReport(value as BuilderReport);
-      }).catch(cause=>{if(!controller.signal.aborted)setError(cause instanceof Error?cause.message:'Analytics could not be loaded.');});
-    return ()=>controller.abort();
+      }).catch(cause=>{if(!controller.signal.aborted)setError(cause instanceof Error?cause.message:'Analytics could not be loaded.');}).finally(()=>window.clearTimeout(timer));
+    return ()=>{window.clearTimeout(timer);controller.abort();};
   },[project.id,account,period,sequence]);
   useEffect(()=>{
     function conceal(){setReport(null);}
