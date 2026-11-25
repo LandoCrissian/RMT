@@ -12,12 +12,12 @@ async function request(chain){
   return response.json();
 }
 const chainJob=shadow?null:request(true).then(r=>{
-  console.log('Chain shadow',JSON.stringify({status:r.status,provider:r.provider,from:r.from,through:r.through,finalized:r.finalized,indexed:r.indexed,cached:r.cached}));
+  console.log('Chain shadow',JSON.stringify({status:r.status,provider:r.provider,from:r.from,through:r.through,finalized:r.finalized,lagBlocks:r.lagBlocks,advanced:r.advanced,indexed:r.indexed,cached:r.cached}));
 }).catch(()=>console.log('Chain shadow unavailable; OpenSea result checked separately.'));
 let result;
 try{result=await request(shadow);}finally{await chainJob;}
 if(shadow){
-  console.log(JSON.stringify({status:result.status,provider:result.provider,from:result.from,through:result.through,finalized:result.finalized,indexed:result.indexed,cached:result.cached}));
+  console.log(JSON.stringify({status:result.status,provider:result.provider,from:result.from,through:result.through,finalized:result.finalized,lagBlocks:result.lagBlocks,advanced:result.advanced,indexed:result.indexed,cached:result.cached}));
   if(!['observed','recent'].includes(result.status))throw Error('Chain shadow indexing unavailable.');
   process.exit(0);
 }
