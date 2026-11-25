@@ -18,10 +18,15 @@ export function validTarget(value) {
   } catch {return null;}
 }
 export const publicAddress = address=>isIP(address)===4 && !reserved.check(address);
-async function readPublic(value,json=false,hops=0) {
+export async function readPublic(value,json=false,hops=0) {
   const u=validTarget(value);
   if (!u) throw Error('Invalid destination');
-  const records=await lookup(u.hostname,{family:4,all:true});
+  let lookupTimer;
+  let records;
+  try {
+    records=await Promise.race([lookup(u.hostname,{family:4,all:true}),
+      new Promise((_,reject)=>{lookupTimer=setTimeout(()=>reject(Error('DNS lookup timed out')),2500);})]);
+  } finally {clearTimeout(lookupTimer);}
   if (!records.length || !records.every(row=>publicAddress(row.address))) throw Error('Unavailable address');
   const bodyLimit=json ? 2_000_000 : 512_000;
   const response=await new Promise((resolve,reject)=>{

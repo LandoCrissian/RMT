@@ -10,7 +10,7 @@ export function projectCategoryLabels(project: Project): string[] {
   return [assignment.primary, ...assignment.secondary].map(id => assignment.labels[id]).filter(Boolean);
 }
 
-function matchesDirectoryCategory(project: Project, id: string): boolean {
+export function matchesDirectoryCategory(project: Project, id: string): boolean {
   const assignment = project.classification;
   if (assignment) return assignment.primary === id || assignment.secondary.includes(id);
   return projectMatchesCategory(project, legacyCategoryForId[id] ?? id);

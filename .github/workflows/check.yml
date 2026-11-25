@@ -45,3 +45,4 @@ jobs:
           PY
           curl --fail --silent "$RMT_TEST_ORIGIN/api/catalog" -o /dev/null
           node tests/browser/beginner-guide.mjs
+          node tests/browser/directory-filters.mjs

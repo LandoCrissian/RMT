@@ -39,7 +39,7 @@ const worker = {
       // A member can hide a profile at any time. Never retain profile HTML/RSC
       // or a missing-profile result in a browser or edge cache.
       const path=normalizedRoutePath(new URL(request.url).pathname);
-      if (path!=='/'&&!path.startsWith('/u/')&&!/^\/projects\/[A-Za-z0-9_-]+\/?$/.test(path)) return response;
+      if (path!=='/'&&path!=='/calendar'&&!path.startsWith('/events/')&&!path.startsWith('/u/')&&!/^\/projects\/[A-Za-z0-9_-]+\/?$/.test(path)) return response;
       const headers = new Headers(response.headers);
       headers.set('Cache-Control', 'no-store');
       headers.set('CDN-Cache-Control', 'no-store');

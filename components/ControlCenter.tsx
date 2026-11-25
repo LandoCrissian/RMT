@@ -4,6 +4,7 @@ import {Activity,ArrowUpRight,BarChart3,Bell,CheckCircle2,ChevronRight,Clipboard
 import {overviewResponse,type ControlCapability,type ControlOverview} from '@/lib/client/control';
 import {useControlApi,useControlResource} from '@/lib/client/use-control';
 import type {StudioSession} from './studio-shared';
+import ControlCalendar from './control-calendar';
 import ControlTaxonomy from './control-taxonomy';
 import ControlDiscovery from './control-discovery';
 import ControlMembers from './control-members';
@@ -13,13 +14,14 @@ import {ControlAnalytics,ControlAppearance,ControlSystem} from './control-site';
 import {ConfirmDialog,ErrorPanel,Loading,PanelHeading,RefreshButton,RoleBadge,StatCard,controlDate} from './control-primitives';
 import './control-center.css';
 
-type Section='taxonomy'|'overview'|'members'|'projects'|'content'|'analytics'|'settings'|'discovery'|'roles'|'audit'|'health';
+type Section='calendar'|'taxonomy'|'overview'|'members'|'projects'|'content'|'analytics'|'settings'|'discovery'|'roles'|'audit'|'health';
 type Props={spotlights:{id:string;name:string}[];session:StudioSession;onToast:(message:string)=>void;onRetrySession?:()=>void;onReview:()=>void;onProject?:(id:string)=>void};
 const sections:{id:Section;label:string;capability:ControlCapability;icon:typeof Users}[]=[
   {id:'overview',label:'Overview',capability:'overview',icon:LayoutDashboard},
   {id:'members',label:'People',capability:'members',icon:Users},
   {id:'projects',label:'Projects',capability:'projects',icon:FolderKanban},
   {id:'content',label:'Content',capability:'content',icon:ClipboardCheck},
+  {id:'calendar',label:'Calendar',capability:'review',icon:Clock3},
   {id:'taxonomy',label:'Categories',capability:'projects',icon:FolderKanban},
   {id:'analytics',label:'Insights',capability:'health',icon:BarChart3},
   {id:'discovery',label:'Discovery',capability:'settings',icon:Radio},
@@ -50,6 +52,7 @@ function ControlWorkspace({spotlights,session,onToast,onRetrySession,onReview}:P
         {section==='members'&&capabilities.includes('members')&&<ControlMembers api={api} onToast={onToast} onReview={onReview}/>}
         {section==='projects'&&capabilities.includes('projects')&&<ControlProjects spotlights={spotlights} api={api} onToast={onToast} onReview={onReview} onDirty={setDirty}/>}
         {section==='content'&&capabilities.includes('content')&&<ControlContent api={api} onToast={onToast}/>}
+        {section==='calendar'&&capabilities.includes('review')&&<ControlCalendar api={api}/>}
         {section==='taxonomy'&&capabilities.includes('projects')&&<ControlTaxonomy api={api}/>}
         {section==='analytics'&&capabilities.includes('health')&&<ControlAnalytics api={api}/>}
         {section==='discovery'&&capabilities.includes('settings')&&<ControlDiscovery api={api} onToast={onToast} onDirty={setDirty}/>}

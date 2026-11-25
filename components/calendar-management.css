@@ -1,0 +1,15 @@
+.calendar-management{display:grid;gap:1rem;min-width:0}
+.calendar-management>button{justify-self:start}
+.calendar-management article{min-width:0;overflow-wrap:anywhere}
+.calendar-management article+article{border-top:1px solid var(--line,#303a31);padding-top:1rem;margin-top:1rem}
+.calendar-fields{display:grid;gap:.9rem;min-width:0;border:0;padding:0}
+.calendar-management label{display:grid;gap:.35rem;min-width:0}
+.calendar-management label:has(>input[type=checkbox]){display:flex;align-items:center;gap:.5rem}
+.calendar-management input:not([type=checkbox]),.calendar-management textarea,.calendar-management select{box-sizing:border-box;width:100%;max-width:100%;min-width:0}
+.calendar-management summary{cursor:pointer;font-weight:650}
+.calendar-management details[open]>summary{margin-bottom:.8rem}
+.calendar-stats,.calendar-actions{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
+.calendar-stats{margin:0}.calendar-stats>div{flex:1;min-width:5rem}.calendar-stats dd{font-size:1.4rem;font-weight:700;margin:0}
+.calendar-management .up-owned-actions{flex-wrap:wrap}
+@media(max-width:540px){.calendar-fields .st-fields-two{grid-template-columns:minmax(0,1fr)}}
+

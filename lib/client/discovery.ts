@@ -4,6 +4,7 @@ import type {ActivityPage} from '../activity';
 export type DiscoveryView = 'for-you' | 'following' | 'all' | 'notifications';
 export type Lesson = {title: string; body: string};
 export type DiscoveryPage = ActivityPage & {
+  calendarEvents?: {id:string; title:string; projectName:string; startsAt:number}[];
   member: boolean; interests: string[]; categories: string[]; categoryLabels:Record<string,string>; lessons: Lesson[];
   recommendedProjects: {id: string; name: string}[]; notificationsEnabled: boolean;
   readIds: string[]; unreadCount: number;
@@ -37,7 +38,10 @@ export async function readDiscovery(query: URLSearchParams, account: string | nu
     if(typeof label!=='string'||!label.trim())throw Error('The discovery categories could not be verified.');
     return [id,label];
   }));
-  return {...feed, categoryLabels, member:body.member, interests:body.interests, categories:body.categories, lessons:body.lessons,
+  const events=body.calendarEvents;
+  if(events!==undefined && (!Array.isArray(events)||events.length>3||events.some(e=>!isRecord(e)||typeof e.id!=='string'||!e.id||typeof e.title!=='string'||typeof e.projectName!=='string'||!Number.isSafeInteger(e.startsAt))))
+    throw Error('The calendar response could not be verified.');
+  return {...feed,...(events?{calendarEvents:events as DiscoveryPage['calendarEvents']}:{}), categoryLabels, member:body.member, interests:body.interests, categories:body.categories, lessons:body.lessons,
     recommendedProjects:body.recommendedProjects, notificationsEnabled:body.notificationsEnabled, readIds:body.readIds, unreadCount:body.unreadCount};
 }
 

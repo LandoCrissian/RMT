@@ -16,6 +16,12 @@ The workflow produces a review artifact for changed suggestions. To preview a re
 
 An approved community listing immediately gets a card with its public name and the RMT mark. The next scheduled source review picks up eligible public listings and records same-origin raster logo and share-image suggestions from the approved homepage. Reviewers can upload approved artwork through Control Center or include reviewed static assets in a release. Static community artwork is bound to its listing ID, slug and approved website in `lib/reviewed-community-artwork.json`. APEX Rising’s hero, shield and share card come from the source URLs in that record. Existing moderation, administrators’ artwork settings and approved builder uploads retain precedence.
 
+### Calendar suggestions
+
+The same weekly workflow collects upcoming and ongoing events into the separate `calendar-suggestions` artifact. Sources must be approved first-party pages with a named event, an explicit time and timezone, a description and an official destination. The collector recognizes scheduled Schema.org Event records and the explicit UTC season window on APEX Rising's official season page. It omits tentative dates, undated roadmaps, ambiguous repeated events, cancelled schedules and expired events. It never signs into project sites or uses paid data feeds.
+
+Run `node scripts/collect-calendar-suggestions.mjs calendar-suggestions.json` for a fresh file. In Control Center → Calendar, import this file, check the original source link and entry requirements, then send a reviewed suggestion into moderation. A suggestion cannot appear on the public calendar until an administrator approves it. The project and source identity stay attached to the reviewed draft.
+
 ## Release 22 research
 
 | Project | Automatically collected and reviewed | Source-grounded editorial selection |

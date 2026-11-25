@@ -41,3 +41,11 @@ jobs:
         with:
           path: source-review.json
           key: source-review-v1-${{ hashFiles('source-review.json') }}
+      - name: Look for dated official events
+        run: node scripts/collect-calendar-suggestions.mjs calendar-suggestions.json
+      - name: Retain unpublished calendar suggestions
+        uses: actions/upload-artifact@v4
+        with:
+          name: calendar-suggestions
+          path: calendar-suggestions.json
+          retention-days: 14

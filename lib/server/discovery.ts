@@ -1,5 +1,6 @@
 import {validateActivityPage} from '@/lib/activity';
 import {InputError} from '@/lib/submission-validation';
+import {discoveryEvents} from './calendar';
 import {publicActivity} from './activity';
 import {catalog} from './repository';
 import {legacyPrimary} from '@/lib/taxonomy';
@@ -44,7 +45,9 @@ export async function discovery(db:D1Database,url:URL,user:string|null){
   const readIds=view==='notifications'&&user&&result.items.length?(await db.prepare(
     'SELECT update_id FROM discovery_reads WHERE user_id=? AND update_id IN (SELECT value FROM json_each(?))'
     ).bind(user,JSON.stringify(result.items.map(i=>i.updateId))).all<{update_id:string}>()).results.map(r=>r.update_id):[];
-  return {...base,...result,readIds,unreadCount:unread?.n??0,recommendedProjects:recommendations.map(({id,name})=>({id,name}))};
+  const showEvents=!page.cursor && ['all','event'].includes(page.kind) && (view!=='notifications'||enabled);
+  const calendarEvents=showEvents?await discoveryEvents(db,view==='notifications'?projects:matches,view==='notifications'?user:null):[];
+  return {...base,...result,...(calendarEvents.length?{calendarEvents}:{}),readIds,unreadCount:unread?.n??0,recommendedProjects:recommendations.map(({id,name})=>({id,name}))};
 }
 
 export async function changeDiscovery(db:D1Database,user:string,value:unknown){

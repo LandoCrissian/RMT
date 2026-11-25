@@ -15,6 +15,7 @@ import { discoverProjects, recentProjects, type DirectorySort } from '@/lib/proj
 import { projectPath, projectShareUrl, projectSocialImagePath, projectXIntentUrl } from '@/lib/project-sharing';
 import {ProjectFollow,FollowingLibrary} from './Following';
 import './following.css';
+import DirectoryFilters from './DirectoryFilters';
 import ProjectSpotlights from './ProjectSpotlights';
 import {orderedSpotlights} from '@/lib/spotlight';
 import thumbnails from '@/lib/project-thumbnails.json';
@@ -475,9 +476,6 @@ export default function Hub({ initialProjectId, initialProjects = [], initialCat
   const sectionCategory = categorySections[section];
   const activeCategories = sectionCategory ? [sectionCategory] : categoryOptions.filter(item => categoryIds.includes(item.id)).map(item => item.id);
   const scopeNames = activeCategories.map(id => catalogCategories.find(item => item.id === id)?.name ?? id).join(' or ');
-  function toggleCategory(id: string) {
-    setCategoryIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current,id]);
-  }
   const hasSearch = normalizeProjectQuery(query).length > 0;
   const DirectoryHeading = hasSearch ? 'h1' : 'h2';
   const directoryKey = [section, activeCategories.join(','), normalizeProjectQuery(query), directorySort].join('|');
@@ -567,6 +565,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialCat
           <Icon size={19} strokeWidth={1.8} /><span>{label}</span>
           {id === 'library' && savedProjects.length > 0 && <span className="nav-count">{savedProjects.length}</span>}
         </button>)}
+        <a className="nav-item" href="/calendar"><Compass size={19} strokeWidth={1.8}/><span>Ecosystem calendar</span></a>
         <button className={'nav-item ' + (section === 'account' || section === 'profile' ? 'nav-active' : '')} onClick={() => go('account')} aria-current={section === 'account' || section === 'profile' ? 'page' : undefined}><UserRound size={19} strokeWidth={1.8} /><span>My account</span></button>
       </nav>
       <div className="nav-divider" />
@@ -624,10 +623,7 @@ export default function Hub({ initialProjectId, initialProjects = [], initialCat
           <section ref={directoryRef} className="directory-section discovery-directory" aria-labelledby="directory-heading">
             <div className="section-heading"><div><DirectoryHeading id="directory-heading" className="directory-heading" tabIndex={-1}>{hasSearch ? 'Search results' : section === 'library' ? 'Saved by you' : section === 'discover' ? 'Project directory' : scopeNames}<span className="count-pill">{page.total}</span></DirectoryHeading>{!hasSearch && <p>{section === 'library' ? (library.status !== 'ready' ? 'Your library will appear when the connection is checked.' : library.isCloud ? 'Your favorites are connected to your RMT account.' : library.storageAvailable ? 'Favorites saved while signed out stay on this device.' : 'Browser storage is unavailable. Favorites last for this visit.') : 'Find your people. Open something new.'}</p>}</div></div>
             <div className="browse-toolbar">
-              {['discover', 'library'].includes(section) && <div className="category-tabs browse-categories" role="group" aria-label="Filter by any selected category">
-                <button type="button" className={!activeCategories.length ? 'tab-active' : ''} aria-pressed={!activeCategories.length} onClick={() => setCategoryIds([])}>All projects</button>
-                {categoryOptions.map(item => <button type="button" key={item.id} className={activeCategories.includes(item.id) ? 'tab-active' : ''} aria-pressed={activeCategories.includes(item.id)} onClick={() => toggleCategory(item.id)}>{item.name}</button>)}
-              </div>}
+              {['discover', 'library'].includes(section) && <DirectoryFilters categories={categoryOptions} selected={activeCategories} onApply={setCategoryIds} projects={projects} query={query} savedIds={section==='library'?saved:undefined}/>}
               <div className="browse-controls"><span className="browse-result-range" aria-live="polite" aria-atomic="true">{page.total ? `${page.start}–${page.end} of ${page.total} projects` : 'No projects in this view'}</span><div className="browse-options"><label className="browse-sort"><ListFilter size={14} /><span className="sr-only">Sort projects</span><select aria-label="Sort projects" value={directorySort} onChange={event => setDirectorySort(event.target.value as DirectorySort)}><option value="name">Name A–Z</option><option value="recent">Newest on RMT</option></select><ChevronDown size={13} /></label><div className="view-switch" role="group" aria-label="Project layout"><button type="button" className={directoryView === 'grid' ? 'view-active' : ''} aria-label="Grid view" aria-pressed={directoryView === 'grid'} onClick={() => changeDirectoryView('grid')}><Grid2X2 size={17} /></button><button type="button" className={directoryView === 'list' ? 'view-active' : ''} aria-label="List view" aria-pressed={directoryView === 'list'} onClick={() => changeDirectoryView('list')}><List size={18} /></button></div></div></div>
             </div>
             {hasSearch && (section !== 'library' || library.status === 'ready') && <div className="search-feedback"><div role="status" aria-live="polite" aria-atomic="true"><p><strong>{page.total} {page.total === 1 ? 'result' : 'results'}</strong> for “{query.trim()}” in <strong>{searchScope}</strong>.</p>{matchesOutsideScope > 0 && <span>{matchesOutsideScope} more {matchesOutsideScope === 1 ? 'match is' : 'matches are'} outside this view.</span>}</div>{isSearchScoped && page.total > 0 && <button type="button" onClick={searchAllProjects}>Search all projects <ArrowRight size={14} /></button>}</div>}

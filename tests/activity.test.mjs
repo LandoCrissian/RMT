@@ -250,3 +250,42 @@ test('legacy editorial interest choices survive taxonomy migration and continue 
   await assert.rejects(api.changeDiscovery(db,'member',{action:'interests',interests:['nft']}),e=>e.status===400);
   await assert.rejects(api.changeDiscovery(db,'member',{action:'interests',interests:['Games','gaming']}),e=>e.status===400);
 });
+
+test('upcoming events respect discovery scopes, legacy pagination, saved reminders and moderation',async t=>{
+  const db=database(t);
+  owner(db);update(db,"past-update-one");update(db,"past-update-two");
+  const now=Date.now();
+  function event(id,project,delta,status='published',hasPublished=true){
+    insert(db,'calendar_events',{id,project_id:project,type_id:'community',status,revision:1,
+      published:hasPublished?JSON.stringify({title:id,startsAt:now+delta}):null,draft:'{"title":"private draft"}',
+      actor:'fixture',created_at:now,updated_at:now,published_at:hasPublished?now:null});
+  }
+  event('due-followed','vamps',3_600_000);
+  event('due-saved','lammbs',1_800_000);
+  event('too-early','lammbs',172_800_000);
+  event('over','vamps',-100_000);
+  event('cancelled','lammbs',1,'cancelled');
+  event('hidden','ccff00',1000);
+  event('pending','vamps',2,'pending',false);
+  db.raw.prepare("INSERT INTO project_controls(project_id,source,visibility,revision,created_at,updated_at) VALUES ('ccff00','existing','hidden',1,?,?)").run(now,now);
+  insert(db,'project_follows',{project_id:'vamps',user_id:'fan',followed_at:now});
+  await api.changeDiscovery(db,'reader',{action:'interests',interests:['communities']});
+  for(const id of ['due-saved','too-early','cancelled','hidden'])insert(db,'calendar_members',{event_id:id,user_id:'fan',reminder:1});
+  insert(db,'calendar_members',{event_id:'due-followed',user_id:'fan',reminder:0});
+  const feed=(view,user=null,query='')=>api.discovery(db,new URL('https://rmt.dev/api/discovery?view='+view+query),user);
+  const ids=page=>(page.calendarEvents??[]).map(e=>e.id);
+  const first=await feed('all',null,'&limit=1');
+  assert.deepEqual(ids(first),['due-saved','due-followed','too-early']);
+  assert.deepEqual(ids(await feed('following','fan')),['due-followed']);
+  assert.deepEqual(ids(await feed('for-you','fan')),['due-followed']);
+  assert.ok(ids(await feed('for-you','reader')).includes('due-saved'));
+  assert.deepEqual(ids(await feed('all',null,'&kind=announcement')),[]);
+  assert.ok(first.nextCursor);
+  const older=await feed('all',null,'&limit=1&cursor='+first.nextCursor);
+  assert.deepEqual(ids(older),[]);assert.notEqual(older.items[0].id,first.items[0].id);
+  assert.deepEqual(ids(await feed('notifications','fan')),['due-saved']);
+  assert.deepEqual(ids(await feed('notifications','reader')),[]);
+  assert.equal(JSON.stringify(first).includes('private draft'),false);
+  await api.changeDiscovery(db,'fan',{action:'notifications',enabled:false});
+  assert.deepEqual(ids(await feed('notifications','fan')),[]);
+});
