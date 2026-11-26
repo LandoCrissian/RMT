@@ -11,6 +11,15 @@ async function request(chain,operation){
   if(!response.ok)throw Error('Market collector failed (HTTP '+response.status+').');
   return response.json();
 }
+if(process.argv.includes('--nft-discovery-shadow')){
+  const result=await request(false,'nft-discovery-shadow');
+  console.log('NFT discovery',JSON.stringify(result));
+  if(result.status==='disabled')process.exit(0);
+  if(!['observed','recent','concurrent'].includes(result.status)||Object.values(result.lanes??{}).some(lane=>lane.status==='unavailable')){
+    throw Error('NFT discovery coverage could not be verified.');
+  }
+  process.exit(0);
+}
 const chainJob=shadow?null:request(true).then(r=>{
   console.log('Chain shadow',JSON.stringify({status:r.status,provider:r.provider,from:r.from,through:r.through,finalized:r.finalized,lagBlocks:r.lagBlocks,advanced:r.advanced,indexed:r.indexed,cached:r.cached}));
 }).catch(()=>console.log('Chain shadow unavailable; OpenSea result checked separately.'));
