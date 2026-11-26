@@ -12,6 +12,14 @@ async function request(chain,operation){
   return response.json();
 }
 if(process.argv.includes('--nft-discovery-shadow')){
+  // Enrichment shares the OpenSea cooldown and a persistent slot across all writers.
+  // Run it separately so a saturated chain scan cannot cancel the provider check.
+  try {
+    const enrichment=await request(false,'nft-radar-enrichment');
+    console.log('Radar enrichment',JSON.stringify({status:enrichment.status,queue:enrichment.queue}));
+  }catch(error){
+    console.warn('Radar enrichment did not complete; finalized discovery will still run.',error instanceof Error?error.message:'unavailable');
+  }
   const limit=process.env.RMT_DISCOVERY_CATCH_UP==='true'?8:3;
   const deadline=Date.now()+150_000;
   let previousProgress='', degraded=false;
