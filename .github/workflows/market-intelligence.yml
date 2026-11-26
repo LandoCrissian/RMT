@@ -28,3 +28,16 @@ jobs:
       - name: Advance chain shadow only
         if: github.event.schedule == '2,32,47 * * * *'
         run: node scripts/refresh-market-intelligence.mjs --chain-shadow
+  nft-discovery:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Scan finalized Robinhood NFT activity and reconcile Mint Radar
+        run: node scripts/refresh-market-intelligence.mjs --nft-discovery-shadow
