@@ -7,7 +7,7 @@ const token=(await identity.json()).value;
 const shadow=process.argv.includes('--chain-shadow');
 async function request(chain,operation){
   const response=await fetch(endpoint,{method:'POST',redirect:'error',headers:{authorization:'Bearer '+token,
-    ...(operation?{'x-rmt-market-operation':operation}:chain?{'x-rmt-market-operation':'chain-shadow'}:{})},signal:AbortSignal.timeout(operation?45_000:chain?85_000:180_000)});
+    ...(operation?{'x-rmt-market-operation':operation}:chain?{'x-rmt-market-operation':'chain-shadow'}:{})},signal:AbortSignal.timeout(operation==='nft-discovery-shadow'?105_000:operation?45_000:chain?85_000:180_000)});
   if(!response.ok)throw Error('Market collector failed (HTTP '+response.status+').');
   return response.json();
 }
