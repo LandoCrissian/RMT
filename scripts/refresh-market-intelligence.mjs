@@ -25,6 +25,7 @@ if(process.argv.includes('--nft-discovery-shadow')){
     const backfill=result.lanes?.backfill;
     if(!backfill?.remaining||backfill.through<=previousThrough||Date.now()>=deadline)break;
     previousThrough=backfill.through;
+    if(pass+1<limit)await new Promise(resolve=>setTimeout(resolve,10_000));
   }
   process.exit(0);
 }
