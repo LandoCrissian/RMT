@@ -12,11 +12,19 @@ async function request(chain,operation){
   return response.json();
 }
 if(process.argv.includes('--nft-discovery-shadow')){
-  const result=await request(false,'nft-discovery-shadow');
-  console.log('NFT discovery',JSON.stringify(result));
-  if(result.status==='disabled')process.exit(0);
-  if(!['observed','recent','concurrent'].includes(result.status)||Object.values(result.lanes??{}).some(lane=>lane.status==='unavailable')){
-    throw Error('NFT discovery coverage could not be verified.');
+  const limit=process.env.RMT_DISCOVERY_CATCH_UP==='true'?8:1;
+  const deadline=Date.now()+150_000;
+  let previousThrough=-1;
+  for(let pass=0;pass<limit;pass++){
+    const result=await request(false,'nft-discovery-shadow');
+    console.log('NFT discovery',JSON.stringify(result));
+    if(result.status==='disabled')break;
+    if(!['observed','recent','concurrent'].includes(result.status)||Object.values(result.lanes??{}).some(lane=>lane.status==='unavailable')){
+      throw Error('NFT discovery coverage could not be verified.');
+    }
+    const backfill=result.lanes?.backfill;
+    if(!backfill?.remaining||backfill.through<=previousThrough||Date.now()>=deadline)break;
+    previousThrough=backfill.through;
   }
   process.exit(0);
 }
