@@ -4,6 +4,11 @@ on:
     - cron: '17 * * * *'
     - cron: '2,32,47 * * * *'
   workflow_dispatch:
+    inputs:
+      discovery_only:
+        description: Run only finalized NFT discovery
+        type: boolean
+        default: false
 permissions:
   contents: read
   id-token: write
@@ -12,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   refresh:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && !inputs.discovery_only
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
