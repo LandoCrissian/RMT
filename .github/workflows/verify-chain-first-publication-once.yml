@@ -1,0 +1,18 @@
+name: Verify chain-first project publication once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/verify-chain-first-publication-once.yml']
+permissions: {}
+jobs:
+  dispatch:
+    if: github.event.created == false && github.event.deleted == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch existing signed discovery collector
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST repos/LandoCrissian/RMT/actions/workflows/430897210/dispatches --input - <<<'{"ref":"main","inputs":{"discovery_only":"true"}}'
