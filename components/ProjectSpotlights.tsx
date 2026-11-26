@@ -6,6 +6,8 @@ import {ArrowUpRight, Bookmark, Check, ChevronLeft, ChevronRight} from 'lucide-r
 import type {Project} from '@/lib/catalog';
 import {spotlightFor, spotlightImage} from '@/lib/spotlight';
 import './spotlight.css';
+import {projectPath} from '@/lib/project-sharing';
+import {followPublicLink} from './public-link';
 
 type Props = {
   projects: Project[];
@@ -48,7 +50,7 @@ export default function ProjectSpotlights({projects, saved, canSave, onOpen, onS
               <h2>{settings.headline}</h2>
               <p>{settings.description}</p>
               <div className="spot-actions">
-                <button type="button" className="button button-lime hero-project-trigger" onClick={() => onOpen(project)} aria-haspopup="dialog">{settings.cta} <ArrowUpRight size={17}/></button>
+                <a className="button button-lime hero-project-trigger" href={projectPath(project)} onClick={event => followPublicLink(event, () => onOpen(project))}>{settings.cta} <ArrowUpRight size={17}/></a>
                 <button type="button" className={'button hero-save' + (bookmarked ? ' is-saved' : '')} disabled={!canSave} aria-pressed={bookmarked}
                   aria-label={(bookmarked ? 'Remove ' : 'Save ') + project.name + (bookmarked ? ' from library' : ' to library')} onClick={() => onSave(project)}>
                   {bookmarked ? <Check size={17}/> : <Bookmark size={17}/>}

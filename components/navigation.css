@@ -1,3 +1,26 @@
 /* Keep every destination reachable on short screens as navigation grows. */
 .hub .sidebar{overflow-y:auto}
 .hub .mobile-bottom button{min-height:44px}
+
+/* Hide the hub's scrollbar chrome without changing either scroll container. */
+html:has(.hub),
+.hub .sidebar {
+  scrollbar-width: none;
+}
+
+html:has(.hub)::-webkit-scrollbar,
+.hub .sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (forced-colors: active) {
+  html:has(.hub),
+  .hub .sidebar {
+    scrollbar-width: auto;
+  }
+
+  html:has(.hub)::-webkit-scrollbar,
+  .hub .sidebar::-webkit-scrollbar {
+    display: revert;
+  }
+}

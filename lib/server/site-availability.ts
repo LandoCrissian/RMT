@@ -9,7 +9,7 @@ export function normalizedRoutePath(path:string){
 export function maintenanceProtectedPath(path:string,method:string){
   path=normalizedRoutePath(path);
   if(path==='/'||path==='/api/session'||path==='/api/site-settings'||path==='/mcp'||path.startsWith('/api/auth/')||path.startsWith('/api/control/')||path.startsWith('/api/admin/'))return false;
-  return path==='/calendar'||path.startsWith('/events/')||path.startsWith('/api/')||path.startsWith('/media/')||/^\/(?:projects|u)\/[A-Za-z0-9_-]+\/?$/.test(path);
+  return path==='/calendar'||path==='/guide'||path==='/sitemap.xml'||/^\/lammb-vault(?:\/|$)/.test(path)||path.startsWith('/events/')||path.startsWith('/api/')||path.startsWith('/media/')||/^\/(?:projects|u)\/[A-Za-z0-9_-]+\/?$/.test(path);
 }
 export async function maintenanceResponse(request:Request,db:D1Database):Promise<Response|null>{
   const rawPath=new URL(request.url).pathname;

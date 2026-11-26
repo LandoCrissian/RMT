@@ -49,3 +49,6 @@ yarn-error.log*
 
 # Temporary responsive-layout fixtures
 /public/_qa/
+
+# Recovery artifacts are private and must stay outside source control.
+*.rmtenc

@@ -2,6 +2,7 @@
 
 import {useEffect,useLayoutEffect,useId,useRef,useState,type ReactNode} from 'react';
 import {ArrowLeft,ArrowRight,BookOpen,X} from 'lucide-react';
+import {followPublicLink} from './public-link';
 
 type Progress={index:number;status:'reading'|'dismissed'|'skipped'|'completed'};
 const beginning:Progress={index:0,status:'reading'};
@@ -24,7 +25,7 @@ export default function DiscoveryGuide({account,items,error,onOpen,onOutcome,com
   const key='rmt.guide.v1.'+(account?'member.'+account:'guest');
   const [progress,setProgress]=useState<Progress>(beginning);
   const [opened,setOpened]=useState(false),[finished,setFinished]=useState(false);
-  const trigger=useRef<HTMLButtonElement>(null),dialog=useRef<HTMLDialogElement>(null);
+  const trigger=useRef<HTMLAnchorElement>(null),dialog=useRef<HTMLDialogElement>(null);
   const heading=useRef<HTMLHeadingElement>(null),position=useRef({x:0,y:0});
   const titleId=useId(),dialogId=useId();
   const index=Math.min(progress.index,Math.max(0,items.length-1)),lesson=items[index];
@@ -67,12 +68,12 @@ export default function DiscoveryGuide({account,items,error,onOpen,onOutcome,com
     if(completion)setFinished(true);else setOpened(false);
   }
   return <section className="discovery-guide" aria-label="Beginner guide">
-    <button className="guide-entry-button" type="button" ref={trigger} onClick={open}
+    <a className="guide-entry-button" href="/guide" ref={trigger} onClick={event => followPublicLink(event, open)}
       aria-haspopup="dialog" aria-controls={dialogId} aria-expanded={opened}>
       <BookOpen size={18} aria-hidden="true"/><span>Beginner guide</span>
       {progress.status==='completed'?<span className="sr-only">Review completed guide</span>:progress.index>0?<span className="sr-only">Resume lesson {progress.index+1}</span>:null}
       <ArrowRight size={15} aria-hidden="true"/>
-    </button>
+    </a>
     {opened&&<dialog className="guide-dialog" id={dialogId} ref={dialog} aria-labelledby={titleId}
       onCancel={event=>{event.preventDefault();close();}}>
       <div className="guide-shell"><header><span><BookOpen size={18}/> Beginner guide</span>

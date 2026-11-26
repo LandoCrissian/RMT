@@ -1,0 +1,58 @@
+.lv-shell{--lv-lime:#d5f99d;--lv-ink:#10130d;--lv-muted:#aeb5a5;--lv-line:#353c30;--lv-panel:#181d17;width:min(1140px,calc(100% - 48px));margin:0 auto;padding-bottom:42px;color:#f4f6ed}
+.lv-shell a:not(.lv-btn,.lv-brand){color:var(--lv-lime);text-underline-offset:4px}
+.lv-top{min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.lv-top a:last-child,.lv-footer a,.lv-gate a:not(.lv-btn),.lv-ledger a,.lv-manager a:not(.lv-btn,.lv-brand){display:inline-flex;align-items:center;gap:7px;min-height:44px}
+.lv-brand{font-size:27px;letter-spacing:-.09em;font-weight:850;color:#f7f9f0;text-decoration:none}.lv-brand span{color:var(--lv-lime)}
+.lv-hero{position:relative;isolation:isolate;min-height:386px;display:flex;gap:24px;align-items:center;justify-content:space-between;padding:56px 52px;border-radius:24px;border:1px solid #4a5640;background:#151c14;overflow:hidden}
+.lv-hero::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(88deg,#141b12 12%,#11190eea 39%,#10170b4d 100%),url('/projects/lammb-skyline.webp') center 49%/cover no-repeat}
+.lv-eyebrow{font:700 12px/1.35 var(--font-body,system-ui);letter-spacing:.16em;text-transform:uppercase;color:var(--lv-lime);display:flex;align-items:center;gap:8px}
+.lv-eyebrow>span,.lv-status>span{display:block;width:8px;height:8px;border-radius:100%;background:currentColor;flex:none}
+.lv-hero h1{font-size:clamp(48px,8vw,106px);font-weight:800;line-height:.93;letter-spacing:-.085em;margin:16px 0 22px}
+.lv-hero em,.lv-seal em{font-style:normal;color:var(--lv-lime)}
+.lv-hero p,.lv-gate p,.lv-public>p,.lv-member>p,.lv-plan p,.lv-manager p{color:var(--lv-muted);font-size:15px;margin:0 0 16px;max-width:65ch}
+.lv-hero p{font-size:clamp(16px,2.1vw,20px);max-width:37ch;color:#e0e7d9}
+.lv-hero-actions,.lv-inline{display:flex;gap:10px;flex-wrap:wrap}
+.lv-hero-actions{margin-top:25px}
+.lv-btn{display:inline-flex;gap:8px;align-items:center;justify-content:center;padding:10px 16px;min-height:44px;border:1px solid #63705b;border-radius:9px;color:#f7f9ee;background:#343d32;text-decoration:none;cursor:pointer;font-weight:720;font-size:14px;line-height:1.25}
+.lv-btn.primary{background:var(--lv-lime);border-color:var(--lv-lime);color:var(--lv-ink)}
+.lv-btn:not(:disabled):hover{border-color:#f0ffde;filter:brightness(1.09)}.lv-btn:disabled{opacity:.48;cursor:not-allowed}
+.lv-shell :focus-visible{outline:2px solid var(--lv-lime);outline-offset:4px}
+.lv-seal{flex:0 0 165px;width:165px;height:165px;border:1px solid #d5f99db3;box-shadow:0 0 0 8px #162112a6,0 0 36px #111a0d;background:#12190fd9;border-radius:50%;display:grid;place-content:center;text-align:center;transform:rotate(7deg);margin-right:12px}
+.lv-seal span{font-size:11px;letter-spacing:.16em;color:var(--lv-lime);font-weight:750}
+.lv-seal strong{font-size:65px;line-height:1.05;font-weight:800;letter-spacing:-.07em}
+.lv-gate,.lv-plan{display:grid;grid-template-columns:1.15fr 1fr;align-items:center;gap:28px;padding:28px 32px;border:1px solid var(--lv-line);border-radius:18px;background:var(--lv-panel);margin-top:26px}
+.lv-gate,.lv-public{scroll-margin-top:16px}
+.lv-shell h2,.lv-manager h1{font-size:clamp(26px,3.65vw,44px);margin:8px 0;letter-spacing:-.055em;line-height:1.1}
+.lv-gate-action{min-width:0;background:#121612;border:1px solid #394338;border-radius:13px;min-height:135px;padding:18px 20px}
+.lv-field{display:grid;gap:5px;font-size:13px;font-weight:700;margin:0 0 12px;color:#ecf0e7}
+.lv-field :is(input,select){height:44px;min-width:0;width:100%;background:#101410;border-radius:7px;border:1px solid #657360;color:#fff;padding:0 12px;font-family:inherit;font-size:16px}
+.lv-check{display:flex;align-items:center;gap:9px;min-height:44px;margin-bottom:10px}.lv-check input{width:16px;height:16px;accent-color:var(--lv-lime)}
+.lv-status{display:inline-flex;align-items:center;gap:7px;font-weight:680;color:#dbdfad;font-size:13px;line-height:1.35;margin-bottom:8px}
+.lv-status.good{color:var(--lv-lime)}
+.lv-count{display:block;font-size:36px;letter-spacing:-.055em;line-height:1.15;margin:6px 0}.lv-count small{font-size:15px;color:var(--lv-muted);letter-spacing:normal}
+.lv-shell summary{cursor:pointer;color:var(--lv-lime);min-height:38px;display:list-item;padding-top:7px}
+.lv-shell pre{margin:0 0 12px;padding:10px;background:#1c241a;white-space:pre-wrap;overflow-wrap:anywhere;color:#dfe4d8;font-size:12px}
+.lv-shell .lv-error,.lv-shell .lv-notice{padding:11px 14px;border:1px solid #a67c6c;background:#2c231f;color:#ffdcce;border-radius:8px;margin:10px 0 0}
+.lv-shell .lv-notice{border-color:#587647;color:#daffcb;background:#1f2a18;margin:10px 0}
+.lv-public,.lv-member{margin:42px 0 32px}
+.lv-member{padding:30px 32px;border:1px solid #65804f;background:#171e14;border-radius:18px}
+.lv-public-grid,.lv-member-grid,.lv-manager-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.lv-member-grid,.lv-manager-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lv-card,.lv-ledger{padding:20px;border:1px solid var(--lv-line);border-radius:13px;background:#171b16;min-width:0}
+.lv-member .lv-card,.lv-ledger{background:#111710}
+.lv-card h3,.lv-ledger h3,.lv-manager .lv-card h2{font-size:16px;line-height:1.4;margin:0 0 12px;letter-spacing:-.02em;font-weight:750;color:#f1f5e9}
+.lv-card p,.lv-ledger p{margin:8px 0 0;color:var(--lv-muted);font-size:13px}
+.lv-card .lv-empty{font-size:15px;font-weight:650;color:#dce4d6}
+.lv-card .lv-metric{display:block;font-size:31px;letter-spacing:-.06em;line-height:1.2;margin-bottom:5px;color:var(--lv-lime)}
+.lv-long{display:inline-flex;align-items:center;gap:5px;max-width:100%;font:12px/1.5 ui-monospace,monospace;overflow-wrap:anywhere}.lv-long svg,.lv-ledger svg{flex-shrink:0}
+.lv-amounts,.lv-ledger ul,.lv-plan ol{list-style:none;margin:0;padding:0}
+.lv-amounts li{margin:3px 0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.lv-amounts strong{font-size:18px}.lv-amounts span{color:var(--lv-muted);font-size:12px}
+.lv-ledger{margin-top:14px}
+.lv-ledger li{border-top:1px solid var(--lv-line);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:12px;align-items:center;padding:4px 0;overflow-wrap:anywhere}
+.lv-ledger small{display:block;color:var(--lv-muted)}
+.lv-plan p{margin-bottom:0}.lv-plan li{position:relative;display:grid;grid-template-columns:52px 1fr;align-items:center;gap:8px;margin:0 0 7px;padding:6px 0 7px;border-bottom:2px solid #3a4534}
+.lv-plan li strong{color:var(--lv-lime);font-size:17px}.lv-plan li i{position:absolute;bottom:-2px;left:0;height:2px;background:var(--lv-lime);border-radius:2px}
+.lv-footer{display:flex;justify-content:space-between;margin-top:18px;gap:16px}
+.lv-manager header{margin:18px 0 22px}.lv-manager .lv-card>*{margin-bottom:11px}.lv-manager .lv-manager-grid{margin-top:16px}
+@media(max-width:800px){.lv-shell{width:calc(100% - 32px)}.lv-hero{padding:42px 28px;min-height:330px}.lv-seal{transform:scale(.8) rotate(7deg);transform-origin:right;margin:0}.lv-public-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.lv-gate,.lv-plan,.lv-member{padding:24px}}
+@media(max-width:590px){.lv-top{min-height:57px}.lv-shell{width:calc(100% - 24px)}.lv-hero{min-height:325px;padding:28px 19px;border-radius:16px}.lv-hero::before{background-image:linear-gradient(87deg,#151c13f0 11%,#141b11c9 61%,#141c0fa8 100%),url('/projects/lammb-skyline.webp')}.lv-seal{display:none}.lv-gate,.lv-plan,.lv-member{padding:18px;gap:11px}.lv-gate,.lv-plan,.lv-public-grid,.lv-member-grid,.lv-manager-grid{grid-template-columns:minmax(0,1fr)}.lv-card,.lv-ledger,.lv-gate-action{padding:14px}.lv-ledger li{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding-top:7px}.lv-ledger a{grid-column:2;justify-self:start}.lv-public,.lv-member{margin-top:31px}}
