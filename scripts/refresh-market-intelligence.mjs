@@ -14,20 +14,20 @@ async function request(chain,operation){
 if(process.argv.includes('--nft-discovery-shadow')){
   const limit=process.env.RMT_DISCOVERY_CATCH_UP==='true'?8:3;
   const deadline=Date.now()+150_000;
-  let previousProgress='';
+  let previousProgress='', degraded=false;
   for(let pass=0;pass<limit;pass++){
     const result=await request(false,'nft-discovery-shadow');
     console.log('NFT discovery',JSON.stringify(result));
     if(result.status==='disabled')break;
-    if(!['observed','recent','concurrent'].includes(result.status)||Object.values(result.lanes??{}).some(lane=>lane.status==='unavailable')){
-      throw Error('NFT discovery coverage could not be verified.');
-    }
+    if(!['observed','recent','concurrent'].includes(result.status))throw Error('NFT discovery coverage could not be verified.');
     const lanes=Object.values(result.lanes??{});
+    degraded=lanes.some(lane=>lane.status==='unavailable');
     const progress=lanes.map(lane=>lane.through).join(',');
-    if(!lanes.some(lane=>lane.remaining>0)||progress===previousProgress||Date.now()>=deadline)break;
+    if((!degraded&&!lanes.some(lane=>lane.remaining>0))||progress===previousProgress||Date.now()>=deadline)break;
     previousProgress=progress;
     if(pass+1<limit)await new Promise(resolve=>setTimeout(resolve,10_000));
   }
+  if(degraded)throw Error('At least one discovery lane remains unavailable after bounded catch-up.');
   process.exit(0);
 }
 const chainJob=shadow?null:request(true).then(r=>{
