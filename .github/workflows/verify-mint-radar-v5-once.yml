@@ -1,0 +1,18 @@
+name: Verify Mint Radar V5 once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/verify-mint-radar-v5-once.yml']
+permissions: {}
+jobs:
+  dispatch:
+    if: github.event.created == false && github.event.deleted == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch existing collector with bounded catch-up
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run market-intelligence.yml --repo LandoCrissian/RMT --ref main -f discovery_only=true -f historical_catch_up=true
