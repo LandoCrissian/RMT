@@ -9,6 +9,10 @@ on:
         description: Run only finalized NFT discovery
         type: boolean
         default: false
+      historical_catch_up:
+        description: Advance up to eight historical checkpoints in this dispatch
+        type: boolean
+        default: false
 permissions:
   contents: read
   id-token: write
@@ -45,4 +49,6 @@ jobs:
         with:
           node-version: '24'
       - name: Scan finalized Robinhood NFT activity and reconcile Mint Radar
+        env:
+          RMT_DISCOVERY_CATCH_UP: ${{ inputs.historical_catch_up && inputs.discovery_only }}
         run: node scripts/refresh-market-intelligence.mjs --nft-discovery-shadow
