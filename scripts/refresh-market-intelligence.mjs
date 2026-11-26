@@ -7,7 +7,7 @@ const token=(await identity.json()).value;
 const shadow=process.argv.includes('--chain-shadow');
 async function request(chain,operation){
   const response=await fetch(endpoint,{method:'POST',redirect:'error',headers:{authorization:'Bearer '+token,
-    ...(operation?{'x-rmt-market-operation':operation}:chain?{'x-rmt-market-operation':'chain-shadow'}:{})},signal:AbortSignal.timeout(operation==='nft-discovery-shadow'?105_000:operation?45_000:chain?85_000:180_000)});
+    ...(operation?{'x-rmt-market-operation':operation}:chain?{'x-rmt-market-operation':'chain-shadow'}:{})},signal:AbortSignal.timeout(['nft-discovery-shadow','nft-discovery-catchup'].includes(operation)?105_000:operation?45_000:chain?85_000:180_000)});
   if(!response.ok)throw Error('Market collector failed (HTTP '+response.status+').');
   return response.json();
 }
@@ -22,18 +22,23 @@ if(process.argv.includes('--nft-discovery-shadow')){
   }
   const limit=process.env.RMT_DISCOVERY_CATCH_UP==='true'?8:3;
   const deadline=Date.now()+150_000;
-  let previousProgress='', degraded=false;
+  let through=0, remaining=null, degraded=false;
   for(let pass=0;pass<limit;pass++){
-    const result=await request(false,'nft-discovery-shadow');
-    console.log('NFT discovery',JSON.stringify(result));
+    // Always publish on the first and final pass. In between, a deep mint
+    // backlog gets dedicated RPC budget without repeatedly screening projects.
+    const operation=pass>0&&pass+1<limit&&remaining!==null&&remaining>8192?'nft-discovery-catchup':'nft-discovery-shadow';
+    const result=await request(false,operation);
+    console.log(operation==='nft-discovery-catchup'?'NFT mint catch-up':'NFT discovery',JSON.stringify(result));
     if(result.status==='disabled')break;
-    if(!['observed','recent','concurrent'].includes(result.status))throw Error('NFT discovery coverage could not be verified.');
-    const lanes=Object.values(result.lanes??{});
-    degraded=lanes.some(lane=>lane.status==='unavailable');
-    const progress=lanes.map(lane=>lane.through).join(',');
-    if((!degraded&&!lanes.some(lane=>lane.remaining>0))||progress===previousProgress||Date.now()>=deadline)break;
-    previousProgress=progress;
-    if(pass+1<limit)await new Promise(resolve=>setTimeout(resolve,10_000));
+    if(!['observed','recent','concurrent','unavailable'].includes(result.status))throw Error('NFT discovery coverage could not be verified: '+result.status);
+    const mint=result.lanes?.mints;
+    degraded=result.status==='unavailable'||Object.values(result.lanes??{}).some(lane=>lane.status==='unavailable');
+    const progressed=Boolean(mint&&mint.through>through);
+    if(mint){through=Math.max(through,mint.through);remaining=mint.remaining;}
+    if(Date.now()>=deadline)break;
+    if(operation==='nft-discovery-shadow'&&!degraded&&mint?.remaining===0&&!Object.values(result.lanes??{}).some(lane=>lane.remaining>0))break;
+    if(!progressed&&pass>0&&operation==='nft-discovery-shadow'&&!degraded&&!Object.values(result.lanes??{}).some(lane=>lane.remaining>0))break;
+    if(pass+1<limit)await new Promise(resolve=>setTimeout(resolve,4500));
   }
   if(degraded)throw Error('At least one discovery lane remains unavailable after bounded catch-up.');
   process.exit(0);
