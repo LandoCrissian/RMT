@@ -12,9 +12,9 @@ async function request(chain,operation){
   return response.json();
 }
 if(process.argv.includes('--nft-discovery-shadow')){
-  const limit=process.env.RMT_DISCOVERY_CATCH_UP==='true'?8:1;
+  const limit=process.env.RMT_DISCOVERY_CATCH_UP==='true'?8:3;
   const deadline=Date.now()+150_000;
-  let previousThrough=-1;
+  let previousProgress='';
   for(let pass=0;pass<limit;pass++){
     const result=await request(false,'nft-discovery-shadow');
     console.log('NFT discovery',JSON.stringify(result));
@@ -22,9 +22,10 @@ if(process.argv.includes('--nft-discovery-shadow')){
     if(!['observed','recent','concurrent'].includes(result.status)||Object.values(result.lanes??{}).some(lane=>lane.status==='unavailable')){
       throw Error('NFT discovery coverage could not be verified.');
     }
-    const backfill=result.lanes?.backfill;
-    if(!backfill?.remaining||backfill.through<=previousThrough||Date.now()>=deadline)break;
-    previousThrough=backfill.through;
+    const lanes=Object.values(result.lanes??{});
+    const progress=lanes.map(lane=>lane.through).join(',');
+    if(!lanes.some(lane=>lane.remaining>0)||progress===previousProgress||Date.now()>=deadline)break;
+    previousProgress=progress;
     if(pass+1<limit)await new Promise(resolve=>setTimeout(resolve,10_000));
   }
   process.exit(0);
